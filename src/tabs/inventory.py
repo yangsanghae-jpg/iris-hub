@@ -46,6 +46,17 @@ def render() -> None:
 
     st.divider()
 
+    # K3 분류 진척
+    st.markdown("**🎯 K3 매트릭스 키 부여**")
+    c1, c2 = st.columns(2)
+    c1.metric("industry+area 부여 docs", f"{m.matrix_keyed} / {m.documents_total}")
+    if m.industry_dist:
+        with c2:
+            for k, n in sorted(m.industry_dist.items()):
+                st.write(f"- industry={k}: **{n}**")
+
+    st.divider()
+
     # 메타데이터
     st.markdown("**메타데이터**")
     c1, c2, c3 = st.columns(3)

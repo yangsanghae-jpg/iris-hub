@@ -21,6 +21,8 @@ class Measurements:
     kind_dist: dict[str, int] = field(default_factory=dict)
     origin_dist: dict[str, int] = field(default_factory=dict)
     lane_dist: dict[str, int] = field(default_factory=dict)
+    industry_dist: dict[str, int] = field(default_factory=dict)
+    matrix_keyed: int = 0       # industry+area 둘 다 NOT NULL인 docs 수
 
     chunks_total: int = 0
     fts_total: int = 0
@@ -92,6 +94,18 @@ def measure(db_path: Path | None = None) -> Measurements:
                 m.origin_dist = dist
             else:
                 m.lane_dist = dist
+
+        # K3 industry 분포 + matrix 키 부여된 doc 카운트
+        try:
+            rows = c.execute(
+                "SELECT industry as k, COUNT(*) as n FROM documents GROUP BY industry"
+            ).fetchall()
+            m.industry_dist = {(r["k"] or "(null)"): r["n"] for r in rows}
+            m.matrix_keyed = c.execute(
+                "SELECT COUNT(*) FROM documents WHERE industry IS NOT NULL AND area IS NOT NULL"
+            ).fetchone()[0]
+        except sqlite3.OperationalError:
+            pass
 
         for k, attr in (("last_ingest_raw_at", "last_ingest_raw"), ("last_ingest_reference_at", "last_ingest_ref")):
             row = c.execute("SELECT value FROM meta_kv WHERE key=?", (k,)).fetchone()
