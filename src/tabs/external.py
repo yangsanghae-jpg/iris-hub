@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import socket
+from urllib.request import Request, urlopen
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -26,16 +27,57 @@ def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
         return False
 
 
+def _iframe_blocked(url: str) -> bool:
+    """X-Frame-Options 또는 CSP frame-ancestors로 iframe 차단 여부."""
+    try:
+        req = Request(url, method="HEAD")
+        with urlopen(req, timeout=1.0) as resp:
+            headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        xfo = headers.get("x-frame-options", "")
+        if xfo in ("deny", "sameorigin"):
+            return True
+        csp = headers.get("content-security-policy", "")
+        if "frame-ancestors" in csp and ("'none'" in csp or "'self'" in csp):
+            return True
+        return False
+    except Exception:
+        # HEAD 실패 시 GET으로 한 번 더
+        try:
+            with urlopen(url, timeout=1.0) as resp:
+                headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+            xfo = headers.get("x-frame-options", "")
+            if xfo in ("deny", "sameorigin"):
+                return True
+            csp = headers.get("content-security-policy", "")
+            if "frame-ancestors" in csp and ("'none'" in csp or "'self'" in csp):
+                return True
+        except Exception:
+            pass
+        return False
+
+
 def _iframe_or_help(url: str, *, host: str, port: int, name: str, hint: str = "") -> None:
     alive = _port_alive(host, port)
-    if alive:
-        st.success(f"🟢 **{name}** — {host}:{port} 가동 중")
-        st.link_button("🔗 새 창", url, use_container_width=False)
-        components.iframe(url, height=900, scrolling=True)
-    else:
+    if not alive:
         st.error(f"🔴 **{name}** — {host}:{port} 미가동")
         if hint:
             st.code(hint, language="bash")
+        return
+
+    blocked = _iframe_blocked(url)
+    if blocked:
+        st.success(f"🟢 **{name}** — {host}:{port} 가동 중")
+        st.warning(
+            "🔒 본 서비스는 보안 정책상 iframe 임베드 차단 "
+            "(`X-Frame-Options: DENY` 또는 CSP `frame-ancestors 'none'`). "
+            "**새 창에서 열기**로 접근하세요."
+        )
+        st.link_button(f"🔗 {name} 새 창", url, use_container_width=False)
+        return
+
+    st.success(f"🟢 **{name}** — {host}:{port} 가동 중")
+    st.link_button("🔗 새 창", url, use_container_width=False)
+    components.iframe(url, height=900, scrolling=True)
 
 
 # ─── L1 chat ────────────────────────────────────────────────────────────
@@ -55,6 +97,10 @@ def render_openclaw() -> None:
         _iframe_or_help(
             url="http://127.0.0.1:18789",
             host="127.0.0.1", port=18789, name="L1-chat-claw (OpenClaw)",
+        )
+        st.caption(
+            "💡 OpenClaw는 보안 정책상 iframe 차단 (`X-Frame-Options: DENY` + "
+            "`CSP frame-ancestors 'none'`). 새 창 링크로 접근."
         )
     else:
         st.warning("🟡 **L1-chat-claw (OpenClaw)** — 워크스페이스만 존재 (V2.5.1 §11 #10 stack 미연결)")
