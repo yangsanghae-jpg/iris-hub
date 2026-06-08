@@ -13,7 +13,7 @@ import socket
 
 import streamlit as st
 
-from src.tabs import dashboard, external, gates, inventory, placeholders
+from src.tabs import dashboard, external, graph, inventory, placeholders
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -97,14 +97,14 @@ def main() -> None:
     st.caption("V2.5.3 동결 · M2 :8765")
 
     tabs = st.tabs([
-        # IRIS 자체 6
+        # IRIS 자체 (6): 게이트 → 진척에 흡수, 그래프 신설
         "📊 진척",
         "📦 데이터",
-        "🎯 게이트",
+        "🕸️ 그래프",
         "📊 인사이트",
         "📚 위키",
         "⚙️ 설정",
-        # 외부 진입점 5 (V2.5.3 §3.10 v1 정정 자리)
+        # 외부 진입점 (5)
         "💬 WebUI",
         "🦅 OpenClaw",
         "🌐 Grafana",
@@ -113,9 +113,9 @@ def main() -> None:
     ])
 
     # IRIS 자체
-    with tabs[0]:  dashboard.render()
+    with tabs[0]:  dashboard.render()    # 진척 + 다음 작업 (게이트 흡수)
     with tabs[1]:  inventory.render()
-    with tabs[2]:  gates.render()
+    with tabs[2]:  graph.render()        # 신규
     with tabs[3]:  placeholders.render_insights()
     with tabs[4]:  placeholders.render_wiki()
     with tabs[5]:  placeholders.render_settings()
