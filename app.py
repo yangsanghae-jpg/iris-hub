@@ -97,34 +97,36 @@ def main() -> None:
     st.caption("V2.5.3 동결 · M2 :8765")
 
     tabs = st.tabs([
-        # IRIS 자체 (6): 게이트 → 진척에 흡수, 그래프 신설
+        # IRIS 자체 (5)
         "📊 진척",
         "📦 데이터",
         "🕸️ 그래프",
         "📊 인사이트",
         "📚 위키",
-        "⚙️ 설정",
         # 외부 진입점 (5)
         "💬 WebUI",
         "🦅 OpenClaw",
         "🌐 Grafana",
         "🧠 memory",
         "📚 Obsidian",
+        # 설정 — 맨 뒤 (운영 빈도 가장 낮음)
+        "⚙️ 설정",
     ])
 
     # IRIS 자체
     with tabs[0]:  dashboard.render()    # 진척 + 다음 작업 (게이트 흡수)
     with tabs[1]:  inventory.render()
-    with tabs[2]:  graph.render()        # 신규
+    with tabs[2]:  graph.render()
     with tabs[3]:  placeholders.render_insights()
     with tabs[4]:  placeholders.render_wiki()
-    with tabs[5]:  placeholders.render_settings()
     # 외부
-    with tabs[6]:  external.render_openwebui()
-    with tabs[7]:  external.render_openclaw()
-    with tabs[8]:  external.render_grafana()
-    with tabs[9]:  external.render_memory_admin()
-    with tabs[10]: external.render_obsidian()
+    with tabs[5]:  external.render_openwebui()
+    with tabs[6]:  external.render_openclaw()
+    with tabs[7]:  external.render_grafana()
+    with tabs[8]:  external.render_memory_admin()
+    with tabs[9]:  external.render_obsidian()
+    # 설정 (맨 뒤)
+    with tabs[10]: placeholders.render_settings()
 
 
 if __name__ == "__main__":
