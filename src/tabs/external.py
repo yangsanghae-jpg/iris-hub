@@ -66,13 +66,33 @@ def _iframe_or_help(url: str, *, host: str, port: int, name: str, hint: str = ""
 
     blocked = _iframe_blocked(url)
     if blocked:
-        st.success(f"🟢 **{name}** — {host}:{port} 가동 중")
-        st.warning(
-            "🔒 본 서비스는 보안 정책상 iframe 임베드 차단 "
-            "(`X-Frame-Options: DENY` 또는 CSP `frame-ancestors 'none'`). "
-            "**새 창에서 열기**로 접근하세요."
+        st.success(f"🟢 **{name}** — {host}:{port} 가동 중 · iframe 차단됨")
+        # 같은 탭 이동 (큰 버튼) + 새 창 (옵션)
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.markdown(
+                f"""
+<a href="{url}" target="_top" style="
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    background: #FF4B4B;
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1.1rem;
+">➡️ {name} 같은 탭에서 열기 (뒤로가기로 hub 복귀)</a>
+                """,
+                unsafe_allow_html=True,
+            )
+        with c2:
+            st.link_button("🔗 새 창", url, use_container_width=True)
+        st.caption(
+            "🔒 본 서비스는 보안 정책상 iframe 차단 "
+            "(`X-Frame-Options: DENY` 또는 CSP `frame-ancestors`)."
         )
-        st.link_button(f"🔗 {name} 새 창", url, use_container_width=False)
         return
 
     st.success(f"🟢 **{name}** — {host}:{port} 가동 중")
@@ -99,8 +119,8 @@ def render_openclaw() -> None:
             host="127.0.0.1", port=18789, name="L1-chat-claw (OpenClaw)",
         )
         st.caption(
-            "💡 OpenClaw는 보안 정책상 iframe 차단 (`X-Frame-Options: DENY` + "
-            "`CSP frame-ancestors 'none'`). 새 창 링크로 접근."
+            "💡 OpenClaw는 자체 gateway 토큰 인증 필요 — "
+            "처음 접속 시 `~/.openclaw` 에서 토큰 확인 후 Control UI에서 입력."
         )
     else:
         st.warning("🟡 **L1-chat-claw (OpenClaw)** — 워크스페이스만 존재 (V2.5.1 §11 #10 stack 미연결)")
