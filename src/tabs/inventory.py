@@ -77,20 +77,21 @@ def render() -> None:
 
     # K2 가용성 + 토글
     use_k2 = st.toggle(
-        "🤖 K2 (qwen3:8b LLM 본문 분석) — 정확하나 자료당 5~30초",
+        "🤖 K2 (deep LLM 본문 분석) — 정확하나 자료당 5~30초",
         value=True,
         key="rep_use_k2",
     )
 
-    # Ollama health 카드
+    # Ollama health 카드 — 3슬롯 동시 점검
     if use_k2:
         try:
             from src import llm
-            h = llm.health()
-            if h.get("ok"):
-                st.caption(f"🟢 Ollama 가동 · 모델 `{h['model']}` 가용")
-            else:
-                st.warning(f"⚠️ Ollama 또는 모델 미가용: {h.get('error', '?')}")
+            statuses = llm.health_all()
+            for role, h in statuses.items():
+                if h.get("ok"):
+                    st.caption(f"🟢 {role}: `{h['model']}` 가용")
+                else:
+                    st.caption(f"🔴 {role}: `{h['model']}` — {h.get('error', '?')}")
         except Exception as e:
             st.warning(f"⚠️ Ollama health 확인 실패: {e}")
 

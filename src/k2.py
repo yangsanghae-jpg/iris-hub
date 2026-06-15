@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from src import llm
+from src.config import IRIS_LLM_DEEP
 from src.classify import (
     INDUSTRY_LABELS,
     AREA_LABELS,
@@ -28,7 +29,15 @@ from src.classify import (
     suggest_classification,
 )
 
-K2_VERSION = "k2-qwen3:8b-v1"
+K2_SCHEMA_VERSION = "v1"
+
+
+def _k2_version(model: str) -> str:
+    """모델명을 박은 버전 문자열. document_meta.classifier_version 추적용."""
+    return f"k2-{model}-{K2_SCHEMA_VERSION}"
+
+
+K2_VERSION = _k2_version(IRIS_LLM_DEEP)
 
 
 @dataclass
@@ -43,9 +52,13 @@ class K2Result:
     reason: str = ""
     confidence: float = 0.0
     elapsed_ms: int = 0
-    classifier_version: str = K2_VERSION
+    classifier_version: str = ""
     fallback_used: bool = False
     error: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.classifier_version:
+            self.classifier_version = K2_VERSION
 
     def as_db_row(self, doc_id: str) -> dict[str, Any]:
         """document_meta INSERT용."""
@@ -149,15 +162,17 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def analyze(title: str, body: str, *, timeout: float = 60.0) -> K2Result:
-    """K2 Cleansing — LLM 분석.
+    """K2 Cleansing — LLM 분석 (deep 슬롯).
 
     실패 시 규칙 fallback (classify.suggest_classification).
+    모델은 config.IRIS_LLM_DEEP 환경변수로 결정 (M2 기본 qwen3:8b, M5는 override).
     """
     if not body or not body.strip():
         return K2Result(error="empty body", fallback_used=True)
 
     prompt = _build_prompt(title, body)
-    resp = llm.generate_json(prompt, timeout=timeout)
+    resp = llm.generate_json(prompt, role="deep", timeout=timeout)
+    used_model = resp.get("model", IRIS_LLM_DEEP)
 
     if not resp.get("ok"):
         # Fallback — 규칙 매칭
@@ -188,9 +203,9 @@ def analyze(title: str, body: str, *, timeout: float = 60.0) -> K2Result:
         reason=validated["reason"],
         confidence=validated["confidence"],
         elapsed_ms=resp.get("ms", 0),
-        classifier_version=K2_VERSION,
+        classifier_version=_k2_version(used_model),
         fallback_used=False,
     )
 
 
-__all__ = ["K2Result", "analyze", "K2_VERSION"]
+__all__ = ["K2Result", "analyze", "K2_VERSION", "K2_SCHEMA_VERSION"]
