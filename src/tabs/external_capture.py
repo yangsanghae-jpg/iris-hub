@@ -319,9 +319,10 @@ def render() -> None:
                 prompt=prompt.strip() if prompt else None,
             )
 
-            # 2. K2 분석 (qwen3:8b 호출, 실패 시 규칙 fallback)
+            # 2. K2 분석 (deep 슬롯, 실패 시 규칙 fallback)
             k2_result = None
-            with st.spinner("🔍 K2 분석 중 (qwen3:8b — 5~30초 예상)..."):
+            from src.config import IRIS_LLM_DEEP
+            with st.spinner(f"🔍 K2 분석 중 ({IRIS_LLM_DEEP} — 5~60초 예상)..."):
                 try:
                     from src import k2
                     k2_result = k2.analyze(title.strip(), body, timeout=60.0)

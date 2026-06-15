@@ -82,6 +82,146 @@ def _build_md(*, title: str, source: str, body: str,
     return "\n".join(lines)
 
 
+def _render_folder_load() -> None:
+    """(D) 폴더 로딩 섹션 — 스캔 + 선택 + 인제스트 + 결과 저장."""
+    import pandas as pd
+    from src import folder_load
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        folder_str = st.text_input(
+            "📂 소스 폴더 절대경로",
+            placeholder="/Users/iris/Documents/diagnosis-tool/server/data",
+            key="fl_folder",
+        )
+    with c2:
+        recursive = st.checkbox("하위 포함", value=True, key="fl_recursive")
+
+    c3, c4, c5 = st.columns([2, 1, 1])
+    with c3:
+        dest_str = st.text_input(
+            "💾 결과 저장 폴더 (선택, 비우면 DB만)",
+            placeholder="/Users/iris/Documents/0Dev/iris-system/knowledge/processed",
+            key="fl_dest",
+        )
+    with c4:
+        lane = st.selectbox("lane", ["reference", "bronze"], index=0, key="fl_lane",
+                             help="reference = 원본 경로 그대로 (No-Copy)")
+    with c5:
+        use_k2 = st.checkbox("🤖 K2 분류", value=False, key="fl_use_k2",
+                              help="LLM 분류 (5~30초/건). 끄면 규칙 매칭.")
+
+    if not folder_str:
+        st.info("📂 폴더 경로를 입력하면 파일 리스트가 표시됩니다.")
+        return
+
+    scan = folder_load.scan_folder(folder_str, recursive=recursive)
+    if scan.total == 0:
+        st.warning(f"파일 없음 또는 폴더 없음: `{scan.folder}`")
+        return
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("전체 파일", scan.total)
+    m2.metric("✅ 처리됨", scan.processed_count)
+    m3.metric("⏳ 대기", scan.pending_count)
+
+    # 강제 재파싱 옵션
+    force = st.checkbox("🔄 강제 재파싱 (이미 처리된 파일도 다시 박음)",
+                        value=False, key="fl_force")
+
+    # ── 파일 테이블: 체크박스 + 처리됨/대기 표시 ─────────────────────
+    # 처리됨/대기 분리해서 보여줌. 처리됨은 expander 안에 (시각적으로 연하게).
+    pending = [e for e in scan.entries if not e.processed]
+    done = [e for e in scan.entries if e.processed]
+
+    def _to_rows(entries, default_select: bool):
+        return [{
+            "선택": default_select,
+            "파일": str(e.path.relative_to(scan.folder)),
+            "크기(KB)": round(e.size / 1024, 1),
+            "수정일": dt.datetime.fromtimestamp(e.mtime).strftime("%Y-%m-%d %H:%M"),
+            "doc_id": (e.last_doc_id or "")[:12],
+        } for e in entries]
+
+    column_config = {
+        "선택": st.column_config.CheckboxColumn(required=False),
+        "파일": st.column_config.TextColumn(disabled=True, width="large"),
+        "크기(KB)": st.column_config.NumberColumn(disabled=True),
+        "수정일": st.column_config.TextColumn(disabled=True),
+        "doc_id": st.column_config.TextColumn(disabled=True),
+    }
+
+    # 대기 — 위에, 기본 체크
+    selected_pending: list[Path] = []
+    if pending:
+        st.markdown(f"**⏳ 대기 ({len(pending)})**")
+        df_p = pd.DataFrame(_to_rows(pending, default_select=True))
+        edited_p = st.data_editor(
+            df_p, column_config=column_config,
+            hide_index=True, use_container_width=True, key="fl_editor_pending",
+        )
+        selected_pending = [
+            pending[i].path for i, sel in enumerate(edited_p["선택"].tolist()) if sel
+        ]
+    else:
+        st.success("⏳ 대기 0건 — 새 파일이 없습니다.")
+
+    # 처리됨 — expander 안에 (회색 캡션으로 *연하게* 표현). 강제 재파싱일 때만 기본 체크.
+    selected_done: list[Path] = []
+    if done:
+        with st.expander(f"✅ 처리됨 ({len(done)}) — 펼쳐서 강제 재파싱 대상 선택", expanded=False):
+            st.caption("이미 박힌 파일들. 강제 재파싱 켜면 기본 체크됨.")
+            df_d = pd.DataFrame(_to_rows(done, default_select=force))
+            edited_d = st.data_editor(
+                df_d, column_config=column_config,
+                hide_index=True, use_container_width=True, key="fl_editor_done",
+            )
+            selected_done = [
+                done[i].path for i, sel in enumerate(edited_d["선택"].tolist()) if sel
+            ]
+
+    selected_paths = selected_pending + selected_done
+
+    # ── 액션 ─────────────────────────────────────────────────────
+    a1, a2 = st.columns([1, 3])
+    with a1:
+        run = st.button(
+            f"📥 선택한 {len(selected_paths)}개 인덱싱",
+            type="primary",
+            disabled=not selected_paths,
+            use_container_width=True,
+            key="fl_run",
+        )
+    with a2:
+        st.caption(
+            "💡 처리됨(연한 행)은 기본 체크 해제. 강제 재파싱을 켜면 처리됨도 다시 박힘."
+        )
+
+    if run:
+        with st.spinner(f"인덱싱 중 ({len(selected_paths)}건)..."):
+            result = folder_load.ingest_paths(
+                selected_paths,
+                lane=lane,
+                force=force,
+                dest_dir=Path(dest_str) if dest_str else None,
+                use_k2=use_k2,
+            )
+
+        if result.ok:
+            st.success(
+                f"✅ 인덱싱 완료 — UPSERT {result.upserted} · "
+                f"분류 {result.classified} · 빈본문 skip {result.skipped_empty}"
+                + (f" · 결과 폴더 복사 {result.saved_copies}" if dest_str else "")
+            )
+        else:
+            st.error(f"⚠️ 일부 실패 — {len(result.errors)}건")
+            with st.expander(f"실패 상세 ({len(result.errors)})"):
+                for name, err in result.errors[:50]:
+                    st.code(f"{name}: {err}")
+
+        if result.fts_counts:
+            st.caption(f"FTS rebuild: {result.fts_counts}")
+
+
 def render() -> None:
     st.markdown("## 📥 입력")
     st.caption(
@@ -194,6 +334,14 @@ def render() -> None:
 
         with st.expander("실행 로그", expanded=False):
             st.code(log[-3000:])
+
+    # ─── (D) 📁 폴더 로딩 — 외부 폴더 경로 그대로 인덱싱 ─────────────
+    st.divider()
+    st.markdown("### (D) 📁 폴더 로딩 — 외부 자료 일괄 인덱싱")
+    st.caption(
+        "진단툴 산출물 등 *외부 폴더 경로 그대로* 인덱싱. 원본은 복사하지 않음 (No-Copy)."
+    )
+    _render_folder_load()
 
     # ─── 하단 안내 ───────────────────────────────────────────────────
     st.divider()
