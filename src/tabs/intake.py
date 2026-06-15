@@ -110,20 +110,26 @@ def _pick_folder_dialog(prompt: str = "폴더 선택", default: str = "") -> str
 
 
 def _render_folder_load() -> None:
-    """(B) 폴더 로딩 섹션 — 스캔 + 선택 + 인제스트 + 결과 저장."""
-    import pandas as pd
+    """(B) 폴더 로딩 섹션 — 스캔 + 트리 선택 + 인제스트 + 결과 저장."""
+    from collections import defaultdict
     from src import folder_load
 
-    # ── 소스 폴더 ─────────────────────────────────────────────────
-    if "fl_folder" not in st.session_state:
-        st.session_state["fl_folder"] = ""
+    # ── 다이얼로그 결과를 위젯에 prepop (위젯 인스턴스 *전*에) ─────────
+    # 위젯 키(fl_folder/fl_dest)와 다이얼로그 결과 키를 분리해야 위젯 인스턴스 후 잠김 회피.
+    if st.session_state.pop("_fl_folder_prefill", None):
+        st.session_state["fl_folder"] = st.session_state.pop("_fl_folder_prefill_value")
+    if st.session_state.pop("_fl_dest_prefill", None):
+        st.session_state["fl_dest"] = st.session_state.pop("_fl_dest_prefill_value")
 
-    sc1, sc2, sc3 = st.columns([3, 1, 1])
+    # ── 소스 폴더 ─────────────────────────────────────────────────
+    st.markdown("**📂 소스 폴더**")
+    sc1, sc2, sc3 = st.columns([4, 1.2, 1])
     with sc1:
         st.text_input(
-            "📂 소스 폴더",
-            placeholder="아래 [폴더 선택]으로 고르거나 직접 붙여넣기",
+            "소스 폴더 경로",
+            placeholder="[폴더 선택]으로 고르거나 직접 붙여넣기",
             key="fl_folder",
+            label_visibility="collapsed",
         )
     with sc2:
         if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_src"):
@@ -132,23 +138,23 @@ def _render_folder_load() -> None:
                 default=st.session_state.get("fl_folder", ""),
             )
             if picked:
-                st.session_state["fl_folder"] = picked
+                st.session_state["_fl_folder_prefill"] = True
+                st.session_state["_fl_folder_prefill_value"] = picked
                 st.rerun()
     with sc3:
         recursive = st.checkbox("하위 포함", value=True, key="fl_recursive")
 
-    folder_str = st.session_state["fl_folder"]
+    folder_str = st.session_state.get("fl_folder", "")
 
     # ── 결과 저장 폴더 + 옵션 ──────────────────────────────────────
-    if "fl_dest" not in st.session_state:
-        st.session_state["fl_dest"] = ""
-
-    dc1, dc2, dc3, dc4 = st.columns([3, 1, 1, 1])
+    st.markdown("**💾 결과 저장 폴더 (선택)**")
+    dc1, dc2, dc3, dc4 = st.columns([4, 1.2, 1, 1])
     with dc1:
         st.text_input(
-            "💾 결과 저장 폴더 (선택, 비우면 DB만)",
+            "결과 저장 폴더 경로",
             placeholder="비워두면 원본 위치만 인덱싱, 사본 저장 X",
             key="fl_dest",
+            label_visibility="collapsed",
         )
     with dc2:
         if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_dest"):
@@ -158,90 +164,106 @@ def _render_folder_load() -> None:
                 or "/Users/iris/Documents/0Dev",
             )
             if picked:
-                st.session_state["fl_dest"] = picked
+                st.session_state["_fl_dest_prefill"] = True
+                st.session_state["_fl_dest_prefill_value"] = picked
                 st.rerun()
     with dc3:
         lane = st.selectbox("lane", ["reference", "bronze"], index=0, key="fl_lane",
-                             help="reference = 원본 경로 그대로 (No-Copy)")
+                             help="reference = 원본 경로 그대로 (No-Copy)",
+                             label_visibility="collapsed")
     with dc4:
-        use_k2 = st.checkbox("🤖 K2 분류", value=False, key="fl_use_k2",
+        use_k2 = st.checkbox("🤖 K2", value=False, key="fl_use_k2",
                               help="LLM 분류 (5~30초/건). 끄면 규칙 매칭.")
 
-    dest_str = st.session_state["fl_dest"]
+    dest_str = st.session_state.get("fl_dest", "")
 
     if not folder_str:
-        st.info("📂 폴더 경로를 입력하면 파일 리스트가 표시됩니다.")
+        st.info("📂 위에서 폴더를 선택하면 하위 파일이 트리로 표시됩니다.")
         return
 
+    # ── 스캔 ────────────────────────────────────────────────────
     scan = folder_load.scan_folder(folder_str, recursive=recursive)
     if scan.total == 0:
         st.warning(f"파일 없음 또는 폴더 없음: `{scan.folder}`")
         return
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("전체 파일", scan.total)
-    m2.metric("✅ 처리됨", scan.processed_count)
-    m3.metric("⏳ 대기", scan.pending_count)
+    st.divider()
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("전체", scan.total)
+    m2.metric("⏳ 대기", scan.pending_count)
+    m3.metric("✅ 처리됨", scan.processed_count)
+    with m4:
+        force = st.checkbox("🔄 강제 재파싱", value=False, key="fl_force",
+                             help="처리됨도 다시 박음")
 
-    # 강제 재파싱 옵션
-    force = st.checkbox("🔄 강제 재파싱 (이미 처리된 파일도 다시 박음)",
-                        value=False, key="fl_force")
+    # ── 트리 뷰: 디렉터리별 expander + 체크박스 ────────────────────
+    # 디렉터리 → 파일들 그룹화. 디렉터리 키는 scan.folder 기준 상대경로.
+    by_dir: dict[str, list[folder_load.FileEntry]] = defaultdict(list)
+    for e in scan.entries:
+        rel_dir = str(e.path.relative_to(scan.folder).parent)
+        by_dir[rel_dir].append(e)
 
-    # ── 파일 테이블: 체크박스 + 처리됨/대기 표시 ─────────────────────
-    # 처리됨/대기 분리해서 보여줌. 처리됨은 expander 안에 (시각적으로 연하게).
-    pending = [e for e in scan.entries if not e.processed]
-    done = [e for e in scan.entries if e.processed]
+    dirs_sorted = sorted(by_dir.keys(), key=lambda d: (d != ".", d))
 
-    def _to_rows(entries, default_select: bool):
-        return [{
-            "선택": default_select,
-            "파일": str(e.path.relative_to(scan.folder)),
-            "크기(KB)": round(e.size / 1024, 1),
-            "수정일": dt.datetime.fromtimestamp(e.mtime).strftime("%Y-%m-%d %H:%M"),
-            "doc_id": (e.last_doc_id or "")[:12],
-        } for e in entries]
+    selected_paths: list[Path] = []
 
-    column_config = {
-        "선택": st.column_config.CheckboxColumn(required=False),
-        "파일": st.column_config.TextColumn(disabled=True, width="large"),
-        "크기(KB)": st.column_config.NumberColumn(disabled=True),
-        "수정일": st.column_config.TextColumn(disabled=True),
-        "doc_id": st.column_config.TextColumn(disabled=True),
-    }
+    bulk_c1, bulk_c2, bulk_c3 = st.columns([1, 1, 4])
+    with bulk_c1:
+        select_all = st.button("전체 선택", use_container_width=True, key="fl_sel_all")
+    with bulk_c2:
+        clear_all = st.button("전체 해제", use_container_width=True, key="fl_sel_none")
 
-    # 대기 — 위에, 기본 체크
-    selected_pending: list[Path] = []
-    if pending:
-        st.markdown(f"**⏳ 대기 ({len(pending)})**")
-        df_p = pd.DataFrame(_to_rows(pending, default_select=True))
-        edited_p = st.data_editor(
-            df_p, column_config=column_config,
-            hide_index=True, use_container_width=True, key="fl_editor_pending",
-        )
-        selected_pending = [
-            pending[i].path for i, sel in enumerate(edited_p["선택"].tolist()) if sel
-        ]
-    else:
-        st.success("⏳ 대기 0건 — 새 파일이 없습니다.")
+    if select_all:
+        for e in scan.entries:
+            st.session_state[f"fl_sel_{e.path}"] = True
+    if clear_all:
+        for e in scan.entries:
+            st.session_state[f"fl_sel_{e.path}"] = False
 
-    # 처리됨 — expander 안에 (회색 캡션으로 *연하게* 표현). 강제 재파싱일 때만 기본 체크.
-    selected_done: list[Path] = []
-    if done:
-        with st.expander(f"✅ 처리됨 ({len(done)}) — 펼쳐서 강제 재파싱 대상 선택", expanded=False):
-            st.caption("이미 박힌 파일들. 강제 재파싱 켜면 기본 체크됨.")
-            df_d = pd.DataFrame(_to_rows(done, default_select=force))
-            edited_d = st.data_editor(
-                df_d, column_config=column_config,
-                hide_index=True, use_container_width=True, key="fl_editor_done",
-            )
-            selected_done = [
-                done[i].path for i, sel in enumerate(edited_d["선택"].tolist()) if sel
-            ]
+    for d in dirs_sorted:
+        entries = by_dir[d]
+        pending_n = sum(1 for e in entries if not e.processed)
+        done_n = len(entries) - pending_n
+        # 라벨: 디렉터리 / 대기·처리됨 카운트
+        label_dir = "(루트)" if d == "." else d
+        header = f"📂 **{label_dir}** — ⏳ {pending_n} · ✅ {done_n}"
 
-    selected_paths = selected_pending + selected_done
+        with st.expander(header, expanded=(pending_n > 0)):
+            # 디렉터리 단위 일괄 토글
+            tc1, tc2, _ = st.columns([1, 1, 4])
+            with tc1:
+                if st.button("이 폴더 선택", key=f"fl_dir_sel_{d}", use_container_width=True):
+                    for e in entries:
+                        if force or not e.processed:
+                            st.session_state[f"fl_sel_{e.path}"] = True
+                    st.rerun()
+            with tc2:
+                if st.button("이 폴더 해제", key=f"fl_dir_clr_{d}", use_container_width=True):
+                    for e in entries:
+                        st.session_state[f"fl_sel_{e.path}"] = False
+                    st.rerun()
+
+            for e in sorted(entries, key=lambda x: (x.processed, x.path.name)):
+                key = f"fl_sel_{e.path}"
+                # 기본값: 대기는 체크, 처리됨은 force일 때만 체크
+                if key not in st.session_state:
+                    st.session_state[key] = (force or not e.processed)
+                size_kb = round(e.size / 1024, 1)
+                mtime = dt.datetime.fromtimestamp(e.mtime).strftime("%Y-%m-%d %H:%M")
+                status = "✅" if e.processed else "⏳"
+                # 처리됨은 회색 톤으로
+                fname = e.path.name
+                if e.processed:
+                    label = f"{status} :gray[{fname}] · :gray[{size_kb}KB · {mtime}]"
+                else:
+                    label = f"{status} **{fname}** · :gray[{size_kb}KB · {mtime}]"
+
+                if st.checkbox(label, key=key):
+                    selected_paths.append(e.path)
 
     # ── 액션 ─────────────────────────────────────────────────────
-    a1, a2 = st.columns([1, 3])
+    st.divider()
+    a1, a2 = st.columns([1.5, 4])
     with a1:
         run = st.button(
             f"📥 선택한 {len(selected_paths)}개 인덱싱",
@@ -252,7 +274,7 @@ def _render_folder_load() -> None:
         )
     with a2:
         st.caption(
-            "💡 처리됨(연한 행)은 기본 체크 해제. 강제 재파싱을 켜면 처리됨도 다시 박힘."
+            "💡 처리됨(회색)은 기본 체크 해제. 🔄 강제 재파싱을 켜면 처리됨도 자동 체크."
         )
 
     if run:
