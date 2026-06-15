@@ -104,7 +104,6 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
         try:
             from src import k2 as k2mod
             from src import document_meta
-            document_meta.ensure_schema()
         except Exception as e:
             res.errors.append(("k2", f"K2 모듈 import 실패, 규칙 사용: {e}"))
             use_k2 = False
@@ -124,6 +123,17 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys=ON")
+    # writer 락 충돌 시 5초 대기 (자체 연결 안에서도 안전망)
+    conn.execute("PRAGMA busy_timeout=5000")
+
+    # K2 schema는 reprocess의 conn 위에서 보장 — 별도 연결 안 만듦
+    if use_k2:
+        try:
+            document_meta.ensure_schema(conn=conn)
+            conn.commit()
+        except Exception as e:
+            res.errors.append(("document_meta_schema", f"{type(e).__name__}: {e}"))
+            use_k2 = False
 
     try:
         for path in files:
@@ -144,7 +154,7 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
                 if use_k2:
                     k2_result = k2mod.analyze(title, body, timeout=60.0)
                     ind, area, lvl = k2_result.industry, k2_result.area, k2_result.level
-                    # document_meta 박기
+                    # document_meta 박기 — *같은 conn에 합류*하여 락 충돌 회피
                     try:
                         document_meta.upsert(
                             doc_id,
@@ -163,6 +173,7 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
                             blurb_industry=k2_result.blurb_industry,
                             blurb_system=k2_result.blurb_system,
                             blurb_mgmt=k2_result.blurb_mgmt,
+                            conn=conn,
                         )
                     except Exception as e:
                         res.errors.append((path.name, f"document_meta: {e}"))
@@ -189,6 +200,10 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
                     )
                     if any(v is not None for v in (ind, area, lvl)):
                         res.classified += 1
+
+                # 자료 1건이 끝날 때마다 commit — 락 holding time 최소화 +
+                # 처리 중 죽어도 누적이 살아남음
+                conn.commit()
 
             except Exception as e:
                 res.errors.append((path.name, f"{type(e).__name__}: {e}"))

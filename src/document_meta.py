@@ -42,11 +42,18 @@ MIGRATIONS = [
 ]
 
 
-def ensure_schema() -> None:
-    """document_meta 테이블 + 인덱스 + 마이그레이션 컬럼. 매 호출 안전."""
-    if not DB_PATH.exists():
-        return
-    conn = sqlite3.connect(DB_PATH)
+def ensure_schema(conn: sqlite3.Connection | None = None) -> None:
+    """document_meta 테이블 + 인덱스 + 마이그레이션 컬럼. 매 호출 안전.
+
+    conn을 주면 그 연결을 그대로 사용 (호출자 트랜잭션에 합류).
+    안 주면 자체 connect/close (commit 포함).
+    """
+    own = False
+    if conn is None:
+        if not DB_PATH.exists():
+            return
+        conn = sqlite3.connect(DB_PATH)
+        own = True
     try:
         conn.executescript(SCHEMA_SQL)
         # 추가 컬럼 — 이미 있으면 무시
@@ -55,9 +62,11 @@ def ensure_schema() -> None:
             col = stmt.split("ADD COLUMN", 1)[1].strip().split()[0]
             if col not in existing:
                 conn.execute(stmt)
-        conn.commit()
+        if own:
+            conn.commit()
     finally:
-        conn.close()
+        if own:
+            conn.close()
 
 
 def upsert(doc_id: str, *,
@@ -75,11 +84,24 @@ def upsert(doc_id: str, *,
            mgmt_categories: list[str] | None = None,
            blurb_industry: str = "",
            blurb_system: str = "",
-           blurb_mgmt: str = "") -> None:
-    """document_meta INSERT or REPLACE. ensure_schema() 먼저 호출 권장."""
-    if not DB_PATH.exists():
-        return
-    conn = sqlite3.connect(DB_PATH)
+           blurb_mgmt: str = "",
+           conn: sqlite3.Connection | None = None) -> None:
+    """document_meta INSERT or REPLACE.
+
+    conn 주면 그 연결로 INSERT 후 commit 안 함 (호출자가 commit 책임).
+    안 주면 자체 connect → INSERT → commit → close.
+
+    M5 운영에서 V2.6.2 K2 재처리 시 conn 미공유로 `database is locked`
+    27/27 발생한 회귀 (2026-06-15) 수정.
+    """
+    own = False
+    if conn is None:
+        if not DB_PATH.exists():
+            return
+        conn = sqlite3.connect(DB_PATH)
+        # 자체 연결일 때만 busy_timeout 박음 (호출자 conn은 호출자가 관리)
+        conn.execute("PRAGMA busy_timeout=5000")
+        own = True
     try:
         conn.execute(
             """INSERT OR REPLACE INTO document_meta
@@ -107,9 +129,11 @@ def upsert(doc_id: str, *,
                 blurb_mgmt,
             ),
         )
-        conn.commit()
+        if own:
+            conn.commit()
     finally:
-        conn.close()
+        if own:
+            conn.close()
 
 
 def get(doc_id: str) -> dict | None:
