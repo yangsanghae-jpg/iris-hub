@@ -94,7 +94,7 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.5.3 동결 · M2 :8765")
+    st.caption("V2.6.2 · M2 :8765 · K2 v2 멀티라벨")
 
     tabs = st.tabs([
         # IRIS 자체 (7): 입력 + 외부응답 신설, 게이트→진척에 흡수, 그래프 신설

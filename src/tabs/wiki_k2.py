@@ -1,12 +1,14 @@
-"""탭: 📚 위키 — K2 분류 결과 뷰 (도메인 그리드 + 자료 테이블 + 상세 패널).
+"""탭: 📚 위키 — 3-파트 분류 뷰 (V2.5.3 §3.10 v2).
 
-설계:
-  - 도메인 그리드: industry × area 자료 카운트. 셀 클릭으로 필터.
-  - 자료 테이블: 선택된 분면의 documents + document_meta JOIN.
-  - 상세 패널: 행 클릭 시 우측에 summary/topics/entities/concepts + 원문.
+3 파트 (자료 1건은 여러 파트에 동시 노출, 의도된 중복):
+  파트1. 산업 × 자동화 (8 산업 + 일반행) × (auto1/auto2/auto3/aiplus)
+  파트2. 시스템 도메인 (APS/MES/ERP/WMS/QMS/SCM)
+  파트3. 관리 (조직 · 거버넌스 · 실행)
 
-기존 위키 placeholder (K5 wiki server 상태)는 placeholders.render_wiki()에 보존.
-본 모듈은 *그 위에 K2 결과 시각화*만 박는다.
+UI 정책 (그래프 탭과 동일):
+  - 헤더/캡션 → 한 줄 요약
+  - 컨트롤 → expander (기본 접힘)
+  - 셀 클릭 → 자료 리스트 + 파트별 발췌 (blurb_*)
 """
 from __future__ import annotations
 
@@ -18,193 +20,144 @@ import streamlit as st
 
 DB_PATH = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/_index.db")
 
+INDUSTRIES = ["A", "B", "C", "D", "E", "F", "G", "H", "general"]
+INDUSTRY_LABELS = {
+    "A": "A 반도체", "B": "B 일반 제조", "C": "C 디스플레이", "D": "D 제약·바이오",
+    "E": "E 기타", "F": "F", "G": "G", "H": "H", "general": "산업 무관",
+}
+AUTOMATION = ["auto1", "auto2", "auto3", "aiplus"]
+AUTOMATION_LABELS = {
+    "auto1": "auto1\n수작업", "auto2": "auto2\n부분도입",
+    "auto3": "auto3\n통합", "aiplus": "aiplus\nAI/예측",
+}
+SYSTEMS = ["APS", "MES", "ERP", "WMS", "QMS", "SCM"]
+MGMT_GROUPS = [
+    ("조직",      ["org_design", "org_role"]),
+    ("거버넌스",  ["gov_committee", "gov_kpi"]),
+    ("실행계획",  ["exec_phase", "exec_milestone"]),
+]
+MGMT_LABELS = {
+    "org_design": "조직설계", "org_role": "R&R",
+    "gov_committee": "위원회", "gov_kpi": "KPI",
+    "exec_phase": "단계계획", "exec_milestone": "마일스톤",
+}
 
-def _grid_counts() -> dict[tuple[str, str], int]:
-    """industry × area 그리드 카운트."""
-    if not DB_PATH.exists():
-        return {}
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        rows = conn.execute(
-            "SELECT industry, area, COUNT(*) "
-            "FROM documents "
-            "WHERE industry IS NOT NULL OR area IS NOT NULL "
-            "GROUP BY industry, area"
-        ).fetchall()
-        return {(ind or "—", area or "—"): n for ind, area, n in rows}
-    finally:
-        conn.close()
 
-
-def _list_in_cell(industry: str, area: str) -> list[dict]:
-    """selected industry/area 분면의 자료 목록 (documents + document_meta JOIN)."""
+# ─── 데이터 로드 ──────────────────────────────────────────────────────
+def _all_docs() -> list[dict]:
     if not DB_PATH.exists():
         return []
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
-        # document_meta 테이블 존재 확인
-        has_meta = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='document_meta'"
-        ).fetchone() is not None
-
-        if has_meta:
-            sql = """
-              SELECT d.doc_id, d.title, d.path, d.level, d.fetched_at,
-                     m.summary, m.topics_json, m.entities_json, m.concepts_json,
-                     m.confidence, m.classifier_version, m.fallback_used, m.k2_at
-              FROM documents d
-              LEFT JOIN document_meta m ON d.doc_id = m.doc_id
-              WHERE d.industry = ? AND d.area = ?
-              ORDER BY COALESCE(m.k2_at, d.fetched_at) DESC
-            """
-        else:
-            sql = """
-              SELECT d.doc_id, d.title, d.path, d.level, d.fetched_at,
-                     '' AS summary, '[]' AS topics_json, '[]' AS entities_json,
-                     '[]' AS concepts_json, 0 AS confidence,
-                     '' AS classifier_version, 0 AS fallback_used, '' AS k2_at
-              FROM documents d
-              WHERE d.industry = ? AND d.area = ?
-              ORDER BY d.fetched_at DESC
-            """
-
-        rows = conn.execute(sql, (industry, area)).fetchall()
-        return [dict(r) for r in rows]
+        # document_meta 컬럼 존재 여부 (마이그레이션 전 안전)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(document_meta)")}
+        meta_extra = (
+            ", m.automation_levels_json, m.system_domains_json, m.mgmt_categories_json,"
+            " m.blurb_industry, m.blurb_system, m.blurb_mgmt"
+            if "automation_levels_json" in cols else
+            ", '[]' AS automation_levels_json, '[]' AS system_domains_json,"
+            " '[]' AS mgmt_categories_json, '' AS blurb_industry,"
+            " '' AS blurb_system, '' AS blurb_mgmt"
+        )
+        sql = f"""
+          SELECT d.doc_id, d.title, d.path, d.industry, d.area, d.level,
+                 d.fetched_at, d.lane,
+                 m.summary, m.topics_json, m.confidence, m.fallback_used,
+                 m.classifier_version, m.k2_at
+                 {meta_extra}
+            FROM documents d
+            LEFT JOIN document_meta m ON d.doc_id = m.doc_id
+           ORDER BY d.fetched_at DESC
+        """
+        return [dict(r) for r in conn.execute(sql).fetchall()]
     finally:
         conn.close()
 
 
-def _doc_detail(doc_id: str) -> dict | None:
-    """1건 상세 — JOIN + path."""
-    if not DB_PATH.exists():
-        return None
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+def _parse(s: str | None) -> list[str]:
+    if not s:
+        return []
     try:
-        row = conn.execute(
-            """SELECT d.*, m.summary, m.topics_json, m.entities_json,
-                      m.concepts_json, m.confidence, m.reason, m.k2_at,
-                      m.k2_ms, m.fallback_used, m.classifier_version
-               FROM documents d
-               LEFT JOIN document_meta m ON d.doc_id = m.doc_id
-               WHERE d.doc_id = ?""",
-            (doc_id,),
-        ).fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
+        v = json.loads(s)
+        return [str(x) for x in v] if isinstance(v, list) else []
+    except Exception:
+        return []
 
 
-def render() -> None:
-    st.markdown("## 📚 위키 — K2 분류 뷰")
-    st.caption(
-        "K1→K2→K3을 거친 자료를 *도메인 그리드*로 본다. 셀을 클릭하면 자료 목록, "
-        "행을 클릭하면 상세 패널."
-    )
+def _industry_key(d: dict) -> str:
+    """파트1 행 키 — industry가 없으면 'general' (산업 무관)."""
+    return d["industry"] or "general"
 
-    counts = _grid_counts()
-    if not counts:
-        st.info("아직 분류된 자료가 없습니다. 📦 데이터 탭의 [🔄 재처리]로 분석을 돌리세요.")
-        return
 
-    # 그리드 축 — 실제 박힌 industry/area 합집합
-    industries = sorted({ind for (ind, _), _ in counts.items()})
-    areas = sorted({area for (_, area), _ in counts.items()})
+# ─── 카운트/필터 ──────────────────────────────────────────────────────
+def _count_p1(docs: list[dict]) -> dict[tuple[str, str], list[dict]]:
+    """(industry, automation) → docs"""
+    out: dict[tuple[str, str], list[dict]] = {}
+    for d in docs:
+        ind = _industry_key(d)
+        levels = _parse(d.get("automation_levels_json"))
+        if not levels:
+            continue
+        for lvl in levels:
+            out.setdefault((ind, lvl), []).append(d)
+    return out
 
-    # ─── 도메인 그리드 ────────────────────────────────────────────────────
-    st.markdown("### 📊 도메인 그리드 (industry × area)")
-    st.caption("셀 클릭 시 해당 분면 자료가 아래에 표시됨.")
 
-    # 헤더 행 (area)
-    header_cols = st.columns([1] + [1] * len(areas))
-    header_cols[0].markdown("**industry / area**")
-    for i, area in enumerate(areas):
-        header_cols[i + 1].markdown(f"**{area}**")
+def _count_p2(docs: list[dict]) -> dict[str, list[dict]]:
+    """system → docs"""
+    out: dict[str, list[dict]] = {}
+    for d in docs:
+        for sys in _parse(d.get("system_domains_json")):
+            out.setdefault(sys, []).append(d)
+    return out
 
-    # 데이터 행
-    for ind in industries:
-        row_cols = st.columns([1] + [1] * len(areas))
-        row_cols[0].markdown(f"**{ind}**")
-        for i, area in enumerate(areas):
-            n = counts.get((ind, area), 0)
-            label = f"{n}" if n else "·"
-            if n > 0:
-                if row_cols[i + 1].button(label, key=f"cell_{ind}_{area}",
-                                          use_container_width=True):
-                    st.session_state["wiki_sel_ind"] = ind
-                    st.session_state["wiki_sel_area"] = area
-            else:
-                row_cols[i + 1].markdown(f"<div style='text-align:center;color:#aaa;'>{label}</div>",
-                                          unsafe_allow_html=True)
 
-    # ─── 선택된 분면 자료 목록 ────────────────────────────────────────────
-    sel_ind = st.session_state.get("wiki_sel_ind")
-    sel_area = st.session_state.get("wiki_sel_area")
-    if not (sel_ind and sel_area):
-        st.divider()
-        st.caption("👆 그리드의 셀을 클릭해서 분면을 선택하세요.")
-        return
+def _count_p3(docs: list[dict]) -> dict[str, list[dict]]:
+    """mgmt_category → docs"""
+    out: dict[str, list[dict]] = {}
+    for d in docs:
+        for cat in _parse(d.get("mgmt_categories_json")):
+            out.setdefault(cat, []).append(d)
+    return out
 
-    st.divider()
-    st.markdown(f"### 📁 자료 — `industry={sel_ind}` × `area={sel_area}`")
 
-    docs = _list_in_cell(sel_ind, sel_area)
+# ─── 자료 리스트 렌더 ────────────────────────────────────────────────
+def _render_docs(docs: list[dict], blurb_field: str) -> None:
+    """선택된 셀의 자료를 펼침 카드로 표시."""
     if not docs:
         st.info("이 분면에 자료가 없습니다.")
         return
 
-    # 자료 목록 — 펼침 형식 (테이블보다 markdown 친화)
-    for doc in docs:
-        topics = []
-        try:
-            topics = json.loads(doc.get("topics_json") or "[]")
-        except Exception:
-            pass
+    for d in docs:
+        title = d.get("title") or d["doc_id"]
+        confidence = d.get("confidence") or 0
+        is_fb = bool(d.get("fallback_used"))
+        badge = " 🟡" if is_fb else (" 🟢" if confidence > 0 else " ⚪")
+        blurb = (d.get(blurb_field) or "").strip() or (d.get("summary") or "(K2 분석 미완)")
 
-        confidence = doc.get("confidence") or 0
-        is_fb = bool(doc.get("fallback_used"))
-        badge = " 🟡 fallback" if is_fb else (" 🟢 LLM" if confidence > 0 else " ⚪ 미분석")
+        with st.expander(f"**{title}**{badge}  ·  conf {confidence:.2f}"):
+            st.caption(f"📝 {blurb}")
 
-        title = doc.get("title") or doc["doc_id"]
-        summary = doc.get("summary") or "(K2 분석 미완)"
-
-        with st.expander(f"**{title}**{badge}  ·  conf {confidence:.2f}", expanded=False):
-            st.caption(f"📝 {summary}")
+            topics = _parse(d.get("topics_json"))
             if topics:
                 st.caption("🏷 " + " · ".join(f"`{t}`" for t in topics))
 
-            # 상세 펼침
-            entities, concepts = [], []
-            try:
-                entities = json.loads(doc.get("entities_json") or "[]")
-                concepts = json.loads(doc.get("concepts_json") or "[]")
-            except Exception:
-                pass
-
-            if entities:
-                st.caption("👥 entities: " + " · ".join(f"`{e}`" for e in entities))
-            if concepts:
-                st.caption("💡 concepts: " + " · ".join(f"`{c}`" for c in concepts))
-
             cc1, cc2, cc3 = st.columns(3)
-            cc1.caption(f"level: `{doc.get('level') or '—'}`")
-            cc2.caption(f"k2: `{doc.get('classifier_version') or '—'}`")
-            cc3.caption(f"k2_at: `{doc.get('k2_at') or '—'}`")
+            cc1.caption(f"산업: `{d.get('industry') or '—'}` · area `{d.get('area') or '—'}`")
+            cc2.caption(f"자동화: `{', '.join(_parse(d.get('automation_levels_json'))) or '—'}`")
+            cc3.caption(f"시스템: `{', '.join(_parse(d.get('system_domains_json'))) or '—'}`")
 
-            # 원문 펼침
-            path = doc.get("path", "")
+            path = d.get("path", "")
             with st.expander("📄 원문 보기", expanded=False):
                 try:
                     p = Path(path)
                     if p.exists():
                         text = p.read_text(encoding="utf-8")
-                        # frontmatter 잘라내고 본문만
                         if text.startswith("---\n"):
                             parts = text[4:].split("\n---\n", 1)
                             if len(parts) == 2:
                                 text = parts[1]
-                        # 마크다운 렌더링
                         tab_render, tab_raw = st.tabs(["✨ 미리보기", "📝 원본"])
                         with tab_render:
                             st.markdown(text.strip())
@@ -214,5 +167,135 @@ def render() -> None:
                         st.warning(f"원문 파일 없음: {path}")
                 except Exception as e:
                     st.caption(f"읽기 실패: {e}")
-
             st.caption(f"경로: `{path}`")
+
+
+# ─── 그리드 셀 (버튼 또는 점) ─────────────────────────────────────────
+def _cell(col, n: int, key: str, on_click_state: dict[str, str]) -> None:
+    """셀 1개 — 카운트 있으면 버튼, 없으면 점."""
+    if n > 0:
+        if col.button(str(n), key=key, use_container_width=True):
+            for k, v in on_click_state.items():
+                st.session_state[k] = v
+    else:
+        col.markdown(
+            "<div style='text-align:center;color:#555;padding:8px;'>·</div>",
+            unsafe_allow_html=True,
+        )
+
+
+# ─── 메인 render ──────────────────────────────────────────────────────
+def render() -> None:
+    docs = _all_docs()
+    if not docs:
+        st.info("아직 분류된 자료가 없습니다. 📦 데이터 탭의 [🔄 재처리]로 분석을 돌리세요.")
+        return
+
+    p1 = _count_p1(docs)
+    p2 = _count_p2(docs)
+    p3 = _count_p3(docs)
+
+    # 미분류 카운트 — 진단용
+    n_unclassified_auto = sum(
+        1 for d in docs if not _parse(d.get("automation_levels_json"))
+    )
+
+    # 한 줄 요약 (그래프 탭 스타일)
+    st.caption(
+        f"📚 **자료 {len(docs)}** · "
+        f"파트1 채워진 셀 {len(p1)}/{len(INDUSTRIES) * len(AUTOMATION)} · "
+        f"파트2 시스템 {len(p2)}/{len(SYSTEMS)} · "
+        f"파트3 관리 {len(p3)}/{sum(len(g[1]) for g in MGMT_GROUPS)} · "
+        f"자동화 미분류 {n_unclassified_auto}건"
+    )
+
+    with st.expander("📚 위키 — 분류축 안내 (V2.5.3 §3.10 v2)", expanded=False):
+        st.markdown("""
+**3 파트 분류 — 자료 1건이 여러 파트에 동시 노출 (의도된 중복).**
+
+- **파트1 산업 × 자동화**: 산업 8종 + *산업 무관* 행 × auto1/2/3/aiplus
+- **파트2 시스템**: APS · MES · ERP · WMS · QMS · SCM (정보화 시스템)
+- **파트3 관리**: 조직·거버넌스·실행계획
+
+K2 분류기 v2가 멀티라벨로 박는 자리. 라벨 비어 있는 자료는 📦 **데이터 탭 → [🔄 재처리]**로 K2 재돌리면 채워짐.
+        """)
+
+    # ─── 파트 1: 산업 × 자동화 ───────────────────────────────────────
+    st.markdown("### 🏭 파트 1 — 산업 × 자동화")
+
+    header_cols = st.columns([1.2] + [1] * len(AUTOMATION))
+    header_cols[0].markdown("**산업 / 자동화**")
+    for i, lvl in enumerate(AUTOMATION):
+        header_cols[i + 1].markdown(
+            f"<div style='text-align:center;font-size:0.85em;line-height:1.2;'>"
+            f"<b>{lvl}</b><br/><span style='color:#888;'>"
+            f"{AUTOMATION_LABELS[lvl].split(chr(10))[1]}</span></div>",
+            unsafe_allow_html=True,
+        )
+
+    for ind in INDUSTRIES:
+        cols = st.columns([1.2] + [1] * len(AUTOMATION))
+        cols[0].markdown(f"**{INDUSTRY_LABELS[ind]}**")
+        for i, lvl in enumerate(AUTOMATION):
+            n = len(p1.get((ind, lvl), []))
+            _cell(
+                cols[i + 1], n,
+                key=f"p1_{ind}_{lvl}",
+                on_click_state={
+                    "wiki_part": "1", "wiki_p1_ind": ind, "wiki_p1_lvl": lvl,
+                },
+            )
+
+    # ─── 파트 2: 시스템 ──────────────────────────────────────────────
+    st.markdown("### 💻 파트 2 — 시스템 (정보화)")
+    sys_cols = st.columns(len(SYSTEMS))
+    for i, sys in enumerate(SYSTEMS):
+        n = len(p2.get(sys, []))
+        with sys_cols[i]:
+            st.markdown(f"<div style='text-align:center;color:#888;'>{sys}</div>",
+                        unsafe_allow_html=True)
+            _cell(
+                sys_cols[i].container(), n,
+                key=f"p2_{sys}",
+                on_click_state={"wiki_part": "2", "wiki_p2_sys": sys},
+            )
+
+    # ─── 파트 3: 관리 ────────────────────────────────────────────────
+    st.markdown("### 🧭 파트 3 — 관리 (조직 · 거버넌스 · 실행)")
+    for group_label, cats in MGMT_GROUPS:
+        st.markdown(f"<span style='color:#888;font-size:0.9em;'>{group_label}</span>",
+                    unsafe_allow_html=True)
+        cat_cols = st.columns(len(cats) * 2)  # 좁게
+        for i, cat in enumerate(cats):
+            n = len(p3.get(cat, []))
+            with cat_cols[i * 2]:
+                st.markdown(
+                    f"<div style='text-align:center;color:#aaa;'>{MGMT_LABELS[cat]}</div>",
+                    unsafe_allow_html=True,
+                )
+                _cell(
+                    cat_cols[i * 2].container(), n,
+                    key=f"p3_{cat}",
+                    on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
+                )
+
+    # ─── 선택된 셀 자료 표시 ─────────────────────────────────────────
+    st.divider()
+    part = st.session_state.get("wiki_part")
+    if not part:
+        st.caption("👆 위 그리드의 셀을 클릭하면 해당 분면 자료가 여기에 표시됩니다.")
+        return
+
+    if part == "1":
+        ind = st.session_state.get("wiki_p1_ind")
+        lvl = st.session_state.get("wiki_p1_lvl")
+        st.markdown(f"### 📁 파트1 — `{INDUSTRY_LABELS.get(ind, ind)}` × `{lvl}`")
+        _render_docs(p1.get((ind, lvl), []), blurb_field="blurb_industry")
+    elif part == "2":
+        sys = st.session_state.get("wiki_p2_sys")
+        st.markdown(f"### 📁 파트2 — `{sys}`")
+        _render_docs(p2.get(sys, []), blurb_field="blurb_system")
+    elif part == "3":
+        cat = st.session_state.get("wiki_p3_cat")
+        st.markdown(f"### 📁 파트3 — `{MGMT_LABELS.get(cat, cat)}`")
+        _render_docs(p3.get(cat, []), blurb_field="blurb_mgmt")

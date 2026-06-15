@@ -157,6 +157,12 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
                             reason=k2_result.reason,
                             k2_ms=k2_result.elapsed_ms,
                             fallback_used=k2_result.fallback_used,
+                            automation_levels=k2_result.automation_levels,
+                            system_domains=k2_result.system_domains,
+                            mgmt_categories=k2_result.mgmt_categories,
+                            blurb_industry=k2_result.blurb_industry,
+                            blurb_system=k2_result.blurb_system,
+                            blurb_mgmt=k2_result.blurb_mgmt,
                         )
                     except Exception as e:
                         res.errors.append((path.name, f"document_meta: {e}"))

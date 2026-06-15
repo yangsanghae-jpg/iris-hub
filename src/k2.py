@@ -29,7 +29,7 @@ from src.classify import (
     suggest_classification,
 )
 
-K2_SCHEMA_VERSION = "v1"
+K2_SCHEMA_VERSION = "v2"
 
 
 def _k2_version(model: str) -> str:
@@ -38,6 +38,16 @@ def _k2_version(model: str) -> str:
 
 
 K2_VERSION = _k2_version(IRIS_LLM_DEEP)
+
+
+# ─── 위키 3-파트 멀티라벨 어휘 (V2.5.3 §3.10 v2) ────────────────────────
+AUTOMATION_LEVELS = {"auto1", "auto2", "auto3", "aiplus"}
+SYSTEM_DOMAINS = {"APS", "MES", "ERP", "WMS", "QMS", "SCM"}
+MGMT_CATEGORIES = {
+    "org_design", "org_role",       # 조직
+    "gov_committee", "gov_kpi",     # 거버넌스
+    "exec_phase", "exec_milestone", # 실행계획
+}
 
 
 @dataclass
@@ -55,6 +65,13 @@ class K2Result:
     classifier_version: str = ""
     fallback_used: bool = False
     error: str | None = None
+    # 위키 3-파트 멀티라벨
+    automation_levels: list[str] = field(default_factory=list)
+    system_domains: list[str] = field(default_factory=list)
+    mgmt_categories: list[str] = field(default_factory=list)
+    blurb_industry: str = ""
+    blurb_system: str = ""
+    blurb_mgmt: str = ""
 
     def __post_init__(self) -> None:
         if not self.classifier_version:
@@ -86,25 +103,47 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
 
     return f"""당신은 IRIS 지식 분류기입니다. 자료를 읽고 JSON으로만 답하세요.
 
-## 산업 (industry)
+## 산업 (industry, 단일)
 - A: 반도체, 웨이퍼, fab, foundry, 노광
 - B: 일반 제조, MES, 공장, 생산실행, 작업지시(WO), 라인
 - C: 디스플레이, LCD, OLED, 광전자, LN/LT 박막, 단결정
 - D: 제약, 바이오, GMP, 임상
 - E: 위 분류에 안 맞으면 E
 
-## 영역 (area)
+## 영역 (area, 단일)
 - planning: 계획, KPI, 지표, 트리, 체계
 - strategy: 전략, 비전, 로드맵, 포트폴리오
 - operations: 운영, 현장, 라인, 재고, 작업지시 실행
 - quality: 품질, 검사, SPC, 수율, 불량
 - data-ai-sw: 데이터, AI, 소프트웨어, API, DB, 파이프라인
 
-## 수준 (level)
+## 수준 (level, 단일)
 - exec: 경영진·임원
 - manager: 관리자·팀장
 - team: 현장 담당자
 - default: 위에 안 맞으면 default
+
+## 자동화 수준 (automation_levels, 다중 가능, 없으면 [])
+- auto1: 수작업·엑셀 위주
+- auto2: 부분 시스템 도입 (개별 모듈)
+- auto3: 통합 시스템 운영 (실시간 연동)
+- aiplus: AI/예측/자율 운영
+
+## 시스템 도메인 (system_domains, 다중 가능, 없으면 [])
+- APS: 고급 계획·스케줄링
+- MES: 제조 실행
+- ERP: 전사 자원 관리
+- WMS: 창고 관리
+- QMS: 품질 관리
+- SCM: 공급망
+
+## 관리 카테고리 (mgmt_categories, 다중 가능, 없으면 [])
+- org_design: 조직 설계
+- org_role: R&R·역할
+- gov_committee: 위원회·의사결정 체계
+- gov_kpi: KPI·성과 지표
+- exec_phase: 단계별 추진 계획
+- exec_milestone: 마일스톤·납기
 
 ## 자료
 제목: {title}
@@ -122,7 +161,13 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
   "entities": ["고유명사·기관명"],
   "concepts": ["핵심 개념"],
   "reason": "분류 이유 한 줄",
-  "confidence": 0.0~1.0
+  "confidence": 0.0~1.0,
+  "automation_levels": ["auto1|auto2|auto3|aiplus", ...],
+  "system_domains": ["APS|MES|ERP|WMS|QMS|SCM", ...],
+  "mgmt_categories": ["org_design|org_role|gov_committee|gov_kpi|exec_phase|exec_milestone", ...],
+  "blurb_industry": "산업×자동화 시점 1줄 발췌 (해당 없으면 빈 문자열)",
+  "blurb_system": "시스템 시점 1줄 발췌 (해당 없으면 빈 문자열)",
+  "blurb_mgmt": "관리 시점 1줄 발췌 (해당 없으면 빈 문자열)"
 }}
 """
 
@@ -148,6 +193,9 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
             return [v.strip()] if v.strip() else []
         return []
 
+    def _enum_list(v, allowed: set[str]) -> list[str]:
+        return [x for x in _str_list(v) if x in allowed]
+
     return {
         "industry": ind,
         "area": area,
@@ -158,6 +206,12 @@ def _validate(data: dict[str, Any]) -> dict[str, Any]:
         "concepts": _str_list(data.get("concepts", [])),
         "reason": str(data.get("reason", ""))[:300],
         "confidence": float(data.get("confidence", 0.0) or 0.0),
+        "automation_levels": _enum_list(data.get("automation_levels", []), AUTOMATION_LEVELS),
+        "system_domains":   _enum_list(data.get("system_domains", []),   SYSTEM_DOMAINS),
+        "mgmt_categories":  _enum_list(data.get("mgmt_categories", []),  MGMT_CATEGORIES),
+        "blurb_industry": str(data.get("blurb_industry", ""))[:300],
+        "blurb_system":   str(data.get("blurb_system", ""))[:300],
+        "blurb_mgmt":     str(data.get("blurb_mgmt", ""))[:300],
     }
 
 
@@ -205,6 +259,12 @@ def analyze(title: str, body: str, *, timeout: float = 60.0) -> K2Result:
         elapsed_ms=resp.get("ms", 0),
         classifier_version=_k2_version(used_model),
         fallback_used=False,
+        automation_levels=validated["automation_levels"],
+        system_domains=validated["system_domains"],
+        mgmt_categories=validated["mgmt_categories"],
+        blurb_industry=validated["blurb_industry"],
+        blurb_system=validated["blurb_system"],
+        blurb_mgmt=validated["blurb_mgmt"],
     )
 
 
