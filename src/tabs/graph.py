@@ -75,35 +75,30 @@ def _scan_wikilinks() -> dict[str, int]:
 
 
 def render() -> None:
-    st.markdown("## 🕸️ 그래프")
-    st.caption(
-        "지식 그래프 시각화 — 알다 Graph view 대응 (V2.5.2 §3.C). "
-        "본 force-directed 뷰는 V2.5.3 §3.10 v1 진입 자리."
-    )
-
     docs = _load_docs()
     if not docs:
         st.error("documents 없음. raw_intake.py 실행 후 새로고침.")
         return
 
-    # ─── 상단 컨트롤 (알다 비주얼) ────────────────────────────────────
-    c1, c2, c3, c4 = st.columns([2, 1.5, 1.5, 2])
-    with c1:
-        top_n = st.slider("상위 N개 노드", 5, 200, min(50, len(docs)), step=5)
-    with c2:
-        show_isolated = st.checkbox("고립 노드 숨기기", value=False)
-    with c3:
-        include_concept = st.checkbox("Concept 포함", value=True)
-    with c4:
-        search = st.text_input("🔍 노드 검색", placeholder="title 부분 일치", label_visibility="collapsed")
+    # ─── 컨트롤을 expander 안으로 (기본 접힘) ────────────────────────
+    with st.expander("🕸️ 그래프 컨트롤 (V2.5.2 §3.C · V2.5.3 §3.10 v1)", expanded=False):
+        c1, c2, c3, c4 = st.columns([2, 1.5, 1.5, 2])
+        with c1:
+            top_n = st.slider("상위 N개 노드", 5, 200, min(50, len(docs)), step=5)
+        with c2:
+            show_isolated = st.checkbox("고립 노드 숨기기", value=False)
+        with c3:
+            include_concept = st.checkbox("Concept 포함", value=True)
+        with c4:
+            search = st.text_input("🔍 노드 검색", placeholder="title 부분 일치", label_visibility="collapsed")
 
-    # Type 필터
-    st.markdown("**Type 필터**")
-    kinds_present = sorted({(d["kind"] or "(null)") for d in docs})
-    type_cols = st.columns(max(len(kinds_present), 1))
-    type_filter = {}
-    for col, k in zip(type_cols, kinds_present):
-        type_filter[k] = col.checkbox(k or "(null)", value=True, key=f"type-{k}")
+        # Type 필터
+        kinds_present = sorted({(d["kind"] or "(null)") for d in docs})
+        type_cols = st.columns(max(len(kinds_present) + 1, 2))
+        type_cols[0].markdown("**Type 필터**")
+        type_filter = {}
+        for col, k in zip(type_cols[1:], kinds_present):
+            type_filter[k] = col.checkbox(k or "(null)", value=True, key=f"type-{k}")
 
     # ─── 노드/엣지 구성 ────────────────────────────────────────────────
     # 필터 적용
@@ -191,14 +186,14 @@ def render() -> None:
             connected.add(e.to)
         nodes = [n for n in nodes if n.id in connected]
 
-    # ─── 측정 표시 ────────────────────────────────────────────────────
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("표시 노드", len(nodes), help=f"전체 documents {len(docs)}")
-    c2.metric("엣지", len(edges))
-    c3.metric("같은 matrix 클러스터", len(by_industry_area) - (1 if "?/?" in by_industry_area else 0))
-    c4.metric("lane 종류", len(by_lane))
-
-    st.divider()
+    # ─── 한 줄 요약 (4개 metric 대신) ───────────────────────────────
+    matrix_clusters = len(by_industry_area) - (1 if "?/?" in by_industry_area else 0)
+    st.caption(
+        f"🕸️ **노드 {len(nodes)}** / 전체 {len(docs)} · "
+        f"엣지 {len(edges)} · "
+        f"matrix 클러스터 {matrix_clusters} · "
+        f"lane {len(by_lane)}종"
+    )
 
     # ─── force-directed graph ────────────────────────────────────────
     if not nodes:
