@@ -43,6 +43,55 @@ MGMT_LABELS = {
 }
 
 
+# ─── CSS — 컴팩트 그리드 + 칩 스타일 ─────────────────────────────────
+_CSS = """
+<style>
+  /* 위키 탭 전용: 컬럼 간격·행 간격 줄임 */
+  div[data-testid="stVerticalBlock"] div[data-testid="stHorizontalBlock"] { gap: 4px !important; margin-bottom: 0 !important; }
+  div[data-testid="stVerticalBlock"] div[data-testid="column"] { padding: 0 !important; }
+  /* 셀 버튼·placeholder 컴팩트 */
+  div[data-testid="column"] button[kind="secondary"] {
+    padding: 4px 0 !important; min-height: 32px !important;
+    font-weight: 600; font-size: 0.95em;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+  }
+  /* 비어있는 칸 점 */
+  .wiki-empty {
+    text-align: center; color: #444; font-size: 0.9em;
+    padding: 6px 0; min-height: 32px; line-height: 20px;
+    border: 1px solid rgba(255,255,255,0.04); border-radius: 6px;
+  }
+  /* 행 라벨 */
+  .wiki-row-lbl {
+    padding: 7px 6px 0 0; color: #d0d0d0; font-weight: 500;
+    font-size: 0.92em; white-space: nowrap;
+  }
+  /* 컬럼 헤더 (auto1~aiplus) */
+  .wiki-col-hdr {
+    text-align: center; font-size: 0.82em; line-height: 1.2;
+    padding: 2px 0 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 4px;
+  }
+  .wiki-col-hdr b { color: #e6e6e6; font-size: 1.05em; }
+  .wiki-col-hdr span { color: #888; }
+  /* 파트 헤더 */
+  .wiki-part-h { font-size: 1.05em; font-weight: 600; color: #d8d8d8;
+    margin: 18px 0 8px 0; padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .wiki-part-h .sub { color: #777; font-weight: 400; font-size: 0.85em; margin-left: 8px; }
+  /* 칩 라벨 (파트2/3) */
+  .wiki-chip-lbl {
+    text-align: center; color: #aaa; font-size: 0.85em;
+    padding: 0 0 2px 0;
+  }
+  .wiki-mgmt-grp {
+    color: #888; font-size: 0.82em; margin: 8px 0 2px 2px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+</style>
+"""
+
+
 # ─── 데이터 로드 ──────────────────────────────────────────────────────
 def _all_docs() -> list[dict]:
     if not DB_PATH.exists():
@@ -172,20 +221,19 @@ def _render_docs(docs: list[dict], blurb_field: str) -> None:
 
 # ─── 그리드 셀 (버튼 또는 점) ─────────────────────────────────────────
 def _cell(col, n: int, key: str, on_click_state: dict[str, str]) -> None:
-    """셀 1개 — 카운트 있으면 버튼, 없으면 점."""
+    """셀 1개 — 카운트 있으면 버튼, 없으면 점 placeholder (높이 통일)."""
     if n > 0:
         if col.button(str(n), key=key, use_container_width=True):
             for k, v in on_click_state.items():
                 st.session_state[k] = v
     else:
-        col.markdown(
-            "<div style='text-align:center;color:#555;padding:8px;'>·</div>",
-            unsafe_allow_html=True,
-        )
+        col.markdown("<div class='wiki-empty'>·</div>", unsafe_allow_html=True)
 
 
 # ─── 메인 render ──────────────────────────────────────────────────────
 def render() -> None:
+    st.markdown(_CSS, unsafe_allow_html=True)
+
     docs = _all_docs()
     if not docs:
         st.info("아직 분류된 자료가 없습니다. 📦 데이터 탭의 [🔄 재처리]로 분석을 돌리세요.")
@@ -195,89 +243,109 @@ def render() -> None:
     p2 = _count_p2(docs)
     p3 = _count_p3(docs)
 
-    # 미분류 카운트 — 진단용
     n_unclassified_auto = sum(
         1 for d in docs if not _parse(d.get("automation_levels_json"))
     )
 
-    # 한 줄 요약 (그래프 탭 스타일)
+    # 한 줄 요약
     st.caption(
         f"📚 **자료 {len(docs)}** · "
-        f"파트1 채워진 셀 {len(p1)}/{len(INDUSTRIES) * len(AUTOMATION)} · "
-        f"파트2 시스템 {len(p2)}/{len(SYSTEMS)} · "
-        f"파트3 관리 {len(p3)}/{sum(len(g[1]) for g in MGMT_GROUPS)} · "
-        f"자동화 미분류 {n_unclassified_auto}건"
+        f"파트1 {len(p1)}/{len(INDUSTRIES) * len(AUTOMATION)} · "
+        f"파트2 {len(p2)}/{len(SYSTEMS)} · "
+        f"파트3 {len(p3)}/{sum(len(g[1]) for g in MGMT_GROUPS)} · "
+        f"미분류 {n_unclassified_auto}건"
     )
 
-    with st.expander("📚 위키 — 분류축 안내 (V2.5.3 §3.10 v2)", expanded=False):
+    with st.expander("📚 분류축 안내 (V2.5.3 §3.10 v2)", expanded=False):
         st.markdown("""
 **3 파트 분류 — 자료 1건이 여러 파트에 동시 노출 (의도된 중복).**
 
-- **파트1 산업 × 자동화**: 산업 8종 + *산업 무관* 행 × auto1/2/3/aiplus
-- **파트2 시스템**: APS · MES · ERP · WMS · QMS · SCM (정보화 시스템)
-- **파트3 관리**: 조직·거버넌스·실행계획
+- **파트1 산업 × 자동화**: 9 산업 × auto1/2/3/aiplus
+- **파트2 시스템**: APS · MES · ERP · WMS · QMS · SCM
+- **파트3 관리**: 조직 · 거버넌스 · 실행계획
 
-K2 분류기 v2가 멀티라벨로 박는 자리. 라벨 비어 있는 자료는 📦 **데이터 탭 → [🔄 재처리]**로 K2 재돌리면 채워짐.
+라벨 비어 있는 자료는 📦 **데이터 탭 → [🔄 재처리]**로 K2 v2 재돌리면 채워짐.
         """)
 
     # ─── 파트 1: 산업 × 자동화 ───────────────────────────────────────
-    st.markdown("### 🏭 파트 1 — 산업 × 자동화")
-
-    header_cols = st.columns([1.2] + [1] * len(AUTOMATION))
-    header_cols[0].markdown("**산업 / 자동화**")
-    for i, lvl in enumerate(AUTOMATION):
-        header_cols[i + 1].markdown(
-            f"<div style='text-align:center;font-size:0.85em;line-height:1.2;'>"
-            f"<b>{lvl}</b><br/><span style='color:#888;'>"
-            f"{AUTOMATION_LABELS[lvl].split(chr(10))[1]}</span></div>",
-            unsafe_allow_html=True,
-        )
-
-    for ind in INDUSTRIES:
-        cols = st.columns([1.2] + [1] * len(AUTOMATION))
-        cols[0].markdown(f"**{INDUSTRY_LABELS[ind]}**")
+    p1_total = sum(len(v) for v in p1.values())
+    with st.expander(
+        f"🏭  파트 1 — 산업 × 자동화   ·   채워진 셀 {len(p1)}/36 · 매핑 {p1_total}건",
+        expanded=True,
+    ):
+        # 헤더 행 (auto1~aiplus)
+        header_cols = st.columns([1.4] + [1] * len(AUTOMATION))
+        header_cols[0].markdown("&nbsp;", unsafe_allow_html=True)
         for i, lvl in enumerate(AUTOMATION):
-            n = len(p1.get((ind, lvl), []))
-            _cell(
-                cols[i + 1], n,
-                key=f"p1_{ind}_{lvl}",
-                on_click_state={
-                    "wiki_part": "1", "wiki_p1_ind": ind, "wiki_p1_lvl": lvl,
-                },
+            sub = AUTOMATION_LABELS[lvl].split("\n")[1]
+            header_cols[i + 1].markdown(
+                f"<div class='wiki-col-hdr'><b>{lvl}</b><br/><span>{sub}</span></div>",
+                unsafe_allow_html=True,
             )
 
+        # 데이터 행
+        for ind in INDUSTRIES:
+            cols = st.columns([1.4] + [1] * len(AUTOMATION))
+            cols[0].markdown(
+                f"<div class='wiki-row-lbl'>{INDUSTRY_LABELS[ind]}</div>",
+                unsafe_allow_html=True,
+            )
+            for i, lvl in enumerate(AUTOMATION):
+                n = len(p1.get((ind, lvl), []))
+                _cell(
+                    cols[i + 1], n,
+                    key=f"p1_{ind}_{lvl}",
+                    on_click_state={
+                        "wiki_part": "1", "wiki_p1_ind": ind, "wiki_p1_lvl": lvl,
+                    },
+                )
+
     # ─── 파트 2: 시스템 ──────────────────────────────────────────────
-    st.markdown("### 💻 파트 2 — 시스템 (정보화)")
-    sys_cols = st.columns(len(SYSTEMS))
-    for i, sys in enumerate(SYSTEMS):
-        n = len(p2.get(sys, []))
-        with sys_cols[i]:
-            st.markdown(f"<div style='text-align:center;color:#888;'>{sys}</div>",
-                        unsafe_allow_html=True)
+    p2_total = sum(len(v) for v in p2.values())
+    with st.expander(
+        f"💻  파트 2 — 시스템 (정보화)   ·   {len(p2)}/{len(SYSTEMS)} 도메인 · 매핑 {p2_total}건",
+        expanded=True,
+    ):
+        sys_cols = st.columns(len(SYSTEMS))
+        for i, sys in enumerate(SYSTEMS):
+            n = len(p2.get(sys, []))
+            sys_cols[i].markdown(f"<div class='wiki-chip-lbl'>{sys}</div>",
+                                 unsafe_allow_html=True)
             _cell(
-                sys_cols[i].container(), n,
+                sys_cols[i], n,
                 key=f"p2_{sys}",
                 on_click_state={"wiki_part": "2", "wiki_p2_sys": sys},
             )
 
     # ─── 파트 3: 관리 ────────────────────────────────────────────────
-    st.markdown("### 🧭 파트 3 — 관리 (조직 · 거버넌스 · 실행)")
-    for group_label, cats in MGMT_GROUPS:
-        st.markdown(f"<span style='color:#888;font-size:0.9em;'>{group_label}</span>",
-                    unsafe_allow_html=True)
-        cat_cols = st.columns(len(cats) * 2)  # 좁게
-        for i, cat in enumerate(cats):
-            n = len(p3.get(cat, []))
-            with cat_cols[i * 2]:
-                st.markdown(
-                    f"<div style='text-align:center;color:#aaa;'>{MGMT_LABELS[cat]}</div>",
-                    unsafe_allow_html=True,
-                )
-                _cell(
-                    cat_cols[i * 2].container(), n,
-                    key=f"p3_{cat}",
-                    on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
-                )
+    p3_total = sum(len(v) for v in p3.values())
+    with st.expander(
+        f"🧭  파트 3 — 관리 (조직 · 거버넌스 · 실행)   ·   "
+        f"{len(p3)}/{sum(len(g[1]) for g in MGMT_GROUPS)} 카테고리 · 매핑 {p3_total}건",
+        expanded=True,
+    ):
+        grp_cols = st.columns([1, 1, 1, 1, 1, 1])
+        cat_idx = 0
+        for group_label, cats in MGMT_GROUPS:
+            for cat in cats:
+                with grp_cols[cat_idx]:
+                    if cat == cats[0]:
+                        st.markdown(
+                            f"<div class='wiki-mgmt-grp'>{group_label}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown("<div class='wiki-mgmt-grp'>&nbsp;</div>",
+                                    unsafe_allow_html=True)
+                    st.markdown(f"<div class='wiki-chip-lbl'>{MGMT_LABELS[cat]}</div>",
+                                unsafe_allow_html=True)
+                    n = len(p3.get(cat, []))
+                    _cell(
+                        grp_cols[cat_idx], n,
+                        key=f"p3_{cat}",
+                        on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
+                    )
+                cat_idx += 1
 
     # ─── 선택된 셀 자료 표시 ─────────────────────────────────────────
     st.divider()
