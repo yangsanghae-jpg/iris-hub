@@ -13,7 +13,7 @@ import socket
 
 import streamlit as st
 
-from src.tabs import dashboard, external, graph, intake, inventory, placeholders
+from src.tabs import dashboard, external, external_capture, graph, intake, inventory, placeholders
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -97,9 +97,10 @@ def main() -> None:
     st.caption("V2.5.3 동결 · M2 :8765")
 
     tabs = st.tabs([
-        # IRIS 자체 (6): 입력 신설, 게이트→진척에 흡수, 그래프 신설
+        # IRIS 자체 (7): 입력 + 외부응답 신설, 게이트→진척에 흡수, 그래프 신설
         "📊 진척",
         "📥 입력",
+        "🌐 외부응답",
         "📦 데이터",
         "🕸️ 그래프",
         "📊 인사이트",
@@ -116,19 +117,20 @@ def main() -> None:
 
     # IRIS 자체
     with tabs[0]:  dashboard.render()
-    with tabs[1]:  intake.render()         # 신규 — 직관적 입력 자리
-    with tabs[2]:  inventory.render()
-    with tabs[3]:  graph.render()
-    with tabs[4]:  placeholders.render_insights()
-    with tabs[5]:  placeholders.render_wiki()
+    with tabs[1]:  intake.render()              # 기존 — 손대지 않음
+    with tabs[2]:  external_capture.render()    # 신규 — 외부 LLM 응답 보존
+    with tabs[3]:  inventory.render()
+    with tabs[4]:  graph.render()
+    with tabs[5]:  placeholders.render_insights()
+    with tabs[6]:  placeholders.render_wiki()
     # 외부
-    with tabs[6]:  external.render_openwebui()
-    with tabs[7]:  external.render_openclaw()
-    with tabs[8]:  external.render_grafana()
-    with tabs[9]:  external.render_memory_admin()
-    with tabs[10]: external.render_obsidian()
+    with tabs[7]:  external.render_openwebui()
+    with tabs[8]:  external.render_openclaw()
+    with tabs[9]:  external.render_grafana()
+    with tabs[10]: external.render_memory_admin()
+    with tabs[11]: external.render_obsidian()
     # 설정 (맨 뒤)
-    with tabs[11]: placeholders.render_settings()
+    with tabs[12]: placeholders.render_settings()
 
 
 if __name__ == "__main__":
