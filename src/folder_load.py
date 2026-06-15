@@ -1,20 +1,37 @@
-"""폴더 로딩 — 외부 폴더 스캔 + 처리 여부 판정 + 결과 저장.
+"""폴더 로딩 — 외부 폴더 스캔 + 임시 큐 처리 + archive 구조화 저장 (V2.6.1 부록).
 
-V2.6/Phase8 후보 — 진단툴 등 외부 산출물 폴더를 *경로 그대로* 인덱싱.
+B안 동작 흐름 (정합성 우선, 카피 비용 감수):
+  1) scan_folder()      외부 폴더 스캔 + 처리 여부 판정
+  2) ingest_paths()     선택된 파일들을 다음 순서로 한 건씩 처리:
+     a) 원본 → <archive>/_temp/<work_id>/staging/ 으로 복사
+     b) parse + chunk + DB UPSERT (lane 적용)
+     c) 분류 (K2 또는 규칙)
+     d) 성공 시 → <archive>/<YYYY-MM-DD>/<doc_id>/ 로 이동
+        · original.<ext>      원본 바이트 (재사용용)
+        · manifest.json       doc_id, source_path, lane, K2 결과 등
+     e) staging의 사본 삭제
+  3) temp/<work_id>/ 빈 디렉터리 정리
 
-설계:
-  - 원본 파일은 *복사하지 않음* (raw_intake와 다름) — 외부 절대경로 그대로 인덱싱
-  - 처리 여부 = `documents.path` 컬럼에 해당 절대경로가 박혀있는지로 판정
-  - 강제 재파싱 = 처리 여부 무시하고 doc_id 재계산 + UPSERT
-  - 결과 저장 = (a) DB는 자동 (b) 가공된 파일을 별도 dest_dir로 복사 (선택)
+invariant:
+  - 처리 중 = staging/ 안에 파일 있음
+  - 처리 완료 = archive/<date>/<doc_id>/ 안에 파일 있음 + staging에서 사라짐
+  - DB 트랜잭션과 archive 이동은 *건별*. 한 건 실패해도 다른 건 진행.
+
+진행 표시:
+  - on_progress(i, total, status, file_path) 콜백으로 UI에 보고
 """
 from __future__ import annotations
 
+import datetime as dt
+import hashlib
+import json
+import shutil
 import sqlite3
 import sys
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
 if str(IRIS_SYSTEM) not in sys.path:
@@ -22,6 +39,8 @@ if str(IRIS_SYSTEM) not in sys.path:
 
 DB_PATH = IRIS_SYSTEM / "knowledge" / "_index.db"
 DEFAULT_GLOB_SUFFIXES = {".md", ".txt"}
+
+ProgressCB = Callable[[int, int, str, str], None]
 
 
 @dataclass
@@ -100,12 +119,31 @@ def scan_folder(folder: str | Path,
 
 
 @dataclass
+class FileResult:
+    source: Path
+    doc_id: str | None = None
+    chunks: int = 0
+    archive_dir: Path | None = None
+    k2_ms: int = 0
+    classifier: str = ""        # 'k2-<model>-v1' | 'rule' | 'rule-fallback'
+    industry: str | None = None
+    area: str | None = None
+    level: str | None = None
+    error: str | None = None
+    skipped_reason: str | None = None  # 'empty' | 'already' | None
+
+
+@dataclass
 class IngestResult:
     requested: int = 0
     upserted: int = 0
     skipped_empty: int = 0
+    skipped_already: int = 0
     classified: int = 0
-    saved_copies: int = 0
+    archived: int = 0
+    work_id: str = ""
+    work_dir: Path | None = None
+    files: list[FileResult] = field(default_factory=list)
     errors: list[tuple[str, str]] = field(default_factory=list)
     fts_counts: dict | None = None
 
@@ -114,19 +152,26 @@ class IngestResult:
         return not self.errors
 
 
+def _hash_short(p: Path) -> str:
+    return hashlib.sha1(str(p.resolve()).encode("utf-8")).hexdigest()[:8]
+
+
 def ingest_paths(paths: list[Path], *,
                  lane: str = "reference",
                  force: bool = False,
-                 dest_dir: Path | None = None,
-                 use_k2: bool = False) -> IngestResult:
-    """선택된 파일들을 인덱싱.
+                 archive_root: Path | None = None,
+                 use_k2: bool = False,
+                 on_progress: ProgressCB | None = None) -> IngestResult:
+    """선택된 파일들을 인덱싱 (B안: temp 큐 + archive 구조화).
 
-    lane:
-      'reference' — 외부 원본 그대로 path-pointer로 박음 (No-Copy)
-      'bronze'    — raw로 복사 후 박음 (raw_intake와 동일 흐름) — 미구현
-    force: True면 이미 처리된 파일도 재처리 (doc_id UPSERT).
-    dest_dir: 지정 시 처리 완료된 파일을 해당 폴더로 *복사* (원본 보존).
-    use_k2: K2 LLM 분류 적용 여부.
+    archive_root:
+      None → temp + archive 둘 다 만들지 않음 (DB만, 옛 동작과 동일)
+      <Path> → <root>/_temp/<work_id>/staging/ + <root>/<YYYY-MM-DD>/<doc_id>/
+
+    force: True면 이미 처리된 파일도 재처리 (DB UPSERT 강제, archive 갱신).
+    on_progress(i, total, status, source_path):
+      status ∈ {'staging', 'parsing', 'classifying', 'archiving', 'done',
+                'skip-empty', 'skip-already', 'error'}
     """
     res = IngestResult(requested=len(paths))
     if not paths:
@@ -137,14 +182,14 @@ def ingest_paths(paths: list[Path], *,
 
     try:
         from apps.ingest.raw_intake import (
-            doc_id_for, parse_frontmatter, split_chunks, upsert_raw_doc,
+            doc_id_for, parse_frontmatter, split_chunks,
         )
         from apps.ingest.fts_sync import rebuild_all
     except Exception as e:
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res
 
-    # 분류기 — K2 우선 옵션, 기본은 규칙
+    # 분류기
     if use_k2:
         try:
             from src import k2 as k2mod
@@ -153,7 +198,6 @@ def ingest_paths(paths: list[Path], *,
         except Exception as e:
             res.errors.append(("k2", f"K2 import 실패, 규칙 사용: {e}"))
             use_k2 = False
-
     if not use_k2:
         try:
             from src.classify import suggest_classification
@@ -161,51 +205,102 @@ def ingest_paths(paths: list[Path], *,
             res.errors.append(("classify", f"import 실패: {e}"))
             return res
 
-    if dest_dir:
-        dest_dir = Path(dest_dir).expanduser().resolve()
-        dest_dir.mkdir(parents=True, exist_ok=True)
+    # work_dir 생성
+    work_id = dt.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
+    res.work_id = work_id
+    staging_dir: Path | None = None
+    if archive_root:
+        archive_root = Path(archive_root).expanduser().resolve()
+        staging_dir = archive_root / "_temp" / work_id / "staging"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        res.work_dir = staging_dir.parent
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys=ON")
 
-    try:
-        for p in paths:
+    total = len(paths)
+
+    def _emit(i: int, status: str, p: Path) -> None:
+        if on_progress:
             try:
-                if not p.exists():
-                    res.errors.append((p.name, "파일 없음"))
+                on_progress(i, total, status, str(p))
+            except Exception:
+                pass
+
+    try:
+        for idx, src_path in enumerate(paths, start=1):
+            fr = FileResult(source=src_path)
+            staged: Path | None = None
+
+            try:
+                if not src_path.exists():
+                    fr.error = "파일 없음"
+                    _emit(idx, "error", src_path)
+                    res.errors.append((src_path.name, fr.error))
+                    res.files.append(fr)
                     continue
 
-                text = p.read_text(encoding="utf-8")
+                # ① staging 복사 (archive_root 켜진 경우만)
+                if staging_dir:
+                    _emit(idx, "staging", src_path)
+                    # 이름 충돌 회피: <stem>_<srchash><suffix>
+                    staged = staging_dir / f"{src_path.stem}_{_hash_short(src_path)}{src_path.suffix}"
+                    shutil.copy2(src_path, staged)
+
+                # ② parse + chunk
+                _emit(idx, "parsing", src_path)
+                text = src_path.read_text(encoding="utf-8")
                 meta, body = parse_frontmatter(text)
-                title = meta.get("title") or p.stem
+                title = meta.get("title") or src_path.stem
                 chunks = split_chunks(body)
                 if not chunks:
+                    fr.skipped_reason = "empty"
                     res.skipped_empty += 1
+                    _emit(idx, "skip-empty", src_path)
+                    if staged and staged.exists():
+                        staged.unlink()
+                    res.files.append(fr)
                     continue
 
-                doc_id = doc_id_for(p)
+                doc_id = doc_id_for(src_path)
+                fr.doc_id = doc_id
+                fr.chunks = len(chunks)
 
-                # force=False이고 이미 박힌 경우 skip
+                # 이미 박혔으면 force=False는 skip
                 if not force:
                     cur = conn.execute(
                         "SELECT 1 FROM documents WHERE path=?",
-                        (str(p.resolve()),)
+                        (str(src_path.resolve()),)
                     ).fetchone()
                     if cur:
+                        fr.skipped_reason = "already"
+                        res.skipped_already += 1
+                        _emit(idx, "skip-already", src_path)
+                        if staged and staged.exists():
+                            staged.unlink()
+                        res.files.append(fr)
                         continue
 
-                upsert_raw_doc(conn, doc_id, p, title, chunks)
-                # lane 갱신 (reference 등)
+                # ③ DB UPSERT
+                from apps.ingest.raw_intake import upsert_raw_doc
+                upsert_raw_doc(conn, doc_id, src_path, title, chunks)
+                # lane / origin 갱신 (raw_intake 기본값 override)
                 conn.execute(
                     "UPDATE documents SET lane=?, origin=? WHERE doc_id=?",
                     (lane, "folder_load", doc_id),
                 )
                 res.upserted += 1
 
-                # 분류
+                # ④ 분류
+                _emit(idx, "classifying", src_path)
+                k2_payload: dict = {}
                 if use_k2:
                     k2_result = k2mod.analyze(title, body, timeout=60.0)
-                    ind, area, lvl = k2_result.industry, k2_result.area, k2_result.level
+                    fr.industry = k2_result.industry
+                    fr.area = k2_result.area
+                    fr.level = k2_result.level
+                    fr.k2_ms = k2_result.elapsed_ms
+                    fr.classifier = k2_result.classifier_version
                     try:
                         document_meta.upsert(
                             doc_id,
@@ -220,33 +315,90 @@ def ingest_paths(paths: list[Path], *,
                             fallback_used=k2_result.fallback_used,
                         )
                     except Exception as e:
-                        res.errors.append((p.name, f"document_meta: {e}"))
+                        res.errors.append((src_path.name, f"document_meta: {e}"))
+                    k2_payload = {
+                        "summary": k2_result.summary,
+                        "topics": k2_result.topics,
+                        "entities": k2_result.entities,
+                        "concepts": k2_result.concepts,
+                        "confidence": k2_result.confidence,
+                        "reason": k2_result.reason,
+                        "fallback_used": k2_result.fallback_used,
+                    }
                 else:
                     clf = suggest_classification(title, body)
-                    ind, area, lvl = clf.get("industry"), clf.get("area"), clf.get("level")
+                    fr.industry = clf.get("industry")
+                    fr.area = clf.get("area")
+                    fr.level = clf.get("level")
+                    fr.classifier = "rule"
 
-                if any(v is not None for v in (ind, area, lvl)):
+                if any(v is not None for v in (fr.industry, fr.area, fr.level)):
                     conn.execute(
-                        "UPDATE documents SET industry=?, area=?, level=? "
-                        "WHERE doc_id=?",
-                        (ind, area, lvl, doc_id),
+                        "UPDATE documents SET industry=?, area=?, level=? WHERE doc_id=?",
+                        (fr.industry, fr.area, fr.level, doc_id),
                     )
                     res.classified += 1
 
-                # dest_dir로 *복사* (원본 보존)
-                if dest_dir:
-                    try:
-                        target = dest_dir / p.name
-                        if target.exists():
-                            target = dest_dir / f"{p.stem}_{doc_id[:8]}{p.suffix}"
-                        target.write_bytes(p.read_bytes())
-                        res.saved_copies += 1
-                    except Exception as e:
-                        res.errors.append((p.name, f"dest_dir 복사 실패: {e}"))
+                # ⑤ archive 이동: <archive_root>/<YYYY-MM-DD>/<doc_id>/
+                if archive_root:
+                    _emit(idx, "archiving", src_path)
+                    today = dt.date.today().isoformat()
+                    # doc_id에 ':' 등 FS 안전하지 않은 문자 회피
+                    safe_doc_id = doc_id.replace(":", "_").replace("/", "_")
+                    dest_dir = archive_root / today / safe_doc_id
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    # original 보존 — 원본 확장자 유지
+                    original_target = dest_dir / f"original{src_path.suffix}"
+                    if staged and staged.exists():
+                        # staging → archive 이동 (rename)
+                        shutil.move(str(staged), str(original_target))
+                        staged = None
+                    else:
+                        # staging 우회 시 직접 복사
+                        shutil.copy2(src_path, original_target)
+
+                    manifest = {
+                        "doc_id": doc_id,
+                        "source_path": str(src_path.resolve()),
+                        "title": title,
+                        "lane": lane,
+                        "kind": "source",
+                        "origin": "folder_load",
+                        "industry": fr.industry,
+                        "area": fr.area,
+                        "level": fr.level,
+                        "classifier_version": fr.classifier,
+                        "k2_ms": fr.k2_ms,
+                        "chunks": fr.chunks,
+                        "size_bytes": src_path.stat().st_size,
+                        "ingested_at": dt.datetime.now(dt.timezone.utc)
+                            .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "work_id": work_id,
+                        "k2": k2_payload,
+                    }
+                    (dest_dir / "manifest.json").write_text(
+                        json.dumps(manifest, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    fr.archive_dir = dest_dir
+                    res.archived += 1
+
+                _emit(idx, "done", src_path)
 
             except Exception as e:
-                res.errors.append((p.name, f"{type(e).__name__}: {e}"))
+                fr.error = f"{type(e).__name__}: {e}"
+                res.errors.append((src_path.name, fr.error))
+                _emit(idx, "error", src_path)
+                # staging 잔여물 정리 — 실패는 archive로 보내지 않음
+                if staged and staged.exists():
+                    try:
+                        staged.unlink()
+                    except Exception:
+                        pass
 
+            res.files.append(fr)
+
+        # FTS 동기화 (전체 1회)
         try:
             res.fts_counts = rebuild_all(conn)
         except Exception as e:
@@ -256,8 +408,17 @@ def ingest_paths(paths: list[Path], *,
     finally:
         conn.close()
 
+        # work_dir 정리: staging 비었으면 삭제
+        if staging_dir and staging_dir.exists():
+            try:
+                # staging이 비어있는지 확인 후 work_id 디렉터리째 정리
+                if not any(staging_dir.iterdir()):
+                    shutil.rmtree(staging_dir.parent, ignore_errors=True)
+            except Exception:
+                pass
+
     return res
 
 
 __all__ = ["FolderScan", "FileEntry", "scan_folder",
-           "IngestResult", "ingest_paths"]
+           "FileResult", "IngestResult", "ingest_paths"]

@@ -147,19 +147,19 @@ def _render_folder_load() -> None:
     folder_str = st.session_state.get("fl_folder", "")
 
     # ── 결과 저장 폴더 + 옵션 ──────────────────────────────────────
-    st.markdown("**💾 결과 저장 폴더 (선택)**")
+    st.markdown("**📦 archive 루트 폴더 (선택, 비워두면 DB만)**")
     dc1, dc2, dc3, dc4 = st.columns([4, 1.2, 1, 1])
     with dc1:
         st.text_input(
-            "결과 저장 폴더 경로",
-            placeholder="비워두면 원본 위치만 인덱싱, 사본 저장 X",
+            "archive 루트",
+            placeholder="비워두면 DB만 박힘. 지정 시 _temp/ + <YYYY-MM-DD>/<doc_id>/ 구조 생성",
             key="fl_dest",
             label_visibility="collapsed",
         )
     with dc2:
         if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_dest"):
             picked = _pick_folder_dialog(
-                prompt="결과 저장 폴더 선택",
+                prompt="archive 루트 폴더 선택",
                 default=st.session_state.get("fl_dest", "")
                 or "/Users/iris/Documents/0Dev",
             )
@@ -278,26 +278,66 @@ def _render_folder_load() -> None:
         )
 
     if run:
-        with st.spinner(f"인덱싱 중 ({len(selected_paths)}건)..."):
-            result = folder_load.ingest_paths(
-                selected_paths,
-                lane=lane,
-                force=force,
-                dest_dir=Path(dest_str) if dest_str else None,
-                use_k2=use_k2,
-            )
+        # 진행 가시화 — progress bar + 상태 라인
+        progress = st.progress(0.0, text="준비 중...")
+        status_box = st.empty()
+        log_lines: list[str] = []
+
+        def _on_progress(i: int, total: int, status: str, fpath: str) -> None:
+            pct = i / total if total else 1.0
+            name = Path(fpath).name
+            icon = {
+                "staging": "📥", "parsing": "🔍", "classifying": "🏷️",
+                "archiving": "📦", "done": "✅",
+                "skip-empty": "⊘", "skip-already": "↪", "error": "❌",
+            }.get(status, "·")
+            progress.progress(min(pct, 1.0), text=f"[{i}/{total}] {icon} {status} — {name}")
+            if status in ("done", "error", "skip-empty", "skip-already"):
+                log_lines.append(f"{icon} [{i}/{total}] {name} — {status}")
+                status_box.code("\n".join(log_lines[-15:]), language=None)
+
+        result = folder_load.ingest_paths(
+            selected_paths,
+            lane=lane,
+            force=force,
+            archive_root=Path(dest_str) if dest_str else None,
+            use_k2=use_k2,
+            on_progress=_on_progress,
+        )
+        progress.progress(1.0, text=f"완료 ({len(selected_paths)}건)")
 
         if result.ok:
-            st.success(
+            msg = (
                 f"✅ 인덱싱 완료 — UPSERT {result.upserted} · "
-                f"분류 {result.classified} · 빈본문 skip {result.skipped_empty}"
-                + (f" · 결과 폴더 복사 {result.saved_copies}" if dest_str else "")
+                f"분류 {result.classified} · "
+                f"빈본문 skip {result.skipped_empty} · "
+                f"이미 처리 skip {result.skipped_already}"
             )
+            if dest_str:
+                msg += f" · archive 저장 {result.archived}건 (work_id={result.work_id})"
+            st.success(msg)
         else:
             st.error(f"⚠️ 일부 실패 — {len(result.errors)}건")
             with st.expander(f"실패 상세 ({len(result.errors)})"):
                 for name, err in result.errors[:50]:
                     st.code(f"{name}: {err}")
+
+        # 건별 결과 표 (작업 추적용)
+        with st.expander(f"📋 건별 결과 ({len(result.files)}건)", expanded=False):
+            for fr in result.files:
+                if fr.error:
+                    st.write(f"❌ `{fr.source.name}` — {fr.error}")
+                elif fr.skipped_reason:
+                    st.write(f"⊘ `{fr.source.name}` — skip ({fr.skipped_reason})")
+                else:
+                    line = (
+                        f"✅ `{fr.source.name}` · {fr.chunks} chunks · "
+                        f"{fr.classifier or 'rule'} · "
+                        f"{fr.industry or '?'}/{fr.area or '?'}"
+                    )
+                    if fr.archive_dir:
+                        line += f" → `{fr.archive_dir.relative_to(Path(dest_str)) if dest_str else fr.archive_dir}`"
+                    st.write(line)
 
         if result.fts_counts:
             st.caption(f"FTS rebuild: {result.fts_counts}")

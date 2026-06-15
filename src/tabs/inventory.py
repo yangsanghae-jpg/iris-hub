@@ -29,20 +29,32 @@ def render() -> None:
 
     st.divider()
 
-    # 분포 3개
+    # 분포 3개 — 알려진 카테고리 + 분포에 박힌 *그 외 모든 값*도 누락 없이 표출
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("**Kind**")
-        for k in ("source", "entity", "concept"):
+        known = ("source", "entity", "concept")
+        for k in known:
             st.write(f"- {k}: **{m.kind_dist.get(k, 0)}**")
+        for k, v in m.kind_dist.items():
+            if k not in known:
+                st.write(f"- :gray[{k or '(null)'}]: **{v}**")
     with c2:
         st.markdown("**Origin**")
-        for k in ("human", "ai", "hybrid"):
+        known = ("human", "ai", "hybrid")
+        for k in known:
             st.write(f"- {k}: **{m.origin_dist.get(k, 0)}**")
+        for k, v in m.origin_dist.items():
+            if k not in known:
+                st.write(f"- :gray[{k or '(null)'}]: **{v}**")
     with c3:
         st.markdown("**Lane**")
-        for k in ("bronze", "silver", "gold", "secure"):
+        known = ("bronze", "silver", "gold", "reference", "secure")
+        for k in known:
             st.write(f"- {k}: **{m.lane_dist.get(k, 0)}**")
+        for k, v in m.lane_dist.items():
+            if k not in known:
+                st.write(f"- :gray[{k or '(null)'}]: **{v}**")
 
     st.divider()
 
