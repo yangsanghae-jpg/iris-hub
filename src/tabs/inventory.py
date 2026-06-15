@@ -69,11 +69,30 @@ def render() -> None:
 
     # ─── 🔄 재처리 (K1~K3) ──────────────────────────────────────────────
     st.divider()
-    st.markdown("### 🔄 재처리 (raw → documents/chunks/FTS + classify)")
+    st.markdown("### 🔄 재처리 (raw → documents/chunks/FTS + K2 분석)")
     st.caption(
         "raw 디스크 자료를 일괄로 인제스트·분류. 사람이 박은 시드 분류는 *덮어쓰기*. "
         "외부응답 격납소(_external/) 하위도 포함."
     )
+
+    # K2 가용성 + 토글
+    use_k2 = st.toggle(
+        "🤖 K2 (qwen3:8b LLM 본문 분석) — 정확하나 자료당 5~30초",
+        value=True,
+        key="rep_use_k2",
+    )
+
+    # Ollama health 카드
+    if use_k2:
+        try:
+            from src import llm
+            h = llm.health()
+            if h.get("ok"):
+                st.caption(f"🟢 Ollama 가동 · 모델 `{h['model']}` 가용")
+            else:
+                st.warning(f"⚠️ Ollama 또는 모델 미가용: {h.get('error', '?')}")
+        except Exception as e:
+            st.warning(f"⚠️ Ollama health 확인 실패: {e}")
 
     rc1, rc2, rc3 = st.columns(3)
     with rc1:
@@ -91,8 +110,11 @@ def render() -> None:
         if run_null:
             scope = "all"
 
-        with st.spinner(f"재처리 중 (scope={scope}, only_null={only_null})..."):
-            r = reprocess(scope=scope, only_null=only_null)
+        with st.spinner(
+            f"재처리 중 (scope={scope}, only_null={only_null}, "
+            f"K2={'on' if use_k2 else 'off'})..."
+        ):
+            r = reprocess(scope=scope, only_null=only_null, use_k2=use_k2)
 
         # 결과 카드
         rr1, rr2, rr3, rr4 = st.columns(4)
@@ -112,3 +134,21 @@ def render() -> None:
             st.success(f"✅ 완료 — {r.upserted}건 박힘 / {r.classified}건 분류 갱신")
 
         st.caption("💡 재처리 후 카드 숫자가 바뀌었는지 위에서 확인 (페이지 재로드)")
+
+    # ─── document_meta 통계 ────────────────────────────────────────────────
+    try:
+        from src import document_meta
+        m = document_meta.stats()
+        if m["total"] > 0:
+            st.divider()
+            st.markdown("### 🤖 K2 분석 진척")
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric("document_meta 총", f"{m['total']}")
+            mc2.metric("LLM 분석", f"{m['total'] - m['fallback']}")
+            mc3.metric("Fallback (규칙)", f"{m['fallback']}")
+            if m["by_classifier"]:
+                with st.expander("classifier_version 분포", expanded=False):
+                    for ver, n in sorted(m["by_classifier"].items()):
+                        st.write(f"- `{ver}`: **{n}**")
+    except Exception:
+        pass

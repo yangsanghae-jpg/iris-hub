@@ -234,21 +234,42 @@ def render() -> None:
             f"{last['source']}  ·  {last['size']:,} bytes"
         )
 
-        # 분류 추천 + 인제스트 결과
-        with st.expander("🔖 자동 분류 + 인덱싱 결과", expanded=False):
+        # K2 분석 + 인덱싱 결과
+        ver = last.get("k2_version", "")
+        is_fallback = last.get("k2_fallback", False)
+        badge = " 🟡 fallback" if is_fallback else " 🟢 LLM"
+
+        with st.expander(f"🔖 K2 분석 + 인덱싱 — {ver}{badge}", expanded=True):
             cc1, cc2, cc3, cc4 = st.columns(4)
             cc1.metric("industry", last.get("industry") or "—")
             cc2.metric("area", last.get("area") or "—")
             cc3.metric("level", last.get("level") or "—")
             cc4.metric("chunks", last.get("ingest_chunks", 0))
 
-            kws = last.get("keywords", [])
-            if kws:
-                st.caption("키워드: " + " · ".join(f"`{k}`" for k in kws))
+            if last.get("summary"):
+                st.caption(f"**요약:** {last['summary']}")
+
+            topics = last.get("topics", [])
+            entities = last.get("entities", [])
+            concepts = last.get("concepts", [])
+            if topics:
+                st.caption("**주제:** " + " · ".join(f"`{t}`" for t in topics))
+            if entities:
+                st.caption("**고유명사:** " + " · ".join(f"`{e}`" for e in entities))
+            if concepts:
+                st.caption("**개념:** " + " · ".join(f"`{c}`" for c in concepts))
+
+            reason = last.get("k2_reason", "")
+            if reason:
+                st.caption(f"💭 {reason}")
+
+            ms = last.get("k2_ms", 0)
+            st.caption(f"⏱ K2 소요: {ms} ms")
 
             if last.get("ingest_ok"):
                 st.caption(
-                    "🟢 documents/chunks/FTS에 박힘 — 그래프·인사이트 탭에서 보임"
+                    "🟢 documents/chunks/FTS + document_meta 박힘 — "
+                    "그래프·인사이트 탭에서 보임"
                 )
             else:
                 err = last.get("ingest_error") or "알 수 없음"
@@ -298,32 +319,76 @@ def render() -> None:
                 prompt=prompt.strip() if prompt else None,
             )
 
-            # 2. classify 추천 (즉시, 결정성 보장)
-            try:
-                from src.classify import suggest_classification
-                clf = suggest_classification(title.strip(), body)
-            except Exception:
-                clf = {"industry": None, "area": None, "level": None,
-                       "keywords": [], "confidence": {}}
+            # 2. K2 분석 (qwen3:8b 호출, 실패 시 규칙 fallback)
+            k2_result = None
+            with st.spinner("🔍 K2 분석 중 (qwen3:8b — 5~30초 예상)..."):
+                try:
+                    from src import k2
+                    k2_result = k2.analyze(title.strip(), body, timeout=60.0)
+                except Exception as e:
+                    # K2 자체 실패 — 규칙 fallback도 안 되는 경우
+                    from src.classify import suggest_classification
+                    rule = suggest_classification(title.strip(), body)
+                    from src.k2 import K2Result
+                    k2_result = K2Result(
+                        industry=rule.get("industry"),
+                        area=rule.get("area"),
+                        level=rule.get("level"),
+                        topics=rule.get("keywords", []),
+                        summary="(K2 모듈 실패)",
+                        reason=f"k2 import/call 실패: {type(e).__name__}: {e}",
+                        confidence=0.2,
+                        classifier_version="rule-emergency-fallback",
+                        fallback_used=True,
+                        error=str(e),
+                    )
 
-            # 3. raw_intake 헬퍼로 1건 인제스트 (DB documents/chunks/FTS)
+            # 3. raw_intake 헬퍼로 1건 인제스트 (K2 결과로 documents 박힘)
             ing = _ingest_one(
                 target,
-                industry=clf.get("industry"),
-                area=clf.get("area"),
-                level=clf.get("level"),
+                industry=k2_result.industry,
+                area=k2_result.area,
+                level=k2_result.level,
             )
 
-            # 4. 저장 결과를 session_state에 박기 — rerun 후 success 배너로 표시
+            # 4. document_meta 박기 (인제스트 성공한 경우만)
+            if ing.get("ok") and ing.get("doc_id"):
+                try:
+                    from src import document_meta
+                    document_meta.ensure_schema()
+                    document_meta.upsert(
+                        ing["doc_id"],
+                        summary=k2_result.summary,
+                        topics=k2_result.topics,
+                        entities=k2_result.entities,
+                        concepts=k2_result.concepts,
+                        classifier_version=k2_result.classifier_version,
+                        confidence=k2_result.confidence,
+                        reason=k2_result.reason,
+                        k2_ms=k2_result.elapsed_ms,
+                        fallback_used=k2_result.fallback_used,
+                    )
+                except Exception as e:
+                    # document_meta 실패는 raw·documents 박기와 무관 — graceful
+                    st.warning(f"⚠️ document_meta 저장 실패: {e}")
+
+            # 5. 저장 결과를 session_state에 박기
             st.session_state["ext_last_saved"] = {
                 "filename": target.name,
                 "source": source,
                 "size": target.stat().st_size,
                 "path": str(target),
-                "industry": clf.get("industry"),
-                "area": clf.get("area"),
-                "level": clf.get("level"),
-                "keywords": clf.get("keywords", []),
+                "industry": k2_result.industry,
+                "area": k2_result.area,
+                "level": k2_result.level,
+                "summary": k2_result.summary,
+                "topics": k2_result.topics,
+                "entities": k2_result.entities,
+                "concepts": k2_result.concepts,
+                "k2_ms": k2_result.elapsed_ms,
+                "k2_version": k2_result.classifier_version,
+                "k2_fallback": k2_result.fallback_used,
+                "k2_reason": k2_result.reason,
                 "ingest_ok": ing.get("ok", False),
                 "ingest_chunks": ing.get("chunks", 0),
                 "ingest_error": ing.get("error"),

@@ -74,12 +74,15 @@ def _walk_raw(scope: str = "all") -> Iterable[Path]:
                     if p.is_file() and p.suffix.lower() in INCLUDE_SUFFIXES)
 
 
-def reprocess(scope: str = "all", *, only_null: bool = False) -> ReprocessResult:
+def reprocess(scope: str = "all", *, only_null: bool = False,
+              use_k2: bool = True) -> ReprocessResult:
     """K1~K3 일괄 재처리.
 
     scope: 'all' / 'external' / 'root'
     only_null: True면 documents에 분류가 NULL인 것만 갱신.
                False면 덮어쓰기 (기본 — 사용자 합의).
+    use_k2: True면 LLM K2 분석 (느림, 자료당 5~30초).
+            False면 규칙 매칭만 (빠름).
     """
     res = ReprocessResult()
 
@@ -96,11 +99,22 @@ def reprocess(scope: str = "all", *, only_null: bool = False) -> ReprocessResult
         res.errors.append(("db", f"DB 없음: {DB_PATH}"))
         return res
 
-    try:
-        from src.classify import suggest_classification
-    except Exception as e:
-        res.errors.append(("classify", f"import 실패: {e}"))
-        return res
+    # 분류기 — K2 우선, 실패 시 규칙
+    if use_k2:
+        try:
+            from src import k2 as k2mod
+            from src import document_meta
+            document_meta.ensure_schema()
+        except Exception as e:
+            res.errors.append(("k2", f"K2 모듈 import 실패, 규칙 사용: {e}"))
+            use_k2 = False
+
+    if not use_k2:
+        try:
+            from src.classify import suggest_classification
+        except Exception as e:
+            res.errors.append(("classify", f"import 실패: {e}"))
+            return res
 
     files = list(_walk_raw(scope))
     res.scanned = len(files)
@@ -126,9 +140,29 @@ def reprocess(scope: str = "all", *, only_null: bool = False) -> ReprocessResult
                 upsert_raw_doc(conn, doc_id, path, title, chunks)
                 res.upserted += 1
 
-                # classify 추천 → UPDATE
-                clf = suggest_classification(title, body)
-                ind, area, lvl = clf.get("industry"), clf.get("area"), clf.get("level")
+                # 분류 — K2 또는 규칙
+                if use_k2:
+                    k2_result = k2mod.analyze(title, body, timeout=60.0)
+                    ind, area, lvl = k2_result.industry, k2_result.area, k2_result.level
+                    # document_meta 박기
+                    try:
+                        document_meta.upsert(
+                            doc_id,
+                            summary=k2_result.summary,
+                            topics=k2_result.topics,
+                            entities=k2_result.entities,
+                            concepts=k2_result.concepts,
+                            classifier_version=k2_result.classifier_version,
+                            confidence=k2_result.confidence,
+                            reason=k2_result.reason,
+                            k2_ms=k2_result.elapsed_ms,
+                            fallback_used=k2_result.fallback_used,
+                        )
+                    except Exception as e:
+                        res.errors.append((path.name, f"document_meta: {e}"))
+                else:
+                    clf = suggest_classification(title, body)
+                    ind, area, lvl = clf.get("industry"), clf.get("area"), clf.get("level")
 
                 if only_null:
                     # 현 DB가 NULL인 컬럼만 채움
