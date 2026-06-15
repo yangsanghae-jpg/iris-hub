@@ -278,6 +278,14 @@ def render() -> None:
 
             st.info("💡 다음: `make build-faiss`로 시맨틱 인덱스 갱신 (별도 명령, 1~2분)")
 
+    # ─── (B) 📁 폴더 로딩 — 외부 폴더 경로 그대로 인덱싱 ─────────────
+    st.divider()
+    st.markdown("### (B) 📁 폴더 로딩 — 외부 자료 일괄 인덱싱")
+    st.caption(
+        "진단툴 산출물 등 *외부 폴더 경로 그대로* 인덱싱. 원본은 복사하지 않음 (No-Copy)."
+    )
+    _render_folder_load()
+
     # ─── (C) 텍스트 붙여넣기 패턴 — 챗 응답 저장 ─────────────────────
     st.divider()
     st.markdown("### (C) 📝 텍스트 붙여넣기 — 챗 응답·메모 저장")
@@ -334,14 +342,6 @@ def render() -> None:
 
         with st.expander("실행 로그", expanded=False):
             st.code(log[-3000:])
-
-    # ─── (D) 📁 폴더 로딩 — 외부 폴더 경로 그대로 인덱싱 ─────────────
-    st.divider()
-    st.markdown("### (D) 📁 폴더 로딩 — 외부 자료 일괄 인덱싱")
-    st.caption(
-        "진단툴 산출물 등 *외부 폴더 경로 그대로* 인덱싱. 원본은 복사하지 않음 (No-Copy)."
-    )
-    _render_folder_load()
 
     # ─── 하단 안내 ───────────────────────────────────────────────────
     st.divider()
