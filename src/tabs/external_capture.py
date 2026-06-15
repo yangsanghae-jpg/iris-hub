@@ -117,6 +117,13 @@ def _list_recent(n: int = 10) -> list[dict]:
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
 
+def _clear_form() -> None:
+    """입력 필드 초기화 (다음 입력 받을 준비)."""
+    for k in ("ext_title", "ext_prompt", "ext_body"):
+        if k in st.session_state:
+            st.session_state[k] = ""
+
+
 def render() -> None:
     st.markdown("## 🌐 외부응답")
     st.caption(
@@ -127,10 +134,26 @@ def render() -> None:
     if not EXTERNAL_DIR.exists():
         try:
             EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
-            st.success(f"✅ 저장 자리 신설: `{EXTERNAL_DIR}`")
         except Exception as e:
             st.error(f"저장 자리 생성 실패: {e}")
             return
+
+    # 저장 자리 안내 + 폴더 열기
+    c_path1, c_path2 = st.columns([4, 1])
+    with c_path1:
+        st.caption(f"📂 저장 위치: `{EXTERNAL_DIR}`")
+    with c_path2:
+        if st.button("📁 폴더 열기", key="ext_open_folder", use_container_width=True):
+            import subprocess
+            subprocess.Popen(["open", str(EXTERNAL_DIR)])
+
+    # 직전 저장 결과 (rerun 후에도 유지)
+    if "ext_last_saved" in st.session_state:
+        last = st.session_state["ext_last_saved"]
+        st.success(
+            f"✅ **저장 완료** — `{last['filename']}`  ·  "
+            f"{last['source']}  ·  {last['size']:,} bytes"
+        )
 
     # ─── 새 이벤트 박기 ───────────────────────────────────────────────────
     st.divider()
@@ -173,8 +196,17 @@ def render() -> None:
                 body=body,
                 prompt=prompt.strip() if prompt else None,
             )
-            st.success(f"✅ 저장: `{target.relative_to(IRIS_SYSTEM)}`")
-            st.caption("💡 인제스트는 별도 (다음 사이클에서 결정). 본문은 안전하게 박혔음.")
+            # 저장 결과를 session_state에 박기 — rerun 후 success 배너로 표시
+            st.session_state["ext_last_saved"] = {
+                "filename": target.name,
+                "source": source,
+                "size": target.stat().st_size,
+                "path": str(target),
+            }
+            # 입력 필드 비움 + 화면 갱신
+            _clear_form()
+            st.toast(f"✅ {target.name} 저장됨", icon="💾")
+            st.rerun()
         except Exception as e:
             st.error(f"❌ 저장 실패: {e}")
 
@@ -187,8 +219,8 @@ def render() -> None:
         st.caption("아직 박힌 이벤트가 없음.")
         return
 
-    st.caption(f"총 {len(recent)}건 (최근순). 클릭해서 미리보기.")
-    for item in recent:
+    st.caption(f"총 {len(recent)}건 (최근순). 펼치면 마크다운 렌더링으로 보여요.")
+    for idx, item in enumerate(recent):
         with st.expander(
             f"**{item['title']}**  ·  *{item['source']}*  ·  "
             f"{item['mtime'].strftime('%Y-%m-%d %H:%M')}  ·  "
@@ -196,9 +228,34 @@ def render() -> None:
             expanded=False,
         ):
             try:
-                preview = item["path"].read_text(encoding="utf-8")
-                st.code(preview[:2000] + ("..." if len(preview) > 2000 else ""),
-                        language="markdown")
-                st.caption(f"경로: `{item['path']}`")
+                full_text = item["path"].read_text(encoding="utf-8")
+                # frontmatter 분리 (앞쪽 --- ... --- 블록)
+                meta_block, body_block = "", full_text
+                if full_text.startswith("---\n"):
+                    parts = full_text[4:].split("\n---\n", 1)
+                    if len(parts) == 2:
+                        meta_block, body_block = parts[0], parts[1]
+
+                # 메타 정보 (compact)
+                if meta_block:
+                    with st.expander("🔖 메타 (frontmatter)", expanded=False):
+                        st.code(meta_block, language="yaml")
+
+                # 본문 — 두 모드: 미리보기(렌더링) / 원본(raw)
+                tab_render, tab_raw = st.tabs(["✨ 미리보기", "📝 원본"])
+                with tab_render:
+                    st.markdown(body_block.strip())
+                with tab_raw:
+                    st.code(body_block.strip(), language="markdown")
+
+                # 액션
+                ca1, ca2 = st.columns([1, 4])
+                with ca1:
+                    if st.button("📁 폴더에서 열기", key=f"ext_open_{idx}",
+                                 use_container_width=True):
+                        import subprocess
+                        subprocess.Popen(["open", "-R", str(item["path"])])
+                with ca2:
+                    st.caption(f"경로: `{item['path']}`")
             except Exception as e:
                 st.caption(f"읽기 실패: {e}")
