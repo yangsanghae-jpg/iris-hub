@@ -82,33 +82,92 @@ def _build_md(*, title: str, source: str, body: str,
     return "\n".join(lines)
 
 
+def _pick_folder_dialog(prompt: str = "폴더 선택", default: str = "") -> str | None:
+    """macOS Finder 폴더 선택 다이얼로그. POSIX 경로 반환. 취소면 None.
+
+    Streamlit은 서버 프로세스가 떠 있는 호스트에서 osascript 실행 — M2/M5 둘 다 macOS라 OK.
+    """
+    import shlex
+    import subprocess
+
+    default_clause = f' default location "{default}"' if default else ""
+    script = (
+        f'POSIX path of (choose folder with prompt "{prompt}"{default_clause})'
+    )
+    try:
+        out = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=120,
+        )
+    except Exception as e:
+        st.warning(f"폴더 선택 다이얼로그 실행 실패: {e}")
+        return None
+    if out.returncode != 0:
+        # 사용자가 취소(-128)한 경우는 조용히 None
+        return None
+    picked = out.stdout.strip()
+    return picked or None
+
+
 def _render_folder_load() -> None:
-    """(D) 폴더 로딩 섹션 — 스캔 + 선택 + 인제스트 + 결과 저장."""
+    """(B) 폴더 로딩 섹션 — 스캔 + 선택 + 인제스트 + 결과 저장."""
     import pandas as pd
     from src import folder_load
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        folder_str = st.text_input(
-            "📂 소스 폴더 절대경로",
-            placeholder="/Users/iris/Documents/diagnosis-tool/server/data",
+
+    # ── 소스 폴더 ─────────────────────────────────────────────────
+    if "fl_folder" not in st.session_state:
+        st.session_state["fl_folder"] = ""
+
+    sc1, sc2, sc3 = st.columns([3, 1, 1])
+    with sc1:
+        st.text_input(
+            "📂 소스 폴더",
+            placeholder="아래 [폴더 선택]으로 고르거나 직접 붙여넣기",
             key="fl_folder",
         )
-    with c2:
+    with sc2:
+        if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_src"):
+            picked = _pick_folder_dialog(
+                prompt="인덱싱할 소스 폴더 선택",
+                default=st.session_state.get("fl_folder", ""),
+            )
+            if picked:
+                st.session_state["fl_folder"] = picked
+                st.rerun()
+    with sc3:
         recursive = st.checkbox("하위 포함", value=True, key="fl_recursive")
 
-    c3, c4, c5 = st.columns([2, 1, 1])
-    with c3:
-        dest_str = st.text_input(
+    folder_str = st.session_state["fl_folder"]
+
+    # ── 결과 저장 폴더 + 옵션 ──────────────────────────────────────
+    if "fl_dest" not in st.session_state:
+        st.session_state["fl_dest"] = ""
+
+    dc1, dc2, dc3, dc4 = st.columns([3, 1, 1, 1])
+    with dc1:
+        st.text_input(
             "💾 결과 저장 폴더 (선택, 비우면 DB만)",
-            placeholder="/Users/iris/Documents/0Dev/iris-system/knowledge/processed",
+            placeholder="비워두면 원본 위치만 인덱싱, 사본 저장 X",
             key="fl_dest",
         )
-    with c4:
+    with dc2:
+        if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_dest"):
+            picked = _pick_folder_dialog(
+                prompt="결과 저장 폴더 선택",
+                default=st.session_state.get("fl_dest", "")
+                or "/Users/iris/Documents/0Dev",
+            )
+            if picked:
+                st.session_state["fl_dest"] = picked
+                st.rerun()
+    with dc3:
         lane = st.selectbox("lane", ["reference", "bronze"], index=0, key="fl_lane",
                              help="reference = 원본 경로 그대로 (No-Copy)")
-    with c5:
+    with dc4:
         use_k2 = st.checkbox("🤖 K2 분류", value=False, key="fl_use_k2",
                               help="LLM 분류 (5~30초/건). 끄면 규칙 매칭.")
+
+    dest_str = st.session_state["fl_dest"]
 
     if not folder_str:
         st.info("📂 폴더 경로를 입력하면 파일 리스트가 표시됩니다.")
