@@ -117,11 +117,24 @@ def _list_recent(n: int = 10) -> list[dict]:
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
 
-def _clear_form() -> None:
-    """입력 필드 초기화 (다음 입력 받을 준비)."""
-    for k in ("ext_title", "ext_prompt", "ext_body"):
-        if k in st.session_state:
-            st.session_state[k] = ""
+def _form_keys() -> dict[str, str]:
+    """위젯 키 — 저장마다 reset_counter 증가로 새 키 생성.
+
+    Streamlit은 위젯 인스턴스화 후 같은 key의 session_state를 직접 수정 못 함.
+    저장 후 폼을 비우려면 *새 위젯*을 만들어야 하므로 키 자체를 바꾼다.
+    """
+    n = st.session_state.get("ext_reset_counter", 0)
+    return {
+        "title":  f"ext_title_{n}",
+        "prompt": f"ext_prompt_{n}",
+        "body":   f"ext_body_{n}",
+        "source": f"ext_source_{n}",
+    }
+
+
+def _bump_form() -> None:
+    """저장 직후 호출 — 다음 rerun에서 위젯 키가 새로 만들어져 빈 상태."""
+    st.session_state["ext_reset_counter"] = st.session_state.get("ext_reset_counter", 0) + 1
 
 
 def render() -> None:
@@ -159,27 +172,28 @@ def render() -> None:
     st.divider()
     st.markdown("### 📥 새 이벤트 박기")
 
+    keys = _form_keys()
     c1, c2 = st.columns([3, 1])
     with c1:
         title = st.text_input(
             "이벤트명 *",
             placeholder="예: MES 핵심 개념 정리 v3",
-            key="ext_title",
+            key=keys["title"],
         )
     with c2:
-        source = st.selectbox("출처", SOURCES, index=0, key="ext_source")
+        source = st.selectbox("출처", SOURCES, index=0, key=keys["source"])
 
     prompt = st.text_input(
         "원본 질의 (선택)",
         placeholder="예: MES 핵심 개념을 7장 분량으로 정리해줘",
-        key="ext_prompt",
+        key=keys["prompt"],
     )
 
     body = st.text_area(
         "답변 본문 * (markdown 그대로 붙여넣기)",
         height=600,
         placeholder="여기에 GPT/Gemini/Claude 답변을 그대로 붙여넣기...",
-        key="ext_body",
+        key=keys["body"],
     )
 
     if st.button(
@@ -204,7 +218,7 @@ def render() -> None:
                 "path": str(target),
             }
             # 입력 필드 비움 + 화면 갱신
-            _clear_form()
+            _bump_form()
             st.toast(f"✅ {target.name} 저장됨", icon="💾")
             st.rerun()
         except Exception as e:
