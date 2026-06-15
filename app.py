@@ -13,7 +13,7 @@ import socket
 
 import streamlit as st
 
-from src.tabs import dashboard, external, external_capture, graph, intake, inventory, placeholders
+from src.tabs import dashboard, external, external_capture, graph, intake, inventory, placeholders, wiki_k2
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -122,7 +122,10 @@ def main() -> None:
     with tabs[3]:  inventory.render()
     with tabs[4]:  graph.render()
     with tabs[5]:  placeholders.render_insights()
-    with tabs[6]:  placeholders.render_wiki()
+    with tabs[6]:
+        wiki_k2.render()
+        st.divider()
+        placeholders.render_wiki()
     # 외부
     with tabs[7]:  external.render_openwebui()
     with tabs[8]:  external.render_openclaw()
