@@ -66,3 +66,49 @@ def render() -> None:
 
     st.write(f"🕐 last ingest (raw): `{m.last_ingest_raw}`")
     st.write(f"🕐 last ingest (ref): `{m.last_ingest_ref}`")
+
+    # ─── 🔄 재처리 (K1~K3) ──────────────────────────────────────────────
+    st.divider()
+    st.markdown("### 🔄 재처리 (raw → documents/chunks/FTS + classify)")
+    st.caption(
+        "raw 디스크 자료를 일괄로 인제스트·분류. 사람이 박은 시드 분류는 *덮어쓰기*. "
+        "외부응답 격납소(_external/) 하위도 포함."
+    )
+
+    rc1, rc2, rc3 = st.columns(3)
+    with rc1:
+        run_all = st.button("🔄 전체 raw", use_container_width=True, key="rep_all")
+    with rc2:
+        run_ext = st.button("🔄 외부응답만", use_container_width=True, key="rep_ext")
+    with rc3:
+        run_null = st.button("🔄 NULL만 채움", use_container_width=True, key="rep_null",
+                             help="이미 박힌 분류는 유지, NULL인 것만 추천값으로 채움")
+
+    if run_all or run_ext or run_null:
+        from src.reprocess import reprocess
+        scope = "external" if run_ext else "all"
+        only_null = run_null
+        if run_null:
+            scope = "all"
+
+        with st.spinner(f"재처리 중 (scope={scope}, only_null={only_null})..."):
+            r = reprocess(scope=scope, only_null=only_null)
+
+        # 결과 카드
+        rr1, rr2, rr3, rr4 = st.columns(4)
+        rr1.metric("스캔", r.scanned)
+        rr2.metric("upsert", r.upserted)
+        rr3.metric("분류", r.classified)
+        rr4.metric("빈 chunk", r.skipped_empty)
+
+        if r.fts_counts:
+            st.caption(f"FTS: {r.fts_counts}")
+
+        if r.errors:
+            with st.expander(f"⚠️ 오류 {len(r.errors)}건", expanded=True):
+                for name, err in r.errors[:20]:
+                    st.write(f"- `{name}` — {err}")
+        else:
+            st.success(f"✅ 완료 — {r.upserted}건 박힘 / {r.classified}건 분류 갱신")
+
+        st.caption("💡 재처리 후 카드 숫자가 바뀌었는지 위에서 확인 (페이지 재로드)")
