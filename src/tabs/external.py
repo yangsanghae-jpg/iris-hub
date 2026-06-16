@@ -1,14 +1,17 @@
-"""외부 진입점 탭 — IRIS 자체 6탭과 같은 깊이로 평면화 (V2.5.3 §3.10 v1 정정).
+"""외부 진입점 탭 — IRIS 자체 7탭과 같은 깊이로 평면화 (V2.5.3 §3.10 v1 정정).
 
 알다 v0.10.1 Codexian 사이드패널 패턴 차용. 단 Streamlit은 사이드패널
-제약 없어 *최상단 탭 11개로 평면화*.
+제약 없어 *최상단 탭으로 평면화*.
 
 각 진입점:
   - L1-chat-webui (OpenWebUI :3000)  — 정식 ①
   - L1-chat-claw (iris-claw :18789)  — 정식 ② (V2.5.1 §11 #10 미연결)
   - L5-observability (Grafana :3030) — V2.5.1 §11.6 관측 한 곳
-  - L3-memory-admin (:18020)         — 메모리 운영
   - Obsidian (외부 알다 시스템)       — V2.5.2 §3.B 거부 정책, 참고용
+
+V2.6.2.2 (2026-06-16): 🧠 memory 진입점 제거.
+  원안은 OpenClaw 페르소나 관리용이었으나 페르소나 운영 자체가 의미 없어져 폐기.
+  L3-memory-admin 컨테이너는 iris-stack에 남아있을 수 있으나 hub UI에서 노출 안 함.
 """
 from __future__ import annotations
 
@@ -152,16 +155,9 @@ def render_grafana() -> None:
     )
 
 
-# ─── L3 메모리 운영 ────────────────────────────────────────────────────
-
-
-def render_memory_admin() -> None:
-    _iframe_or_help(
-        url="http://127.0.0.1:18020",
-        host="127.0.0.1", port=18020, name="L3-memory-admin",
-        hint="cd ~/Documents/0Dev/iris-stack && docker compose up -d memory-admin",
-    )
-    st.caption("iris-memory (L3) 워킹메모리 운영. V2.5.1 §3 L3 단독 가동 + L2 통합은 토글.")
+# ─── L3 메모리 운영 (V2.6.2.2 폐기) ────────────────────────────────────
+# render_memory_admin 제거 — OpenClaw 페르소나 관리 의의 소멸로 운영 진입점 폐기.
+# iris-stack의 memory-admin 컨테이너 자체는 별도 사이클에서 정리.
 
 
 # ─── Obsidian (외부) ───────────────────────────────────────────────────

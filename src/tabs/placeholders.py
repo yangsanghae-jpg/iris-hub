@@ -186,7 +186,6 @@ def render_settings() -> None:
     st.markdown("### 🔗 운영 콘솔 바로가기")
     _link_button_row([
         ("💬 OpenWebUI", "http://127.0.0.1:3000", "L1-chat-webui"),
-        ("🧠 memory-admin", "http://127.0.0.1:18020", "L3 메모리 관리"),
         ("🤖 L2 모델", "http://127.0.0.1:8011/v1/models", "iris-l2-gateway"),
     ])
 

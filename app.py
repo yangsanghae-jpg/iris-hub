@@ -1,8 +1,9 @@
-"""iris-hub v0 — 11탭 평면 구조 (V2.5.3 §3.10 + 본 사이클 수정).
+"""iris-hub v0 — 평면 탭 구조 (V2.5.3 §3.10 + 본 사이클 수정).
 
-탭 구조 (11):
-  IRIS 자체 (6):  📊 진척 | 📦 데이터 | 🎯 게이트 | 📊 인사이트 | 📚 위키 | ⚙️ 설정
-  외부 진입점 (5): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 🧠 memory | 📚 Obsidian
+탭 구조:
+  IRIS 자체 (7):  📊 진척 | 📥 입력 | 🌐 외부응답 | 📦 데이터 | 🕸️ 그래프 | 📊 인사이트 | 📚 위키
+  외부 진입점 (4): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 📚 Obsidian
+  설정 (1):       ⚙️ 설정
 
 UI 정책:
   - 헤더 간소화 (iris-hub 제목 작게)
@@ -62,7 +63,6 @@ def _sidebar() -> None:
         st.link_button("📊 Grafana", "http://127.0.0.1:3030", use_container_width=True)
         st.link_button("💬 OpenWebUI", "http://127.0.0.1:3000", use_container_width=True)
         st.link_button("🦅 OpenClaw", "http://127.0.0.1:18789", use_container_width=True)
-        st.link_button("🧠 memory-admin", "http://127.0.0.1:18020", use_container_width=True)
         st.link_button("📚 Obsidian", "obsidian://open?vault=LearningMaster",
                        use_container_width=True)
 
@@ -73,7 +73,6 @@ def _sidebar() -> None:
             ("OpenWebUI", 3000),
             ("OpenClaw", 18789),
             ("L2-gateway", 8011),
-            ("L3-memory", 8001),
             ("L4-RS-search", 8020),
             ("K5 wiki :8081", 8081),
             ("nomic-embed", 11434),
@@ -94,10 +93,10 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.6.2 · M2 :8765 · K2 v2 멀티라벨")
+    st.caption("V2.6.2.2 · M2 :8765 · K2 v2 멀티라벨")
 
     tabs = st.tabs([
-        # IRIS 자체 (7): 입력 + 외부응답 신설, 게이트→진척에 흡수, 그래프 신설
+        # IRIS 자체 (7)
         "📊 진척",
         "📥 입력",
         "🌐 외부응답",
@@ -105,11 +104,10 @@ def main() -> None:
         "🕸️ 그래프",
         "📊 인사이트",
         "📚 위키",
-        # 외부 진입점 (5)
+        # 외부 진입점 (4) — V2.6.2.2: 🧠 memory 제거 (페르소나 관리 의의 소멸)
         "💬 WebUI",
         "🦅 OpenClaw",
         "🌐 Grafana",
-        "🧠 memory",
         "📚 Obsidian",
         # 설정 — 맨 뒤
         "⚙️ 설정",
@@ -130,10 +128,9 @@ def main() -> None:
     with tabs[7]:  external.render_openwebui()
     with tabs[8]:  external.render_openclaw()
     with tabs[9]:  external.render_grafana()
-    with tabs[10]: external.render_memory_admin()
-    with tabs[11]: external.render_obsidian()
+    with tabs[10]: external.render_obsidian()
     # 설정 (맨 뒤)
-    with tabs[12]: placeholders.render_settings()
+    with tabs[11]: placeholders.render_settings()
 
 
 if __name__ == "__main__":
