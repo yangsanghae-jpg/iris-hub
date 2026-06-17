@@ -296,3 +296,71 @@ def render() -> None:
                 st.success(
                     f"✅ {r.upserted:,}건 저장 · {r.classified:,}건 분류 갱신"
                 )
+
+    # ─── Obsidian 동기화 ─────────────────────────────────────────────
+    with st.expander("📚 Obsidian 동기화 (iris-mirror)", expanded=False):
+        from src import obsidian_sync as osync
+
+        # mirror 현황 조회 — 디렉토리 존재 + .md 카운트 + 최근 sync 시각
+        existing = 0
+        latest_sync: str | None = None
+        if osync.MIRROR_ROOT.exists():
+            mds = list(osync.MIRROR_ROOT.glob("*.md"))
+            # README.md 제외
+            existing = sum(1 for p in mds if p.name != "README.md")
+            # mtime 가장 최근 .md의 frontmatter에서 iris_synced_at 추출
+            data_mds = [p for p in mds if p.name != "README.md"]
+            if data_mds:
+                newest = max(data_mds, key=lambda p: p.stat().st_mtime)
+                latest_sync = osync._read_synced_at(newest)
+
+        st.caption(
+            f"📂 위치: `{osync.MIRROR_ROOT}` · "
+            f"현재 박힌 mirror `.md` **{existing:,}**건 · "
+            f"마지막 sync: <code>{(latest_sync or '—').replace('T',' ')[:16]}</code>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "💡 **단방향 export** — 정본은 SQLite, Obsidian은 거울. "
+            "사용자 편집은 다음 sync에 *덮어씌워짐*. "
+            "기록은 격납소 밖에서 wikilink로 참조."
+        )
+
+        sb1, sb2 = st.columns(2)
+        sync_changed = sb1.button(
+            "🔄 변경분만 동기화",
+            use_container_width=True, key="osync_changed",
+            help="K2 재분석 또는 신규 자료만 다시 씀 (증분, 빠름)",
+        )
+        sync_force = sb2.button(
+            "🔁 전체 다시 쓰기",
+            use_container_width=True, key="osync_force",
+            help="변경 여부 무시하고 모든 자료 .md를 다시 씀 (느림)",
+        )
+
+        if sync_changed or sync_force:
+            with st.spinner(
+                f"Obsidian mirror 동기화 중… "
+                f"{'전체 강제' if sync_force else '변경분'}"
+            ):
+                sr = osync.sync_all(force=bool(sync_force))
+
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.metric("스캔", sr.scanned)
+            sc2.metric("작성", sr.written)
+            sc3.metric("변경 없음 (skip)", sr.skipped)
+            sc4.metric("오류", len(sr.errors))
+
+            if sr.errors:
+                with st.expander(f"⚠️ 오류 {len(sr.errors)}건", expanded=True):
+                    for doc_id, err in sr.errors[:20]:
+                        st.write(f"- `{doc_id}` — {err}")
+            else:
+                if sr.written > 0:
+                    st.success(
+                        f"✅ {sr.written:,}건 작성 · {sr.skipped:,}건 변경 없음"
+                    )
+                else:
+                    st.info(
+                        f"🟢 모든 자료가 최신 상태 — {sr.skipped:,}건 skip"
+                    )
