@@ -1,9 +1,15 @@
-"""iris-hub v0 — 평면 탭 구조 (V2.5.3 §3.10 + 본 사이클 수정).
+"""iris-hub v0 — 평면 탭 구조 (V2.6.2.9 — 진척 탭 숨김).
 
 탭 구조:
-  IRIS 자체 (7):  📊 진척 | 📥 입력 | 🌐 외부응답 | 📦 데이터 | 🕸️ 그래프 | 📊 인사이트 | 📚 위키
+  IRIS 자체 (6): 📥 입력 | 🌐 외부응답 | 📦 데이터 | 🕸️ 그래프 | 📊 인사이트 | 📚 위키
   외부 진입점 (4): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 📚 Obsidian
   설정 (1):       ⚙️ 설정
+
+V2.6.2.9 — 📊 진척 (dashboard.render) 숨김.
+  V2.6 phase 7건 종결로 추적 임무 완결.
+  dashboard.py 모듈과 import는 보존 — 향후 운영 phase 진입 시 복원 가능.
+
+V2.6.2.2 — 🧠 memory 진입점 제거 (페르소나 관리 의의 소멸).
 
 UI 정책:
   - 헤더 간소화 (iris-hub 제목 작게)
@@ -93,11 +99,10 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.6.2.8 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
+    st.caption("V2.6.2.9 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
     tabs = st.tabs([
-        # IRIS 자체 (7)
-        "📊 진척",
+        # IRIS 자체 (6) — 📊 진척 V2.6.2.9 숨김 (phase 추적 임무 완결, dashboard.py·import 보존)
         "📥 입력",
         "🌐 외부응답",
         "📦 데이터",
@@ -114,23 +119,22 @@ def main() -> None:
     ])
 
     # IRIS 자체
-    with tabs[0]:  dashboard.render()
-    with tabs[1]:  intake.render()              # 기존 — 손대지 않음
-    with tabs[2]:  external_capture.render()    # 신규 — 외부 LLM 응답 보존
-    with tabs[3]:  inventory.render()
-    with tabs[4]:  graph.render()
-    with tabs[5]:  placeholders.render_insights()
-    with tabs[6]:
+    with tabs[0]:  intake.render()              # 기존 — 손대지 않음
+    with tabs[1]:  external_capture.render()    # 신규 — 외부 LLM 응답 보존
+    with tabs[2]:  inventory.render()
+    with tabs[3]:  graph.render()
+    with tabs[4]:  placeholders.render_insights()
+    with tabs[5]:
         wiki_k2.render()
         st.divider()
         placeholders.render_wiki()
     # 외부
-    with tabs[7]:  external.render_openwebui()
-    with tabs[8]:  external.render_openclaw()
-    with tabs[9]:  external.render_grafana()
-    with tabs[10]: external.render_obsidian()
+    with tabs[6]:  external.render_openwebui()
+    with tabs[7]:  external.render_openclaw()
+    with tabs[8]:  external.render_grafana()
+    with tabs[9]:  external.render_obsidian()
     # 설정 (맨 뒤)
-    with tabs[11]: placeholders.render_settings()
+    with tabs[10]: placeholders.render_settings()
 
 
 if __name__ == "__main__":
