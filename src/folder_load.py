@@ -33,9 +33,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
 
+# V2.6.3.1: apps.ingest → src.ingest 흡수. IRIS_SYSTEM sys.path hack 제거.
+# DB·RAW 경로는 legacy 그대로 (V2.6.3.3에서 iris-knowledge로 이전 예정).
 IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
-if str(IRIS_SYSTEM) not in sys.path:
-    sys.path.insert(0, str(IRIS_SYSTEM))
 
 DB_PATH = IRIS_SYSTEM / "knowledge" / "_index.db"
 DEFAULT_GLOB_SUFFIXES = {".md", ".txt"}
@@ -181,10 +181,10 @@ def ingest_paths(paths: list[Path], *,
         return res
 
     try:
-        from apps.ingest.raw_intake import (
+        from src.ingest.raw_intake import (
             doc_id_for, parse_frontmatter, split_chunks,
         )
-        from apps.ingest.fts_sync import rebuild_all
+        from src.ingest.fts_sync import rebuild_all
     except Exception as e:
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res
@@ -282,7 +282,7 @@ def ingest_paths(paths: list[Path], *,
                         continue
 
                 # ③ DB UPSERT
-                from apps.ingest.raw_intake import upsert_raw_doc
+                from src.ingest.raw_intake import upsert_raw_doc
                 upsert_raw_doc(conn, doc_id, src_path, title, chunks)
                 # lane / origin 갱신 (raw_intake 기본값 override)
                 conn.execute(

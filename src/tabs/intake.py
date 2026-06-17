@@ -35,7 +35,7 @@ def _run_raw_intake() -> tuple[bool, str]:
     from contextlib import redirect_stdout, redirect_stderr
 
     try:
-        from apps.ingest import raw_intake
+        from src.ingest import raw_intake
     except Exception as e:
         return False, f"import 실패: {e}"
 

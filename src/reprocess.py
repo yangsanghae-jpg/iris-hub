@@ -27,9 +27,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+# V2.6.3.1: apps.ingest → src.ingest 흡수. IRIS_SYSTEM sys.path hack 제거.
+# DB·RAW 경로는 legacy 그대로 (V2.6.3.3에서 iris-knowledge로 이전 예정).
 IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
-if str(IRIS_SYSTEM) not in sys.path:
-    sys.path.insert(0, str(IRIS_SYSTEM))
 
 RAW_DIR = IRIS_SYSTEM / "knowledge" / "raw"
 DB_PATH = IRIS_SYSTEM / "knowledge" / "_index.db"
@@ -87,10 +87,10 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
     res = ReprocessResult()
 
     try:
-        from apps.ingest.raw_intake import (
+        from src.ingest.raw_intake import (
             doc_id_for, parse_frontmatter, split_chunks, upsert_raw_doc,
         )
-        from apps.ingest.fts_sync import rebuild_all
+        from src.ingest.fts_sync import rebuild_all
     except Exception as e:
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res
