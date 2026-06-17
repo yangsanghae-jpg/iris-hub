@@ -93,7 +93,7 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.6.2.2 · M2 :8765 · K2 v2 멀티라벨")
+    st.caption("V2.6.2.7 · M2 :8765 · K2 v3 9산업 (A~I)")
 
     tabs = st.tabs([
         # IRIS 자체 (7)

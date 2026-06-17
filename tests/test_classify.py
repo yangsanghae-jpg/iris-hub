@@ -8,34 +8,50 @@ from src.classify import (
 )
 
 
-# ─── 매칭 케이스 ──────────────────────────────────────────────────────────────
+# ─── 매칭 케이스 (V2.6.2.7 9산업 정합) ──────────────────────────────────────
 
-def test_nanoln_korean_matches_industry_C_planning():
-    """Nanoln (LN/LT 단결정 박막 광전자) → C, planning."""
+def test_nanoln_korean_matches_industry_D_planning():
+    """Nanoln (LN/LT 단결정 박막 광전자) → D (디스플레이·신에너지), planning."""
     title = "LN/LT 単晶薄膜 광전자 半导体企业 Nanoln 생산운영 지표 체계"
     body = "본 체계는 Nanoln 박막 KPI 트리 (L0~L4 완전체) — 지표 분해 및 책임 추적."
     r = suggest_classification(title, body)
-    assert r["industry"] == "C"
+    assert r["industry"] == "D"
     assert r["area"] == "planning"
     assert r["confidence"]["industry"] >= 2
     assert r["confidence"]["area"] >= 1
 
 
-def test_mes_korean_matches_industry_B_operations():
-    """MES 생산실행 시스템 → B, operations."""
+def test_mes_korean_matches_area_operations_only():
+    """MES는 산업이 아니라 시스템 — industry는 None, area=operations."""
     title = "MES 생산실행 시스템 핵심 개념"
     body = "MES는 공장 현장의 작업지시(WO)와 라인 운영을 관리한다."
     r = suggest_classification(title, body)
-    assert r["industry"] == "B"
+    assert r["industry"] is None
     assert r["area"] == "operations"
 
 
-def test_semiconductor_english_matches_industry_A():
-    """Semiconductor wafer fab → A."""
+def test_semiconductor_english_matches_industry_B():
+    """Semiconductor wafer fab → B (반도체)."""
     title = "Wafer fab yield analysis"
     body = "Foundry semiconductor lithography yields improved by 3%."
     r = suggest_classification(title, body)
-    assert r["industry"] == "A"
+    assert r["industry"] == "B"
+
+
+def test_pharma_matches_industry_G():
+    """제약 GMP → G (의약품·바이오)."""
+    title = "GMP 임상 시험 절차"
+    body = "제약 바이오 medicine biotech 임상 단계 관리."
+    r = suggest_classification(title, body)
+    assert r["industry"] == "G"
+
+
+def test_automotive_matches_industry_H():
+    """자동차 → H (자동차·장비)."""
+    title = "자동차 OEM 부품 공급"
+    body = "automotive vehicle 차량 어셈블리 라인 공정."
+    r = suggest_classification(title, body)
+    assert r["industry"] == "H"
 
 
 def test_data_ai_matches_area():
@@ -76,15 +92,12 @@ def test_unrelated_text_returns_none():
 # ─── 가중치 ───────────────────────────────────────────────────────────────────
 
 def test_title_weighted_more_than_body():
-    """제목 키워드는 본문보다 가중치 2배."""
-    # 본문엔 'mes' 1번, 'data' 3번 — 본문만 보면 area=data-ai-sw
-    # 제목엔 'operations' 1번 → 가중 2배로 area=operations 이겨야 함
-    title = "MES operations 운영 계획"
+    """제목 키워드는 본문보다 가중치 2배 — area 검증 (industry는 별건)."""
+    title = "operations 운영 계획"
     body = "AI 데이터 데이터 데이터 — 단순 통계 분석."
     r = suggest_classification(title, body)
-    assert r["industry"] == "B"   # mes는 industry B 키워드, 제목 가중치로 우세
     # area: title의 operations·운영·계획 vs body의 data·통계·분석
-    # 제목 weighting으로 operations/planning 쪽이 우세해야
+    # 제목 weighting으로 operations/planning 쪽이 우세
     assert r["area"] in ("operations", "planning")
 
 
@@ -120,9 +133,10 @@ def test_extract_keywords_filters_stopwords():
 
 def test_label_lists_nonempty():
     """UI selectbox용 라벨 리스트가 비어있지 않은지."""
-    assert len(INDUSTRY_LABELS) >= 3
+    assert len(INDUSTRY_LABELS) == 9   # A~I
     assert len(AREA_LABELS) >= 3
     assert len(LEVEL_LABELS) >= 3
-    assert "C" in INDUSTRY_LABELS
+    assert "B" in INDUSTRY_LABELS      # B = 반도체 (V2.6.2.7)
+    assert "I" in INDUSTRY_LABELS      # I = 정밀 소재·부품 (신규)
     assert "planning" in AREA_LABELS
     assert "default" in LEVEL_LABELS

@@ -29,7 +29,7 @@ from src.classify import (
     suggest_classification,
 )
 
-K2_SCHEMA_VERSION = "v2"
+K2_SCHEMA_VERSION = "v3"
 
 
 def _k2_version(model: str) -> str:
@@ -103,12 +103,16 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
 
     return f"""당신은 IRIS 지식 분류기입니다. 자료를 읽고 JSON으로만 답하세요.
 
-## 산업 (industry, 단일)
-- A: 반도체, 웨이퍼, fab, foundry, 노광
-- B: 일반 제조, MES, 공장, 생산실행, 작업지시(WO), 라인
-- C: 디스플레이, LCD, OLED, 광전자, LN/LT 박막, 단결정
-- D: 제약, 바이오, GMP, 임상
-- E: 위 분류에 안 맞으면 E
+## 산업 (industry, 단일) — 진단툴 IND_A~I 정합
+- A: 프로젝트형 제조 (ETO, 조선·플랜트·항공·국방)
+- B: 반도체 제조 (wafer, fab, foundry, 노광)
+- C: 전자 조립 제조 (SMT, EMS, PCB, job-shop)
+- D: 디스플레이·신에너지 제조 (LCD, OLED, 박막, 배터리, 태양광)
+- E: 프로세스·화학 제조 (정유, petrochemical, 流程化工)
+- F: 소비재·식품 제조 (FMCG, 음료, 식품)
+- G: 의약품·바이오 제조 (제약, GMP, 임상, biotech)
+- H: 자동차·장비 제조 (automotive, equipment, 차량, 장비)
+- I: 정밀 소재·부품 제조 (정밀 부품, 소재)
 
 ## 영역 (area, 단일)
 - planning: 계획, KPI, 지표, 트리, 체계
@@ -153,7 +157,7 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
 
 ## 출력 (JSON만, 다른 말 절대 금지)
 {{
-  "industry": "A|B|C|D|E",
+  "industry": "A|B|C|D|E|F|G|H|I",
   "area": "planning|strategy|operations|quality|data-ai-sw",
   "level": "exec|manager|team|default",
   "summary": "한 문장 요약",

@@ -9,8 +9,10 @@
   - 매칭 0건이면 None 반환 — placebo 박기 금지
   - 사전 확장은 KEYWORDS dict 한 곳에서만
 
-V2.5 사양 어휘 (구현 시점에 사용자 재확정):
-  industry: A(반도체)/B(제조)/C(디스플레이·광전자)/D(제약·바이오)/E(기타)
+V2.6.2.7 9 산업 정정 — 진단툴 IND_A~I와 정합:
+  industry: A(프로젝트형 제조)/B(반도체)/C(전자조립)/D(디스플레이·신에너지)/
+            E(프로세스·화학)/F(소비재·식품)/G(의약품·바이오)/H(자동차·장비)/
+            I(정밀 소재·부품)
   area:     planning/strategy/operations/quality/data-ai-sw
   level:    default/exec/manager/team
 """
@@ -20,9 +22,9 @@ import re
 from collections import Counter
 from typing import Iterable
 
-# ─── 어휘 ────────────────────────────────────────────────────────────────────
+# ─── 어휘 — 진단툴 server/data/ch1/industry_packs/IND_*.json 정합 (V2.6.2.7) ──
 
-INDUSTRY_LABELS = ["A", "B", "C", "D", "E"]
+INDUSTRY_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 AREA_LABELS = ["planning", "strategy", "operations", "quality", "data-ai-sw"]
 LEVEL_LABELS = ["default", "exec", "manager", "team"]
 
@@ -30,20 +32,44 @@ LEVEL_LABELS = ["default", "exec", "manager", "team"]
 # 한국어/영어/중국어 혼용. 정확 부분 문자열 매칭.
 KEYWORDS: dict[str, dict[str, list[str]]] = {
     "industry": {
-        "A": [
+        "A": [  # 프로젝트형 제조 (ETO/조선·플랜트·항공·국방)
+            "프로젝트형", "eto", "engineer-to-order", "조선", "shipbuilding",
+            "플랜트", "plant", "항공", "aerospace", "국방", "defense",
+            "项目型", "プロジェクト",
+        ],
+        "B": [  # 반도체
             "반도체", "semiconductor", "wafer", "fab", "foundry",
             "晶圆", "半导体", "lithography", "노광",
         ],
-        "B": [
-            "mes", "생산실행", "생산 운영", "제조", "manufacturing",
-            "공장", "factory", "shop floor", "shopfloor",
+        "C": [  # 전자 조립 (job-shop / SMT / EMS)
+            "전자조립", "전자 조립", "smt", "ems", "pcb",
+            "job shop", "jobshop", "电子装配", "조립",
         ],
-        "C": [
+        "D": [  # 디스플레이·신에너지
             "디스플레이", "display", "lcd", "oled", "광전자", "光电子",
             "ln", "lt", "薄膜", "박막", "nanoln", "晶正", "단결정",
+            "신에너지", "new energy", "배터리", "battery", "태양광", "solar",
         ],
-        "D": ["제약", "pharma", "biotech", "바이오", "GMP", "임상"],
-        "E": [],  # fallback — 매칭 안 되면 None 반환
+        "E": [  # 프로세스·화학
+            "프로세스", "process industry", "화학", "chemical", "petrochemical",
+            "정유", "refinery", "流程", "化工",
+        ],
+        "F": [  # 소비재·식품
+            "소비재", "consumer goods", "fmcg", "식품", "food",
+            "음료", "beverage", "消费品", "食品",
+        ],
+        "G": [  # 의약품·바이오
+            "제약", "pharma", "biotech", "바이오", "gmp", "임상",
+            "制药", "生物制药",
+        ],
+        "H": [  # 자동차·장비
+            "자동차", "automotive", "auto", "차량", "vehicle",
+            "장비", "equipment", "machinery", "汽车", "装备",
+        ],
+        "I": [  # 정밀 소재·부품
+            "정밀", "precision", "소재", "material", "부품", "components",
+            "精密", "材料", "零部件",
+        ],
     },
     "area": {
         "planning": [

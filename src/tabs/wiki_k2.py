@@ -23,11 +23,18 @@ import streamlit as st
 DB_PATH = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/_index.db")
 
 # ─── 분류축 정의 + 한국어 라벨 ────────────────────────────────────────
-INDUSTRIES = ["A", "B", "C", "D", "E", "F", "G", "H", "general"]
+# ─── 분류축 정의 + 한국어 라벨 (V2.6.2.7 진단툴 IND_A~I 정합) ──────────
+INDUSTRIES = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 INDUSTRY_LABELS = {
-    "A": "A 반도체", "B": "B 일반 제조", "C": "C 디스플레이", "D": "D 제약·바이오",
-    "E": "E 기타", "F": "F", "G": "G", "H": "H",
-    "general": "산업 무관 (general)",
+    "A": "A 프로젝트형 제조",
+    "B": "B 반도체",
+    "C": "C 전자 조립",
+    "D": "D 디스플레이·신에너지",
+    "E": "E 프로세스·화학",
+    "F": "F 소비재·식품",
+    "G": "G 의약품·바이오",
+    "H": "H 자동차·장비",
+    "I": "I 정밀 소재·부품",
 }
 
 AUTOMATION = ["auto1", "auto2", "auto3", "aiplus"]
@@ -66,7 +73,7 @@ MGMT_LABELS = {
 _INDUSTRY_COLORS = {
     "A": "#5fa8ff", "B": "#7ed6a3", "C": "#ffb86b", "D": "#c596ff",
     "E": "#f08585", "F": "#ffd166", "G": "#a0e7e5", "H": "#fbb1bd",
-    "general": "#888",
+    "I": "#b8b8b8",
 }
 # 시스템 색상 팔레트
 _SYSTEM_COLORS = {
@@ -198,8 +205,9 @@ def _parse(s: str | None) -> list[str]:
         return []
 
 
-def _industry_key(d: dict) -> str:
-    return d["industry"] or "general"
+def _industry_key(d: dict) -> str | None:
+    """파트1 행 키 — industry가 없으면 None (산업 분류 못한 자료는 그리드 제외)."""
+    return d["industry"]
 
 
 # ─── 카운트/필터 ──────────────────────────────────────────────────────
@@ -207,6 +215,8 @@ def _count_p1(docs: list[dict]) -> dict[tuple[str, str], list[dict]]:
     out: dict[tuple[str, str], list[dict]] = {}
     for d in docs:
         ind = _industry_key(d)
+        if ind is None:
+            continue  # 산업 미분류 자료는 파트1에서 제외
         for lvl in _parse(d.get("automation_levels_json")):
             out.setdefault((ind, lvl), []).append(d)
     return out
