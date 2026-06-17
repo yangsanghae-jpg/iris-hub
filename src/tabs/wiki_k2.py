@@ -45,28 +45,65 @@ AUTOMATION_LABELS = {
     "aiplus": ("aiplus", "AI/예측"),
 }
 
-SYSTEMS = ["APS", "MES", "ERP", "WMS", "QMS", "SCM"]
+SYSTEMS = [
+    # 계획·실행
+    "APS", "MES", "MOM", "WES",
+    # 전사
+    "ERP", "PLM", "EAM",
+    # 품질·추적
+    "QMS", "LIMS", "Historian",
+    # 물류·공급망
+    "WMS", "TMS", "SCM",
+    # 데이터·자동화
+    "SCADA", "HMI", "BI", "RPA",
+    # MES 보조
+    "EAP", "FDC", "SPC",
+]
 SYSTEM_LABELS = {
     "APS": "APS (생산계획)",
     "MES": "MES (실행)",
+    "MOM": "MOM (운영관리)",
+    "WES": "WES (창고실행)",
     "ERP": "ERP (전사자원)",
-    "WMS": "WMS (창고)",
+    "PLM": "PLM (수명주기)",
+    "EAM": "EAM (설비자산)",
     "QMS": "QMS (품질)",
+    "LIMS": "LIMS (실험실)",
+    "Historian": "Historian (이력)",
+    "WMS": "WMS (창고)",
+    "TMS": "TMS (운송)",
     "SCM": "SCM (공급망)",
+    "SCADA": "SCADA (감시제어)",
+    "HMI": "HMI (인터페이스)",
+    "BI": "BI (분석)",
+    "RPA": "RPA (자동화)",
+    "EAP": "EAP (장비자동화)",
+    "FDC": "FDC (결함분류)",
+    "SPC": "SPC (공정관리)",
 }
 
 MGMT_GROUPS = [
-    ("조직",      ["org_design", "org_role"]),
-    ("거버넌스",  ["gov_committee", "gov_kpi"]),
-    ("실행계획",  ["exec_phase", "exec_milestone"]),
+    ("조직",        ["org_design", "org_role"]),
+    ("거버넌스",    ["gov_committee", "gov_kpi", "gov_policy", "gov_audit"]),
+    ("실행계획",    ["exec_phase", "exec_milestone", "exec_resource"]),
+    ("변화·리스크", ["change_management", "risk_mitigation", "stakeholder_alignment"]),
+    ("커뮤니케이션", ["comm_reporting", "comm_escalation"]),
 ]
 MGMT_LABELS = {
     "org_design":     "조직설계",
     "org_role":       "역할·책임 (R&R)",
     "gov_committee":  "위원회",
     "gov_kpi":        "KPI",
+    "gov_policy":     "정책·표준",
+    "gov_audit":      "감사 (audit)",
     "exec_phase":     "단계계획",
     "exec_milestone": "마일스톤",
+    "exec_resource":  "자원·예산",
+    "change_management":      "변화관리",
+    "risk_mitigation":        "리스크 완화",
+    "stakeholder_alignment":  "이해관계자 정렬",
+    "comm_reporting":         "보고",
+    "comm_escalation":        "에스컬레이션",
 }
 
 # 산업 색상 팔레트 (데이터 탭과 일관)
@@ -76,15 +113,31 @@ _INDUSTRY_COLORS = {
     "I": "#b8b8b8",
 }
 # 시스템 색상 팔레트
+# 시스템 색상 팔레트 (20개 — 6 기본 + 14 확장)
 _SYSTEM_COLORS = {
+    # 6 기본 (V2.6.2.7 색상 유지)
     "APS": "#5fa8ff", "MES": "#7ed6a3", "ERP": "#ffb86b",
     "WMS": "#c596ff", "QMS": "#f08585", "SCM": "#ffd166",
+    # 신규 14 — 무난한 톤
+    "MOM": "#8b9dc3", "WES": "#9dc3a6",
+    "PLM": "#ffaa7a", "EAM": "#a89dc7",
+    "LIMS": "#f0a8a8", "Historian": "#d4c98a",
+    "TMS": "#a3c4dc",
+    "SCADA": "#7a9d7a", "HMI": "#c7a87a",
+    "BI": "#9d7ac7", "RPA": "#dc7a9d",
+    "EAP": "#7adcdc", "FDC": "#dca87a", "SPC": "#a8dc7a",
 }
-# 관리 그룹별 색상
+# 관리 카테고리 색상 (14개)
 _MGMT_COLORS = {
     "org_design": "#5fa8ff", "org_role": "#7ed6a3",
     "gov_committee": "#c596ff", "gov_kpi": "#ffb86b",
+    "gov_policy": "#a89dc7", "gov_audit": "#dc7a9d",
     "exec_phase": "#f08585", "exec_milestone": "#ffd166",
+    "exec_resource": "#a3c4dc",
+    "change_management": "#7a9d7a",
+    "risk_mitigation": "#f0a8a8",
+    "stakeholder_alignment": "#c7a87a",
+    "comm_reporting": "#9dc3a6", "comm_escalation": "#d4c98a",
 }
 
 
@@ -453,81 +506,146 @@ def render() -> None:
 
     # ─── 파트 2: 시스템 ──────────────────────────────────────────────
     st.markdown(
-        "<div class='wiki-sec'>💻 파트 2 — 시스템 (정보화)</div>",
+        "<div class='wiki-sec'>💻 파트 2 — 시스템 (정보화)  "
+        "<span style='color:#777;font-weight:400;'>"
+        f"카탈로그 {len(SYSTEMS)}개 · 박힌 자료 {p2_total:,}건</span></div>",
         unsafe_allow_html=True,
     )
 
-    # 시스템별 분포 (가로 stacked bar)
-    sys_items = [(sys, len(p2.get(sys, [])), _SYSTEM_COLORS[sys]) for sys in SYSTEMS]
-    st.markdown(_stacked_bar(sys_items), unsafe_allow_html=True)
+    # Top-N 슬라이더 (세션 상태 유지)
+    top_n_sys = st.slider(
+        "Top-N 시스템 표시", min_value=4, max_value=len(SYSTEMS),
+        value=st.session_state.get("wiki_p2_topn", 6),
+        key="wiki_p2_topn",
+        help="카운트 상위 N개만 그리드·bar에 표시. 나머지는 '기타' expander.",
+    )
 
+    # 시스템별 카운트 → 정렬 후 Top-N
+    sys_counts = sorted(
+        ((sys, len(p2.get(sys, []))) for sys in SYSTEMS),
+        key=lambda x: (-x[1], x[0]),
+    )
+    top_sys = [s for s, _ in sys_counts[:top_n_sys]]
+    rest_sys = [(s, n) for s, n in sys_counts[top_n_sys:] if n > 0]
+
+    # Top-N stacked bar
+    top_items = [(s, n, _SYSTEM_COLORS.get(s, "#888"))
+                 for s, n in sys_counts[:top_n_sys]]
+    st.markdown(_stacked_bar(top_items), unsafe_allow_html=True)
+
+    # 기타 시스템 expander
+    if rest_sys:
+        rest_total = sum(n for _, n in rest_sys)
+        with st.expander(
+            f"➕ 기타 {len(rest_sys)}개 시스템 · 매핑 {rest_total:,}건",
+            expanded=False,
+        ):
+            rest_items = [(s, n, _SYSTEM_COLORS.get(s, "#888")) for s, n in rest_sys]
+            st.markdown(_stacked_bar(rest_items), unsafe_allow_html=True)
+            # 기타 시스템도 클릭 가능 grid
+            rest_cols = st.columns(len(rest_sys))
+            max_rest = max((n for _, n in rest_sys), default=1)
+            for i, (sys, n) in enumerate(rest_sys):
+                rest_cols[i].markdown(
+                    f"<div class='wiki-chip-lbl'>{SYSTEM_LABELS.get(sys, sys)}</div>",
+                    unsafe_allow_html=True,
+                )
+                _heat_cell(
+                    rest_cols[i], n, max_rest,
+                    key=f"p2_rest_{sys}",
+                    on_click_state={"wiki_part": "2", "wiki_p2_sys": sys},
+                )
+
+    # Top-N 시스템 grid
     with st.expander(
-        f"시스템 그리드 — {len(p2)}/{len(SYSTEMS)} 도메인 · 매핑 {p2_total:,}건",
-        expanded=False,
+        f"🔝 Top-{top_n_sys} 시스템 그리드",
+        expanded=True,
     ):
-        sys_cols = st.columns(len(SYSTEMS))
+        sys_cols = st.columns(top_n_sys)
         max_p2 = max((len(v) for v in p2.values()), default=1)
-        for i, sys in enumerate(SYSTEMS):
+        for i, sys in enumerate(top_sys):
             n = len(p2.get(sys, []))
             sys_cols[i].markdown(
-                f"<div class='wiki-chip-lbl'>{SYSTEM_LABELS[sys]}</div>",
+                f"<div class='wiki-chip-lbl'>{SYSTEM_LABELS.get(sys, sys)}</div>",
                 unsafe_allow_html=True,
             )
             _heat_cell(
                 sys_cols[i], n, max_p2,
-                key=f"p2_{sys}",
+                key=f"p2_top_{sys}",
                 on_click_state={"wiki_part": "2", "wiki_p2_sys": sys},
             )
 
     # ─── 파트 3: 관리 ────────────────────────────────────────────────
     st.markdown(
-        "<div class='wiki-sec'>🧭 파트 3 — 관리 (조직·거버넌스·실행)</div>",
+        "<div class='wiki-sec'>🧭 파트 3 — 관리  "
+        "<span style='color:#777;font-weight:400;'>"
+        f"카탈로그 {n_p3_cells}개 · 박힌 자료 {p3_total:,}건</span></div>",
         unsafe_allow_html=True,
     )
 
-    # 그룹별 stacked bar (3개)
-    bg1, bg2, bg3 = st.columns(3)
-    for col, (group_label, cats) in zip([bg1, bg2, bg3], MGMT_GROUPS):
-        with col:
-            st.markdown(
-                f"<div class='wiki-mgmt-grp'>{group_label}</div>",
+    # Top-N 슬라이더
+    top_n_mgmt = st.slider(
+        "Top-N 관리 카테고리 표시", min_value=4, max_value=n_p3_cells,
+        value=st.session_state.get("wiki_p3_topn", 6),
+        key="wiki_p3_topn",
+        help="카운트 상위 N개만 표시. 나머지는 그룹별 bar에서 확인.",
+    )
+
+    # 전체 카테고리 → 카운트 → Top-N
+    all_cats = [c for _, cats in MGMT_GROUPS for c in cats]
+    cat_counts = sorted(
+        ((c, len(p3.get(c, []))) for c in all_cats),
+        key=lambda x: (-x[1], x[0]),
+    )
+    top_cats = [c for c, _ in cat_counts[:top_n_mgmt]]
+    rest_cats = [(c, n) for c, n in cat_counts[top_n_mgmt:] if n > 0]
+
+    # Top-N stacked bar
+    top_mgmt_items = [(MGMT_LABELS.get(c, c), n, _MGMT_COLORS.get(c, "#888"))
+                      for c, n in cat_counts[:top_n_mgmt]]
+    st.markdown(_stacked_bar(top_mgmt_items), unsafe_allow_html=True)
+
+    # 기타 카테고리 expander
+    if rest_cats:
+        rest_total = sum(n for _, n in rest_cats)
+        with st.expander(
+            f"➕ 기타 {len(rest_cats)}개 카테고리 · 매핑 {rest_total:,}건",
+            expanded=False,
+        ):
+            rest_items = [(MGMT_LABELS.get(c, c), n, _MGMT_COLORS.get(c, "#888"))
+                          for c, n in rest_cats]
+            st.markdown(_stacked_bar(rest_items), unsafe_allow_html=True)
+            rest_cols = st.columns(len(rest_cats))
+            max_rest = max((n for _, n in rest_cats), default=1)
+            for i, (cat, n) in enumerate(rest_cats):
+                rest_cols[i].markdown(
+                    f"<div class='wiki-chip-lbl'>{MGMT_LABELS.get(cat, cat)}</div>",
+                    unsafe_allow_html=True,
+                )
+                _heat_cell(
+                    rest_cols[i], n, max_rest,
+                    key=f"p3_rest_{cat}",
+                    on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
+                )
+
+    # Top-N 관리 grid
+    with st.expander(
+        f"🔝 Top-{top_n_mgmt} 관리 카테고리 그리드",
+        expanded=True,
+    ):
+        top_cols = st.columns(top_n_mgmt)
+        max_p3 = max((len(v) for v in p3.values()), default=1)
+        for i, cat in enumerate(top_cats):
+            n = len(p3.get(cat, []))
+            top_cols[i].markdown(
+                f"<div class='wiki-chip-lbl'>{MGMT_LABELS.get(cat, cat)}</div>",
                 unsafe_allow_html=True,
             )
-            items = [
-                (MGMT_LABELS[c], len(p3.get(c, [])), _MGMT_COLORS[c])
-                for c in cats
-            ]
-            st.markdown(_stacked_bar(items), unsafe_allow_html=True)
-
-    with st.expander(
-        f"관리 그리드 — {len(p3)}/{n_p3_cells} 카테고리 · 매핑 {p3_total:,}건",
-        expanded=False,
-    ):
-        grp_cols = st.columns(n_p3_cells)
-        max_p3 = max((len(v) for v in p3.values()), default=1)
-        cat_idx = 0
-        for group_label, cats in MGMT_GROUPS:
-            for cat in cats:
-                with grp_cols[cat_idx]:
-                    if cat == cats[0]:
-                        st.markdown(
-                            f"<div class='wiki-mgmt-grp'>{group_label}</div>",
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown("<div class='wiki-mgmt-grp'>&nbsp;</div>",
-                                    unsafe_allow_html=True)
-                    st.markdown(
-                        f"<div class='wiki-chip-lbl'>{MGMT_LABELS[cat]}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    n = len(p3.get(cat, []))
-                    _heat_cell(
-                        grp_cols[cat_idx], n, max_p3,
-                        key=f"p3_{cat}",
-                        on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
-                    )
-                cat_idx += 1
+            _heat_cell(
+                top_cols[i], n, max_p3,
+                key=f"p3_top_{cat}",
+                on_click_state={"wiki_part": "3", "wiki_p3_cat": cat},
+            )
 
     # ─── 선택된 셀 자료 표시 ─────────────────────────────────────────
     st.divider()

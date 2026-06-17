@@ -29,7 +29,7 @@ from src.classify import (
     suggest_classification,
 )
 
-K2_SCHEMA_VERSION = "v3"
+K2_SCHEMA_VERSION = "v4"
 
 
 def _k2_version(model: str) -> str:
@@ -40,13 +40,38 @@ def _k2_version(model: str) -> str:
 K2_VERSION = _k2_version(IRIS_LLM_DEEP)
 
 
-# ─── 위키 3-파트 멀티라벨 어휘 (V2.5.3 §3.10 v2) ────────────────────────
+# ─── 위키 3-파트 멀티라벨 어휘 (V2.6.2.8 — system·mgmt 풍부화) ──────────
 AUTOMATION_LEVELS = {"auto1", "auto2", "auto3", "aiplus"}
-SYSTEM_DOMAINS = {"APS", "MES", "ERP", "WMS", "QMS", "SCM"}
+
+# 시스템 도메인 20개 — 진단툴 systems_catalog 정합 + 알다 운영 어휘.
+# enforce는 20개로 *넓게*, UI는 Top-N으로 *좁게* (위키 탭 정책).
+SYSTEM_DOMAINS = {
+    # 계획·실행 (4)
+    "APS", "MES", "MOM", "WES",
+    # 전사 (3)
+    "ERP", "PLM", "EAM",
+    # 품질·추적 (3)
+    "QMS", "LIMS", "Historian",
+    # 물류·공급망 (3)
+    "WMS", "TMS", "SCM",
+    # 데이터·자동화 (4)
+    "SCADA", "HMI", "BI", "RPA",
+    # MES 보조 (3)
+    "EAP", "FDC", "SPC",
+}
+
+# 관리 카테고리 14개 — risk·change·comm 추가.
 MGMT_CATEGORIES = {
-    "org_design", "org_role",       # 조직
-    "gov_committee", "gov_kpi",     # 거버넌스
-    "exec_phase", "exec_milestone", # 실행계획
+    # 조직 (2)
+    "org_design", "org_role",
+    # 거버넌스 (4)
+    "gov_committee", "gov_kpi", "gov_policy", "gov_audit",
+    # 실행계획 (3)
+    "exec_phase", "exec_milestone", "exec_resource",
+    # 변화·리스크 (3)
+    "change_management", "risk_mitigation", "stakeholder_alignment",
+    # 커뮤니케이션 (2)
+    "comm_reporting", "comm_escalation",
 }
 
 
@@ -134,20 +159,53 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
 - aiplus: AI/예측/자율 운영
 
 ## 시스템 도메인 (system_domains, 다중 가능, 없으면 [])
-- APS: 고급 계획·스케줄링
-- MES: 제조 실행
+계획·실행:
+- APS: 고급 계획·스케줄링 (Advanced Planning & Scheduling)
+- MES: 제조 실행 (Manufacturing Execution)
+- MOM: 제조 운영 관리 (Manufacturing Operations Management)
+- WES: 창고 실행 (Warehouse Execution)
+전사:
 - ERP: 전사 자원 관리
-- WMS: 창고 관리
+- PLM: 제품 수명 주기 관리 (Product Lifecycle)
+- EAM: 설비 자산 관리 (Enterprise Asset)
+품질·추적:
 - QMS: 품질 관리
+- LIMS: 실험실 정보 관리 (Laboratory Info)
+- Historian: 공정 이력 관리 (process historian)
+물류·공급망:
+- WMS: 창고 관리
+- TMS: 운송 관리 (Transportation)
 - SCM: 공급망
+데이터·자동화:
+- SCADA: 감시·제어 (Supervisory Control)
+- HMI: 인터페이스 (Human-Machine Interface)
+- BI: 비즈니스 인텔리전스·리포팅
+- RPA: 로보틱 프로세스 자동화
+MES 보조:
+- EAP: 장비 자동화 (Equipment Automation)
+- FDC: 공정 결함 분류 (Fault Detection & Classification)
+- SPC: 통계적 공정 관리 (Statistical Process Control)
 
 ## 관리 카테고리 (mgmt_categories, 다중 가능, 없으면 [])
+조직:
 - org_design: 조직 설계
 - org_role: R&R·역할
+거버넌스:
 - gov_committee: 위원회·의사결정 체계
 - gov_kpi: KPI·성과 지표
+- gov_policy: 정책·기준·표준
+- gov_audit: 감사·내부통제
+실행계획:
 - exec_phase: 단계별 추진 계획
 - exec_milestone: 마일스톤·납기
+- exec_resource: 자원·예산 배분
+변화·리스크:
+- change_management: 변화 관리·확산
+- risk_mitigation: 리스크 식별·완화
+- stakeholder_alignment: 이해관계자 정렬
+커뮤니케이션:
+- comm_reporting: 보고 체계·문서
+- comm_escalation: 이슈 에스컬레이션
 
 ## 자료
 제목: {title}
@@ -167,8 +225,8 @@ def _build_prompt(title: str, body: str, max_body: int = 4000) -> str:
   "reason": "분류 이유 한 줄",
   "confidence": 0.0~1.0,
   "automation_levels": ["auto1|auto2|auto3|aiplus", ...],
-  "system_domains": ["APS|MES|ERP|WMS|QMS|SCM", ...],
-  "mgmt_categories": ["org_design|org_role|gov_committee|gov_kpi|exec_phase|exec_milestone", ...],
+  "system_domains": ["APS|MES|MOM|WES|ERP|PLM|EAM|QMS|LIMS|Historian|WMS|TMS|SCM|SCADA|HMI|BI|RPA|EAP|FDC|SPC", ...],
+  "mgmt_categories": ["org_design|org_role|gov_committee|gov_kpi|gov_policy|gov_audit|exec_phase|exec_milestone|exec_resource|change_management|risk_mitigation|stakeholder_alignment|comm_reporting|comm_escalation", ...],
   "blurb_industry": "산업×자동화 시점 1줄 발췌 (해당 없으면 빈 문자열)",
   "blurb_system": "시스템 시점 1줄 발췌 (해당 없으면 빈 문자열)",
   "blurb_mgmt": "관리 시점 1줄 발췌 (해당 없으면 빈 문자열)"
