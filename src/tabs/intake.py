@@ -145,21 +145,27 @@ def _render_folder_load() -> None:
     folder_str = st.session_state.get("fl_folder", "")
 
     # ── 결과 저장 폴더 + 옵션 ──────────────────────────────────────
-    st.markdown("**📦 archive 루트 폴더 (선택, 비워두면 DB만)**")
+        # V2.6.3.9 — archive 우선. 기본값 자동, 사용자 override만 허용.
+    from src.config import IRIS_KNOWLEDGE_ARCHIVE
+    st.markdown("**📦 archive 루트 폴더**")
+    st.caption(
+        f"📦 기본 위치: `{IRIS_KNOWLEDGE_ARCHIVE}` "
+        "(V2.6.3.9 — 원본 + content.md + manifest.json 카피 저장. 비워두면 기본 위치 사용)",
+    )
     dc1, dc2, dc3, dc4 = st.columns([4, 1.2, 1, 1])
     with dc1:
         st.text_input(
             "archive 루트",
-            placeholder="비워두면 DB만 박힘. 지정 시 _temp/ + <YYYY-MM-DD>/<doc_id>/ 구조 생성",
+            placeholder="비워두면 기본 (3-archive/). 다른 위치 박고 싶을 때만 입력.",
             key="fl_dest",
             label_visibility="collapsed",
         )
     with dc2:
         if st.button("📁 폴더 선택", use_container_width=True, key="fl_pick_dest"):
             picked = _pick_folder_dialog(
-                prompt="archive 루트 폴더 선택",
+                prompt="archive 루트 폴더 선택 (대안 위치)",
                 default=st.session_state.get("fl_dest", "")
-                or "/Users/iris/Documents/1Dev",
+                or str(IRIS_KNOWLEDGE_ARCHIVE),
             )
             if picked:
                 st.session_state["_fl_dest_prefill"] = True
@@ -167,7 +173,7 @@ def _render_folder_load() -> None:
                 st.rerun()
     with dc3:
         lane = st.selectbox("lane", ["reference", "bronze"], index=0, key="fl_lane",
-                             help="reference = 원본 경로 그대로 (No-Copy)",
+                             help="reference / bronze — 인덱싱 후 K3 매트릭스에서 승급",
                              label_visibility="collapsed")
     with dc4:
         st.caption(

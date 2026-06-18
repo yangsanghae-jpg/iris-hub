@@ -161,17 +161,33 @@ def ingest_paths(paths: list[Path], *,
                  archive_root: Path | None = None,
                  use_k2: bool = False,
                  on_progress: ProgressCB | None = None) -> IngestResult:
-    """선택된 파일들을 인덱싱 (B안: temp 큐 + archive 구조화).
+    """선택된 파일들을 인덱싱 (V2.6.3.9 archive 우선).
 
     archive_root:
-      None → temp + archive 둘 다 만들지 않음 (DB만, 옛 동작과 동일)
-      <Path> → <root>/_temp/<work_id>/staging/ + <root>/<YYYY-MM-DD>/<doc_id>/
+      None → IRIS_KNOWLEDGE_ARCHIVE 기본값 사용 (V2.6.3.9 — No-Copy 폐지)
+      <Path> → 명시 경로 사용
 
-    force: True면 이미 처리된 파일도 재처리 (DB UPSERT 강제, archive 갱신).
+    archive 구조 (자료당):
+      <archive_root>/<YYYY-MM-DD>/<doc_id>/
+        ├── original.<ext>  ← 원본 그대로 (불변)
+        ├── content.md      ← 추출된 마크다운 본문 (검색·처리·표시)
+        └── manifest.json   ← {doc_id, content_sha1, original_sha1, ingested_at, source_path, ...}
+
+    DB의 documents.path는 *archive 경로*로 박힘 (원본 경로는 manifest.source_path).
+    이렇게 하면 DB가 날아가도 archive에서 *100% 복원* 가능.
+
+    지원: 마크다운(.md), 텍스트(.txt). 그 외는 skip (V2.7+ 별도 변환기).
+
+    force: True면 이미 처리된 파일도 재처리.
     on_progress(i, total, status, source_path):
       status ∈ {'staging', 'parsing', 'classifying', 'archiving', 'done',
-                'skip-empty', 'skip-already', 'error'}
+                'skip-empty', 'skip-already', 'skip-unsupported', 'error'}
     """
+    # V2.6.3.9 — archive_root 기본값
+    if archive_root is None:
+        from src.config import IRIS_KNOWLEDGE_ARCHIVE
+        archive_root = IRIS_KNOWLEDGE_ARCHIVE
+
     res = IngestResult(requested=len(paths))
     if not paths:
         return res
@@ -188,7 +204,7 @@ def ingest_paths(paths: list[Path], *,
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res
 
-    # 분류기
+    # 분류기 (V2.6.3.8 정책: 입력 단계에서 K2 안 함, use_k2=False 권장)
     if use_k2:
         try:
             from src import k2 as k2mod
@@ -204,15 +220,16 @@ def ingest_paths(paths: list[Path], *,
             res.errors.append(("classify", f"import 실패: {e}"))
             return res
 
+    # V2.6.3.9: 마크다운/텍스트만 — 지원 확장자
+    SUPPORTED_SUFFIXES = {".md", ".txt"}
+
     # work_dir 생성
     work_id = dt.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
     res.work_id = work_id
-    staging_dir: Path | None = None
-    if archive_root:
-        archive_root = Path(archive_root).expanduser().resolve()
-        staging_dir = archive_root / "_temp" / work_id / "staging"
-        staging_dir.mkdir(parents=True, exist_ok=True)
-        res.work_dir = staging_dir.parent
+    archive_root = Path(archive_root).expanduser().resolve()
+    staging_dir = archive_root / "_temp" / work_id / "staging"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    res.work_dir = staging_dir.parent
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys=ON")
@@ -239,12 +256,18 @@ def ingest_paths(paths: list[Path], *,
                     res.files.append(fr)
                     continue
 
-                # ① staging 복사 (archive_root 켜진 경우만)
-                if staging_dir:
-                    _emit(idx, "staging", src_path)
-                    # 이름 충돌 회피: <stem>_<srchash><suffix>
-                    staged = staging_dir / f"{src_path.stem}_{_hash_short(src_path)}{src_path.suffix}"
-                    shutil.copy2(src_path, staged)
+                # V2.6.3.9 — 마크다운/텍스트만 지원
+                if src_path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                    fr.skipped_reason = "unsupported"
+                    res.skipped_empty += 1  # 카운트는 skipped_empty에 합산 (별도 필드 추가는 호환성 위해 보류)
+                    _emit(idx, "skip-unsupported", src_path)
+                    res.files.append(fr)
+                    continue
+
+                # ① staging 복사 (V2.6.3.9 — 항상 켜짐)
+                _emit(idx, "staging", src_path)
+                staged = staging_dir / f"{src_path.stem}_{_hash_short(src_path)}{src_path.suffix}"
+                shutil.copy2(src_path, staged)
 
                 # ② parse + chunk
                 _emit(idx, "parsing", src_path)
@@ -265,11 +288,18 @@ def ingest_paths(paths: list[Path], *,
                 fr.doc_id = doc_id
                 fr.chunks = len(chunks)
 
-                # 이미 박혔으면 force=False는 skip
+                # V2.6.3.9: archive 경로를 먼저 계산 — DB path로 박을 진실원
+                today = dt.date.today().isoformat()
+                safe_doc_id = doc_id.replace(":", "_").replace("/", "_")
+                dest_dir = archive_root / today / safe_doc_id
+                original_target = dest_dir / f"original{src_path.suffix}"
+                content_target = dest_dir / "content.md"
+
+                # 이미 박혔으면 force=False는 skip (source_path 또는 archive path로 검사)
                 if not force:
                     cur = conn.execute(
-                        "SELECT 1 FROM documents WHERE path=?",
-                        (str(src_path.resolve()),)
+                        "SELECT 1 FROM documents WHERE path IN (?, ?)",
+                        (str(original_target), str(src_path.resolve())),
                     ).fetchone()
                     if cur:
                         fr.skipped_reason = "already"
@@ -280,9 +310,21 @@ def ingest_paths(paths: list[Path], *,
                         res.files.append(fr)
                         continue
 
-                # ③ DB UPSERT
+                # ③ archive 카피 (V2.6.3.9: 항상)
+                _emit(idx, "archiving", src_path)
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                # original 보존 (staging → archive 이동)
+                if staged and staged.exists():
+                    shutil.move(str(staged), str(original_target))
+                    staged = None
+                else:
+                    shutil.copy2(src_path, original_target)
+                # content.md = 마크다운 본문 (frontmatter 제외, 검색/처리/표시용)
+                content_target.write_text(body, encoding="utf-8")
+
+                # ④ DB UPSERT — path는 *archive 경로*로 박음 (진실원 분리)
                 from src.ingest.raw_intake import upsert_raw_doc
-                upsert_raw_doc(conn, doc_id, src_path, title, chunks)
+                upsert_raw_doc(conn, doc_id, original_target, title, chunks)
                 # lane / origin 갱신 (raw_intake 기본값 override)
                 conn.execute(
                     "UPDATE documents SET lane=?, origin=? WHERE doc_id=?",
@@ -290,7 +332,7 @@ def ingest_paths(paths: list[Path], *,
                 )
                 res.upserted += 1
 
-                # ④ 분류
+                # ⑤ 분류
                 _emit(idx, "classifying", src_path)
                 k2_payload: dict = {}
                 if use_k2:
@@ -338,49 +380,38 @@ def ingest_paths(paths: list[Path], *,
                     )
                     res.classified += 1
 
-                # ⑤ archive 이동: <archive_root>/<YYYY-MM-DD>/<doc_id>/
-                if archive_root:
-                    _emit(idx, "archiving", src_path)
-                    today = dt.date.today().isoformat()
-                    # doc_id에 ':' 등 FS 안전하지 않은 문자 회피
-                    safe_doc_id = doc_id.replace(":", "_").replace("/", "_")
-                    dest_dir = archive_root / today / safe_doc_id
-                    dest_dir.mkdir(parents=True, exist_ok=True)
-                    # original 보존 — 원본 확장자 유지
-                    original_target = dest_dir / f"original{src_path.suffix}"
-                    if staged and staged.exists():
-                        # staging → archive 이동 (rename)
-                        shutil.move(str(staged), str(original_target))
-                        staged = None
-                    else:
-                        # staging 우회 시 직접 복사
-                        shutil.copy2(src_path, original_target)
-
-                    manifest = {
-                        "doc_id": doc_id,
-                        "source_path": str(src_path.resolve()),
-                        "title": title,
-                        "lane": lane,
-                        "kind": "source",
-                        "origin": "folder_load",
-                        "industry": fr.industry,
-                        "area": fr.area,
-                        "level": fr.level,
-                        "classifier_version": fr.classifier,
-                        "k2_ms": fr.k2_ms,
-                        "chunks": fr.chunks,
-                        "size_bytes": src_path.stat().st_size,
-                        "ingested_at": dt.datetime.now(dt.timezone.utc)
-                            .strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "work_id": work_id,
-                        "k2": k2_payload,
-                    }
-                    (dest_dir / "manifest.json").write_text(
-                        json.dumps(manifest, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
-                    fr.archive_dir = dest_dir
-                    res.archived += 1
+                # ⑥ manifest 박기 (V2.6.3.9 — content_sha1 + original_sha1 추가)
+                import hashlib as _hashlib
+                original_bytes = original_target.read_bytes()
+                content_bytes = content_target.read_bytes()
+                manifest = {
+                    "doc_id": doc_id,
+                    "source_path": str(src_path.resolve()),
+                    "title": title,
+                    "lane": lane,
+                    "kind": "source",
+                    "origin": "folder_load",
+                    "industry": fr.industry,
+                    "area": fr.area,
+                    "level": fr.level,
+                    "classifier_version": fr.classifier,
+                    "k2_ms": fr.k2_ms,
+                    "chunks": fr.chunks,
+                    "size_bytes": src_path.stat().st_size,
+                    "content_sha1": _hashlib.sha1(content_bytes).hexdigest(),
+                    "original_sha1": _hashlib.sha1(original_bytes).hexdigest(),
+                    "ingested_at": dt.datetime.now(dt.timezone.utc)
+                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "work_id": work_id,
+                    "schema_version": "v1",
+                    "k2": k2_payload,
+                }
+                (dest_dir / "manifest.json").write_text(
+                    json.dumps(manifest, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                fr.archive_dir = dest_dir
+                res.archived += 1
 
                 _emit(idx, "done", src_path)
 

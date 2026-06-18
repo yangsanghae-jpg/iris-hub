@@ -32,6 +32,7 @@ class AuditReport:
     orphan_chunks: int = 0        # 고아 chunks 행 수
     orphan_meta: int = 0          # 고아 document_meta 행 수
     fts_mismatch: int = 0         # documents 카운트 ≠ documents_fts 카운트 (양수=fts 부족, 음수=fts 잉여)
+    missing_archive: list[str] = field(default_factory=list)   # V2.6.3.9 — DB path가 archive 경로 가리키는데 파일 없음
     auto_fixed: int = 0           # 자동 정정된 항목 수
     notes: list[str] = field(default_factory=list)
 
@@ -41,7 +42,8 @@ class AuditReport:
                 and self.orphan_chunks == 0
                 and self.orphan_meta == 0
                 and self.fts_mismatch == 0
-                and self.stale_locks == 0)
+                and self.stale_locks == 0
+                and not self.missing_archive)
 
 
 def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
@@ -129,6 +131,23 @@ def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
                 )
             except Exception as e:
                 rep.notes.append(f"FTS 재구축 실패: {e}")
+
+        # (7) V2.6.3.9 — archive 정합성: DB path가 archive 경로 가리키는데 파일 없음
+        from src.config import IRIS_KNOWLEDGE_ARCHIVE
+        archive_str = str(IRIS_KNOWLEDGE_ARCHIVE)
+        rows = conn.execute(
+            "SELECT doc_id, path FROM documents WHERE path LIKE ?",
+            (archive_str + "%",),
+        ).fetchall()
+        missing = []
+        for doc_id, path in rows:
+            if not Path(path).exists():
+                missing.append(doc_id)
+        rep.missing_archive = missing
+        if missing:
+            rep.notes.append(
+                f"archive 파일 누락 {len(missing)}건 — 자동 정정 안 함 (수동 검토 필요)"
+            )
     finally:
         conn.close()
 
