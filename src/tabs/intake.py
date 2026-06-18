@@ -188,11 +188,14 @@ def _render_folder_load() -> None:
     st.divider()
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("전체", scan.total)
-    m2.metric("⏳ 대기", scan.pending_count)
-    m3.metric("✅ 처리됨", scan.processed_count)
+    m2.metric("⏳ 미등록", scan.pending_count,
+              help="DB에 path로 박힌 적 없는 파일 — 이번 인덱싱 대상")
+    m3.metric("📚 DB 등록됨", scan.processed_count,
+              help="이전에 인덱싱되어 documents.path로 박혀 있는 파일. "
+                   "🔄 강제 재파싱 켜야 다시 박힘.")
     with m4:
         force = st.checkbox("🔄 강제 재파싱", value=False, key="fl_force",
-                             help="처리됨도 다시 박음")
+                             help="DB 등록됨도 다시 박음")
 
     # ── 트리 뷰: 디렉터리별 expander + 체크박스 ────────────────────
     # 디렉터리 → 파일들 그룹화. 디렉터리 키는 scan.folder 기준 상대경로.
@@ -203,20 +206,41 @@ def _render_folder_load() -> None:
 
     dirs_sorted = sorted(by_dir.keys(), key=lambda d: (d != ".", d))
 
+    # ── 일괄 선택/해제 + 인덱싱 버튼 (트리 위 sticky 위치) ─────────
+    selected_count = sum(
+        1 for e in scan.entries
+        if st.session_state.get(f"fl_sel_{e.path}", (force or not e.processed))
+    )
+
+    top_c1, top_c2, top_c3, top_c4 = st.columns([1, 1, 1.6, 2.4])
+    with top_c1:
+        if st.button("전체 선택", use_container_width=True, key="fl_sel_all"):
+            for e in scan.entries:
+                st.session_state[f"fl_sel_{e.path}"] = True
+            st.rerun()
+    with top_c2:
+        if st.button("전체 해제", use_container_width=True, key="fl_sel_none"):
+            for e in scan.entries:
+                st.session_state[f"fl_sel_{e.path}"] = False
+            st.rerun()
+    with top_c3:
+        st.metric("✋ 선택", selected_count, label_visibility="collapsed")
+        st.caption(f"✋ 선택 **{selected_count}**건")
+    with top_c4:
+        run = st.button(
+            f"📥 선택한 {selected_count}건 인덱싱",
+            type="primary",
+            disabled=(selected_count == 0),
+            use_container_width=True,
+            key="fl_run",
+        )
+
+    st.caption(
+        "💡 미등록(⏳)은 기본 선택, DB 등록됨(📚)은 기본 해제. "
+        "🔄 강제 재파싱을 켜면 DB 등록됨도 자동 선택."
+    )
+
     selected_paths: list[Path] = []
-
-    bulk_c1, bulk_c2, bulk_c3 = st.columns([1, 1, 4])
-    with bulk_c1:
-        select_all = st.button("전체 선택", use_container_width=True, key="fl_sel_all")
-    with bulk_c2:
-        clear_all = st.button("전체 해제", use_container_width=True, key="fl_sel_none")
-
-    if select_all:
-        for e in scan.entries:
-            st.session_state[f"fl_sel_{e.path}"] = True
-    if clear_all:
-        for e in scan.entries:
-            st.session_state[f"fl_sel_{e.path}"] = False
 
     for d in dirs_sorted:
         entries = by_dir[d]
@@ -259,22 +283,7 @@ def _render_folder_load() -> None:
                 if st.checkbox(label, key=key):
                     selected_paths.append(e.path)
 
-    # ── 액션 ─────────────────────────────────────────────────────
-    st.divider()
-    a1, a2 = st.columns([1.5, 4])
-    with a1:
-        run = st.button(
-            f"📥 선택한 {len(selected_paths)}개 인덱싱",
-            type="primary",
-            disabled=not selected_paths,
-            use_container_width=True,
-            key="fl_run",
-        )
-    with a2:
-        st.caption(
-            "💡 처리됨(회색)은 기본 체크 해제. 🔄 강제 재파싱을 켜면 처리됨도 자동 체크."
-        )
-
+    # ── 인덱싱 실행 (버튼은 위 sticky 위치) ─────────────────────────
     if run:
         # 진행 가시화 — progress bar + 상태 라인
         progress = st.progress(0.0, text="준비 중...")
