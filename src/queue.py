@@ -1,14 +1,20 @@
 """V2.6.3.7 처리 큐 — 대기/처리중/완료 카운트 + 묶음·개별·선택 처리.
 
-큐의 정의 (옵션 A — 가상 큐, 별도 테이블 없음):
-  - 대기열 = 1-inbox/intake + _external/ 하위 파일 중 *K2 미분석* 또는 *DB에 없는 doc*
+V2.6.3.8 — 큐 정의를 DB 기반으로 전환.
+  - 대기열 = documents.kind='source' 행 중 K2 분석 안 됨
+            (document_meta 없거나 classifier_version IS NULL)
   - 처리중 = document_meta.processing_started_at IS NOT NULL
-  - 완료 = document_meta 행 있음 AND processing_started_at IS NULL
+  - 완료   = document_meta.classifier_version IS NOT NULL AND 락 없음
+  - 영구보존 = 3-archive 카운트 (별개)
 
-락 정책:
+이유: 입력 탭이 디스크 카피 없이 DB에만 박을 수 있어(폴더 로딩 No-Copy),
+디스크 기준 대기열은 *놓치는 자료*가 생긴다. DB 기준이 진실.
+
+락 정책 (좀비 안전망):
   - 처리 직전 set_processing(doc_id) → processing_started_at=now
   - 성공/실패 후 clear_processing(doc_id) → processing_started_at=NULL
-  - 좀비 락 (처리 시작 후 N분 경과): 자동 무시 (다음 묶음에서 재시도)
+  - 30분 이상 처리중인 좀비 락 → 다음 묶음 처리 시 자동 해제
+  - 동시 클릭으로 같은 doc 두 번 처리 시도 → set_processing이 False 반환
 """
 from __future__ import annotations
 
@@ -17,18 +23,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.config import IRIS_DB_PATH, IRIS_RAW_PATH
-from src.reprocess import _walk_raw, INCLUDE_SUFFIXES  # noqa: F401
+from src.config import IRIS_DB_PATH
 
 
 @dataclass
 class QueueSnapshot:
-    """현재 큐 상태."""
-    waiting: int = 0          # 대기열 — 디스크에 있지만 K2 미분석
-    in_progress: int = 0      # 처리중 — 락 박혀 있음
-    done: int = 0             # 완료 — document_meta 행 있음 (K2 분석됨)
-    archived: int = 0         # 영구보존 — 3-archive 카피 완료
-    waiting_files: list[Path] = field(default_factory=list)  # 대기 파일 목록 (uperbund N)
+    """현재 큐 상태 (V2.6.3.8 — DB 기반)."""
+    waiting: int = 0          # 대기열 — DB에 있지만 K2 미분석
+    in_progress: int = 0      # 처리중 — 락 박힘
+    done: int = 0             # 완료 — K2 분석 통과
+    archived: int = 0         # 영구보존 — 3-archive 카운트
+    waiting_docs: list[dict] = field(default_factory=list)  # 대기 doc 미리보기 (doc_id, title, path)
 
 
 @dataclass
@@ -41,59 +46,63 @@ class ProcessResult:
     errors: list[tuple[str, str]] = field(default_factory=list)
 
 
-# ─── 큐 상태 측정 ─────────────────────────────────────────────────────
-def _doc_id_for_path(path: Path) -> str:
-    """raw_intake와 같은 규칙으로 doc_id 추출."""
-    from src.ingest.raw_intake import doc_id_for
-    return doc_id_for(path)
-
-
+# ─── 큐 상태 측정 (V2.6.3.8 — DB 기반) ──────────────────────────────
 def measure_queue(db_path: Path = IRIS_DB_PATH, *, max_list: int = 50) -> QueueSnapshot:
-    """디스크 + DB를 교차해서 대기/처리중/완료 카운트."""
+    """DB 기준으로 대기/처리중/완료 카운트.
+
+    대기 = documents.kind='source' 행 중 K2 분석 안 됨
+           (document_meta 없거나 classifier_version IS NULL이고 락 없음)
+    처리중 = document_meta.processing_started_at NOT NULL
+    완료 = document_meta.classifier_version NOT NULL AND 락 없음
+    """
     s = QueueSnapshot()
 
-    # 디스크 파일 목록
-    files = list(_walk_raw("all"))
-
     if not db_path.exists():
-        # DB 부재 → 모두 대기
-        s.waiting = len(files)
-        s.waiting_files = files[:max_list]
         return s
 
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     try:
-        # 처리중·완료 카운트
+        # 처리중 — 락 박힘
         s.in_progress = conn.execute(
             "SELECT COUNT(*) FROM document_meta "
             "WHERE processing_started_at IS NOT NULL"
         ).fetchone()[0]
+
+        # 완료 — K2 분석 통과 (분류기 버전 박힘) AND 락 없음
         s.done = conn.execute(
             "SELECT COUNT(*) FROM document_meta "
-            "WHERE processing_started_at IS NULL"
+            "WHERE classifier_version IS NOT NULL "
+            "  AND processing_started_at IS NULL"
         ).fetchone()[0]
 
-        # 디스크 파일 중 K2 미분석 = 대기
-        done_ids = {
-            r[0] for r in conn.execute(
-                "SELECT doc_id FROM document_meta"
-            ).fetchall()
-        }
+        # 대기 — DB에 source로 박혀 있지만 K2 미분석 (락 없음 = 진짜 대기)
+        s.waiting = conn.execute(
+            "SELECT COUNT(*) FROM documents d "
+            "LEFT JOIN document_meta m ON d.doc_id = m.doc_id "
+            "WHERE d.kind = 'source' "
+            "  AND (m.doc_id IS NULL "
+            "       OR (m.classifier_version IS NULL "
+            "           AND m.processing_started_at IS NULL))"
+        ).fetchone()[0]
 
-        for p in files:
-            try:
-                did = _doc_id_for_path(p)
-            except Exception:
-                # doc_id 산출 실패는 일단 대기로
-                if len(s.waiting_files) < max_list:
-                    s.waiting_files.append(p)
-                s.waiting += 1
-                continue
-            if did in done_ids:
-                continue
-            s.waiting += 1
-            if len(s.waiting_files) < max_list:
-                s.waiting_files.append(p)
+        # 대기 doc 미리보기 (선택 처리용)
+        rows = conn.execute(
+            "SELECT d.doc_id, d.title, d.path FROM documents d "
+            "LEFT JOIN document_meta m ON d.doc_id = m.doc_id "
+            "WHERE d.kind = 'source' "
+            "  AND (m.doc_id IS NULL "
+            "       OR (m.classifier_version IS NULL "
+            "           AND m.processing_started_at IS NULL)) "
+            "ORDER BY d.doc_id "
+            "LIMIT ?",
+            (max_list,),
+        ).fetchall()
+        s.waiting_docs = [
+            {"doc_id": r["doc_id"], "title": r["title"] or "(no title)",
+             "path": r["path"] or ""}
+            for r in rows
+        ]
     finally:
         conn.close()
 
@@ -176,34 +185,42 @@ def clear_stale_locks(stale_minutes: int = 30, *, db_path: Path = IRIS_DB_PATH) 
         conn.close()
 
 
-# ─── 묶음 처리 (batch fetch + 처리) ───────────────────────────────────
-def fetch_waiting(n: int = 5, *, db_path: Path = IRIS_DB_PATH) -> list[Path]:
-    """대기열 위에서 N건 fetch (디스크 파일 객체)."""
+# ─── 묶음 처리 (V2.6.3.8 — DB doc_id 기반) ────────────────────────────
+def fetch_waiting(n: int = 5, *, db_path: Path = IRIS_DB_PATH) -> list[str]:
+    """대기열 위에서 N건 fetch (doc_id 리스트). V2.6.3.8: 디스크 path가 아니라 DB doc_id."""
     snap = measure_queue(db_path=db_path, max_list=max(n, 5))
-    return snap.waiting_files[:n]
+    return [d["doc_id"] for d in snap.waiting_docs[:n]]
 
 
-def process_batch(paths: list[Path], *, use_k2: bool = True,
+def _load_doc_text(conn: sqlite3.Connection, doc_id: str) -> tuple[str, str]:
+    """DB chunks에서 본문 재조립. 반환 (title, body)."""
+    title_row = conn.execute(
+        "SELECT title FROM documents WHERE doc_id=?", (doc_id,)
+    ).fetchone()
+    title = title_row[0] if title_row else doc_id
+
+    chunks = conn.execute(
+        "SELECT text FROM chunks WHERE doc_id=? ORDER BY ord", (doc_id,)
+    ).fetchall()
+    body = "\n\n".join(c[0] for c in chunks)
+    return title, body
+
+
+def process_batch(doc_ids: list[str], *, use_k2: bool = True,
                   db_path: Path = IRIS_DB_PATH) -> ProcessResult:
-    """주어진 파일들을 1건씩 재처리. 각 파일에 락 박고 → reprocess 단일파일 흐름 → 락 해제.
+    """주어진 doc_id들을 K2 분석. 본문은 DB chunks에서 재조립.
 
-    인자:
-      paths: 처리할 파일 목록 (이미 fetch된 것)
-      use_k2: K2 LLM 분석 여부
+    V2.6.3.8: 디스크 파일이 아니라 DB doc_id를 받는다. 입력 탭이 박은
+    documents/chunks가 진실원이므로 path 없어도 처리 가능.
     """
     res = ProcessResult()
-    res.requested = len(paths)
+    res.requested = len(doc_ids)
 
-    if not paths:
+    if not doc_ids:
         return res
 
-    # 좀비 락 먼저 정리
+    # 좀비 락 먼저 정리 (안전망)
     clear_stale_locks(stale_minutes=30, db_path=db_path)
-
-    from src.ingest.raw_intake import (
-        doc_id_for, parse_frontmatter, split_chunks, upsert_raw_doc,
-    )
-    from src.ingest.fts_sync import rebuild_all
 
     if use_k2:
         from src import k2 as k2mod
@@ -220,30 +237,18 @@ def process_batch(paths: list[Path], *, use_k2: bool = True,
         conn.commit()
 
     try:
-        for path in paths:
-            try:
-                doc_id = doc_id_for(path)
-            except Exception as e:
-                res.errors.append((path.name, f"doc_id: {e}"))
-                res.failed += 1
-                continue
-
-            # 락 시도 — 이미 처리중이면 skip
+        for doc_id in doc_ids:
+            # 락 시도
             if not set_processing(doc_id, db_path=db_path):
                 res.skipped += 1
                 continue
 
             try:
-                text = path.read_text(encoding="utf-8")
-                meta, body = parse_frontmatter(text)
-                title = meta.get("title") or path.stem
-                chunks = split_chunks(body)
-                if not chunks:
+                title, body = _load_doc_text(conn, doc_id)
+                if not body.strip():
                     res.skipped += 1
                     clear_processing(doc_id, db_path=db_path)
                     continue
-
-                upsert_raw_doc(conn, doc_id, path, title, chunks)
 
                 if use_k2:
                     k2_result = k2mod.analyze(title, body, timeout=60.0)
@@ -276,24 +281,25 @@ def process_batch(paths: list[Path], *, use_k2: bool = True,
                     sg = suggest_classification(title, body)
                     conn.execute(
                         "UPDATE documents SET industry=?, area=?, level=? WHERE doc_id=?",
-                        (sg.industry, sg.area, sg.level, doc_id),
+                        (sg.get("industry"), sg.get("area"), sg.get("level"), doc_id),
+                    )
+                    # K2 OFF로도 *완료* 표식 박음 — measure_queue가 done으로 카운트하게.
+                    # classifier_version='rule-only-v1' 이 식별자.
+                    conn.execute(
+                        "INSERT INTO document_meta (doc_id, classifier_version) "
+                        "VALUES (?, 'rule-only-v1') "
+                        "ON CONFLICT(doc_id) DO UPDATE SET classifier_version='rule-only-v1'",
+                        (doc_id,),
                     )
                 conn.commit()
                 clear_processing(doc_id, db_path=db_path)
                 res.succeeded += 1
             except Exception as e:
-                res.errors.append((path.name, f"{type(e).__name__}: {e}"))
+                res.errors.append((doc_id, f"{type(e).__name__}: {e}"))
                 res.failed += 1
                 clear_processing(doc_id, db_path=db_path)
     finally:
         conn.close()
-
-    # FTS 1회 재구축
-    if res.succeeded > 0:
-        try:
-            rebuild_all(db_path)
-        except Exception as e:
-            res.errors.append(("fts_rebuild", f"{type(e).__name__}: {e}"))
 
     return res
 

@@ -170,8 +170,11 @@ def _render_folder_load() -> None:
                              help="reference = 원본 경로 그대로 (No-Copy)",
                              label_visibility="collapsed")
     with dc4:
-        use_k2 = st.checkbox("🤖 K2", value=False, key="fl_use_k2",
-                              help="LLM 분류 (5~30초/건). 끄면 규칙 매칭.")
+        st.caption(
+            "🔄 분류는 🔄 흐름 탭에서",
+            help="V2.6.3.8 — 입력 탭은 *대기열 enqueue*만. K2 분류는 흐름 탭의 묶음/개별/선택 처리에서.",
+        )
+    use_k2 = False  # V2.6.3.8 — 입력 단계에서 K2 호출하지 않음
 
     dest_str = st.session_state.get("fl_dest", "")
 

@@ -100,7 +100,7 @@ def _render_queue_row() -> None:
     from src import queue as q
     snap = q.measure_queue(max_list=20)
 
-    sub_waiting = "1-inbox/intake + external" if snap.waiting else "처리 대기 없음"
+    sub_waiting = "K2 미분석" if snap.waiting else "처리 대기 없음"
     sub_in = "락 박힘" if snap.in_progress else "—"
     sub_done = "K2 분석 통과"
     sub_arch = f"마지막 {_fmt(snap.archived)}건" if snap.archived else "—"
@@ -126,6 +126,26 @@ def _render_queue_row() -> None:
         st.caption(
             f"⚙️ 처리중 {snap.in_progress}건 — 30분 이상 처리중인 좀비 락은 "
             "다음 묶음 처리 시 자동 해제됩니다."
+        )
+
+    # 안전망 점검 (V2.6.3.8)
+    sn_col1, sn_col2 = st.columns([1, 3])
+    with sn_col1:
+        if st.button("🛡 안전망 점검", use_container_width=True, key="flow_audit",
+                     help="좀비 락·고아 chunks/meta·FTS 불일치 자동 정정"):
+            from src import health
+            rep = health.audit(auto_fix=True)
+            if rep.ok:
+                st.success("✅ 무결성 OK — 좀비 없음")
+            else:
+                st.warning(
+                    f"🛡 {rep.auto_fixed}건 정정 — "
+                    + " · ".join(rep.notes[:5])
+                )
+    with sn_col2:
+        st.caption(
+            "🛡 안전망 — 좀비 락·고아 chunks/meta·FTS 불일치를 *자동 정정*. "
+            "묶음 처리 시작 전에도 좀비 락만은 자동 해제."
         )
 
 
@@ -158,24 +178,28 @@ def _render_actions() -> None:
         help="대기열 첫 자료 1건만 상세 처리"
     )
 
-    # 선택 처리 — 대기열에서 직접 골라 처리
+    # 선택 처리 — 대기열에서 직접 골라 처리 (V2.6.3.8 — doc_id 기반)
     snap = q.measure_queue(max_list=200)
-    selected_paths: list = []
-    if snap.waiting_files:
+    selected_doc_ids: list[str] = []
+    if snap.waiting_docs:
         with b3:
             st.caption("✋ 선택 처리")
-            options = {p.name: p for p in snap.waiting_files[:50]}
+            # title (doc_id) 형태로 표시 — 사용자가 식별 가능
+            options = {
+                f"{d['title']} ({d['doc_id'][:24]})": d["doc_id"]
+                for d in snap.waiting_docs[:50]
+            }
             picked = st.multiselect(
                 "대기에서 골라 우선 처리",
                 options=list(options.keys()),
                 key="flow_picked",
                 label_visibility="collapsed",
             )
-            selected_paths = [options[name] for name in picked]
+            selected_doc_ids = [options[name] for name in picked]
             do_picked = st.button(
-                f"✋ 선택 {len(selected_paths)}건 처리",
+                f"✋ 선택 {len(selected_doc_ids)}건 처리",
                 use_container_width=True, key="flow_picked_run",
-                disabled=(len(selected_paths) == 0),
+                disabled=(len(selected_doc_ids) == 0),
             )
     else:
         with b3:
@@ -183,19 +207,19 @@ def _render_actions() -> None:
                       use_container_width=True, disabled=True, key="flow_picked_run")
             do_picked = False
 
-    # 실행 분기
-    paths: list = []
+    # 실행 분기 (V2.6.3.8 — doc_id 리스트)
+    doc_ids: list[str] = []
     if do_batch:
-        paths = q.fetch_waiting(int(batch_n))
+        doc_ids = q.fetch_waiting(int(batch_n))
     elif do_one:
-        paths = q.fetch_waiting(1)
-    elif do_picked and selected_paths:
-        paths = selected_paths
+        doc_ids = q.fetch_waiting(1)
+    elif do_picked and selected_doc_ids:
+        doc_ids = selected_doc_ids
 
-    if paths:
-        prog = st.progress(0.0, text=f"처리 시작 — {len(paths)}건…")
-        with st.spinner(f"K2={'켬' if use_k2 else '끔'} · {len(paths)}건 처리 중…"):
-            r = q.process_batch(paths, use_k2=use_k2)
+    if doc_ids:
+        prog = st.progress(0.0, text=f"처리 시작 — {len(doc_ids)}건…")
+        with st.spinner(f"K2={'켬' if use_k2 else '끔'} · {len(doc_ids)}건 처리 중…"):
+            r = q.process_batch(doc_ids, use_k2=use_k2)
         prog.progress(1.0, text=f"완료 — {r.succeeded}/{r.requested}건")
 
         rc1, rc2, rc3, rc4 = st.columns(4)
