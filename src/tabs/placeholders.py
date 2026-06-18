@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.config import IRIS_SYSTEM_DB
+from src.config import IRIS_DB_PATH, IRIS_WIKI_PATH, IRIS_SYSTEM_LEGACY
 
 
 # ─── 공통 헬퍼 ────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ def render_insights() -> None:
     st.markdown("### 📊 K5 telemetry 상태")
     telemetry_root = Path(os.environ.get(
         "IRIS_TELEMETRY_ROOT",
-        "/Users/iris/Documents/0Dev/iris-system/storage/telemetry",
+        str(IRIS_SYSTEM_LEGACY / "storage" / "telemetry"),
     ))
     logs = sorted(telemetry_root.glob("iris_k5_telemetry.*.log")) if telemetry_root.exists() else []
     c1, c2 = st.columns(2)
@@ -114,7 +114,7 @@ def render_wiki() -> None:
     st.divider()
     st.markdown("### 📦 wiki/ 디렉터리 측정")
 
-    wiki_dir = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/wiki")
+    wiki_dir = IRIS_WIKI_PATH
     if not wiki_dir.exists():
         st.error(f"wiki/ 디렉터리 부재: {wiki_dir}")
         return
@@ -163,8 +163,8 @@ def render_settings() -> None:
 
     st.divider()
     st.markdown("### 🗄 DB 메타 상태")
-    if IRIS_SYSTEM_DB.exists():
-        conn = sqlite3.connect(IRIS_SYSTEM_DB)
+    if IRIS_DB_PATH.exists():
+        conn = sqlite3.connect(IRIS_DB_PATH)
         try:
             rows = conn.execute(
                 "SELECT key, value FROM meta_kv WHERE key NOT LIKE 'phase_%' ORDER BY key"
@@ -180,7 +180,7 @@ def render_settings() -> None:
         finally:
             conn.close()
     else:
-        st.error(f"_index.db 부재: {IRIS_SYSTEM_DB}")
+        st.error(f"_index.db 부재: {IRIS_DB_PATH}")
 
     st.divider()
     st.markdown("### 🔗 운영 콘솔 바로가기")

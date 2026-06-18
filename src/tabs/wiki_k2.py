@@ -20,7 +20,9 @@ from pathlib import Path
 
 import streamlit as st
 
-DB_PATH = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/_index.db")
+from src.config import IRIS_DB_PATH
+
+DB_PATH = IRIS_DB_PATH
 
 # ─── 분류축 정의 + 한국어 라벨 ────────────────────────────────────────
 # ─── 분류축 정의 + 한국어 라벨 (V2.6.2.7 진단툴 IND_A~I 정합) ──────────

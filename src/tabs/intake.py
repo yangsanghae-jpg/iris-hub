@@ -20,12 +20,10 @@ from pathlib import Path
 
 import streamlit as st
 
-# iris-system raw_intake import
-IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
-if str(IRIS_SYSTEM) not in sys.path:
-    sys.path.insert(0, str(IRIS_SYSTEM))
+from src.config import IRIS_RAW_PATH
 
-RAW_DIR = IRIS_SYSTEM / "knowledge" / "raw"
+# V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM·sys.path hack 제거.
+RAW_DIR = IRIS_RAW_PATH
 INCLUDE_SUFFIXES = {".md", ".txt"}
 
 
@@ -161,7 +159,7 @@ def _render_folder_load() -> None:
             picked = _pick_folder_dialog(
                 prompt="archive 루트 폴더 선택",
                 default=st.session_state.get("fl_dest", "")
-                or "/Users/iris/Documents/0Dev",
+                or "/Users/iris/Documents/1Dev",
             )
             if picked:
                 st.session_state["_fl_dest_prefill"] = True
@@ -475,5 +473,5 @@ def render() -> None:
     """)
     st.caption(
         "💡 시맨틱 검색 갱신: 인제스트 후 터미널에서 "
-        "`cd ~/Documents/0Dev/iris-system && make build-faiss`"
+        "`cd ~/Documents/1Dev/iris-hub && make build-faiss`"
     )

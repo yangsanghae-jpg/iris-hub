@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import IRIS_SYSTEM_DB
+from .config import IRIS_DB_PATH
 from .phases import Phase
 
 
@@ -22,7 +22,7 @@ def now_iso() -> str:
 
 
 def _conn(db_path: Path | None = None) -> sqlite3.Connection:
-    p = db_path or IRIS_SYSTEM_DB
+    p = db_path or IRIS_DB_PATH
     c = sqlite3.connect(p)
     c.row_factory = sqlite3.Row
     return c

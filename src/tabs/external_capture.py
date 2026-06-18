@@ -25,13 +25,11 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.config import IRIS_DB_PATH, IRIS_KNOWLEDGE_EXTERNAL
 
-IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
-if str(IRIS_SYSTEM) not in sys.path:
-    sys.path.insert(0, str(IRIS_SYSTEM))
-
-EXTERNAL_DIR = IRIS_SYSTEM / "knowledge" / "raw" / "_external"
-DB_PATH = IRIS_SYSTEM / "knowledge" / "_index.db"
+# V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM·sys.path hack 제거.
+EXTERNAL_DIR = IRIS_KNOWLEDGE_EXTERNAL
+DB_PATH = IRIS_DB_PATH
 
 SOURCES = [
     "chatgpt",

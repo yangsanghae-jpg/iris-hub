@@ -10,7 +10,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/_index.db")
+from src.config import IRIS_DB_PATH
+
+DB_PATH = IRIS_DB_PATH
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS document_meta (

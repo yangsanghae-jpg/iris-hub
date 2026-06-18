@@ -16,8 +16,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/_index.db")
-MIRROR_ROOT = Path("~/Documents/LearningMaster/iris-mirror").expanduser()
+from src.config import IRIS_DB_PATH, IRIS_MIRROR_PATH
+
+DB_PATH = IRIS_DB_PATH
+MIRROR_ROOT = IRIS_MIRROR_PATH
 
 # Vault 안에서 iris 소유를 명시 (사용자가 다른 영역과 구분)
 README = """# iris-mirror

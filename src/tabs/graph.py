@@ -19,9 +19,9 @@ from pathlib import Path
 import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
-from src.config import IRIS_SYSTEM_DB
+from src.config import IRIS_DB_PATH, IRIS_WIKI_PATH
 
-WIKI_DIR = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/wiki")
+WIKI_DIR = IRIS_WIKI_PATH
 WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
 # 노드 색상 (알다 비주얼 차용)
@@ -41,9 +41,9 @@ COLOR_BY_LANE = {
 
 
 def _load_docs() -> list[dict]:
-    if not IRIS_SYSTEM_DB.exists():
+    if not IRIS_DB_PATH.exists():
         return []
-    conn = sqlite3.connect(IRIS_SYSTEM_DB)
+    conn = sqlite3.connect(IRIS_DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute("""

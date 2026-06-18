@@ -27,12 +27,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-# V2.6.3.1: apps.ingest → src.ingest 흡수. IRIS_SYSTEM sys.path hack 제거.
-# DB·RAW 경로는 legacy 그대로 (V2.6.3.3에서 iris-knowledge로 이전 예정).
-IRIS_SYSTEM = Path("/Users/iris/Documents/0Dev/iris-system")
+from src.config import IRIS_DB_PATH, IRIS_RAW_PATH
 
-RAW_DIR = IRIS_SYSTEM / "knowledge" / "raw"
-DB_PATH = IRIS_SYSTEM / "knowledge" / "_index.db"
+# V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM 참조 제거.
+RAW_DIR = IRIS_RAW_PATH
+DB_PATH = IRIS_DB_PATH
 INCLUDE_SUFFIXES = {".md", ".txt"}
 
 

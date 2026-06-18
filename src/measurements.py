@@ -6,13 +6,13 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .config import ALDA_BASELINE, IRIS_SYSTEM_DB
+from .config import ALDA_BASELINE, IRIS_DB_PATH
 
 
 @dataclass
 class Measurements:
     db_exists: bool = False
-    db_path: Path = IRIS_SYSTEM_DB
+    db_path: Path = IRIS_DB_PATH
     db_size: int = 0
     integrity: str = "?"
     schema_version: str = "?"
@@ -49,7 +49,7 @@ class Measurements:
 
 
 def measure(db_path: Path | None = None) -> Measurements:
-    p = db_path or IRIS_SYSTEM_DB
+    p = db_path or IRIS_DB_PATH
     m = Measurements(db_path=p)
     # symlink target may be missing; check resolved
     try:
