@@ -51,6 +51,7 @@ class DBStage:
     exists: bool = False
     documents: int = 0
     source_docs: int = 0     # kind=source인 행만 (mirror와 매칭)
+    eligible: int = 0        # V2.6.3.6 — mirror 진입 자격 통과 (K2+매트릭스)
     chunks: int = 0
     fts: int = 0
     db_size_mb: float = 0.0
@@ -78,8 +79,8 @@ class FlowSnapshot:
 
     @property
     def mirror_db_gap(self) -> int:
-        """양수면 DB(source)가 mirror보다 많음, 음수면 mirror가 더 많음."""
-        return self.db.source_docs - self.mirror.md_count
+        """양수면 자격 통과 DB가 mirror보다 많음(미동기), 음수면 mirror가 더 많음(좀비/거절 잔재)."""
+        return self.db.eligible - self.mirror.md_count
 
     @property
     def archive_db_gap(self) -> int:
@@ -121,6 +122,7 @@ def _measure_archive() -> ArchiveStage:
 
 
 def _measure_db() -> DBStage:
+    import sqlite3
     m = measure()
     s = DBStage(exists=m.db_exists)
     if not m.db_exists:
@@ -130,13 +132,32 @@ def _measure_db() -> DBStage:
     s.chunks = m.chunks_total
     s.fts = m.fts_total
     s.db_size_mb = round(m.db_size / (1024 * 1024), 1)
+
+    # V2.6.3.6 — mirror 진입 자격 통과 카운트 (K2 분석 + 매트릭스 키)
+    try:
+        with sqlite3.connect(str(m.db_path)) as c:
+            row = c.execute(
+                "SELECT COUNT(*) FROM documents d "
+                "JOIN document_meta meta ON d.doc_id = meta.doc_id "
+                "WHERE meta.classifier_version IS NOT NULL "
+                "  AND d.industry IS NOT NULL AND d.area IS NOT NULL "
+                "  AND d.kind = 'source'"
+            ).fetchone()
+            s.eligible = row[0] if row else 0
+    except sqlite3.Error:
+        s.eligible = 0
     return s
 
 
 def _measure_mirror() -> MirrorStage:
     s = MirrorStage(exists=IRIS_KNOWLEDGE_MIRROR.exists())
     if s.exists:
-        s.md_count = _count_files(IRIS_KNOWLEDGE_MIRROR, {".md"})
+        # iris가 관리하는 doc_id 패턴(raw_/ref_/sec_)만 카운트 — 사용자 노트(README, 데일리) 제외
+        _IRIS_PREFIXES = ("raw_", "ref_", "sec_")
+        s.md_count = sum(
+            1 for p in IRIS_KNOWLEDGE_MIRROR.iterdir()
+            if p.is_file() and p.suffix == ".md" and p.name.startswith(_IRIS_PREFIXES)
+        )
     return s
 
 

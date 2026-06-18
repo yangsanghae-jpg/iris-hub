@@ -101,6 +101,7 @@ def _render_flow_row(s: FlowSnapshot) -> None:
     db_sub = (
         f"전체 <b>{_fmt(s.db.documents)}</b> · source <b>{_fmt(s.db.source_docs)}</b>"
         f"<br/>chunks <b>{_fmt(s.db.chunks)}</b> · FTS <b>{_fmt(s.db.fts)}</b>"
+        f"<br/>📚 진입 자격 <b>{_fmt(s.db.eligible)}</b> (K2+매트릭스)"
     )
     mirror_sub = "Obsidian용 .md" if s.mirror.exists else "디렉터리 부재"
     wiki_sub = "K5 큐레이션" if s.wiki.exists else "디렉터리 부재"
@@ -188,32 +189,32 @@ def _render_gaps(s: FlowSnapshot) -> None:
             unsafe_allow_html=True,
         )
 
-    # db ↔ mirror
+    # db.eligible ↔ mirror (V2.6.3.6 — 진입 자격 기준)
     m_gap = s.mirror_db_gap
     if m_gap == 0:
         st.markdown(
             "<div class='flow-gap'>"
-            "✅ <b>_index.db source ↔ mirror</b>: 일치 "
-            f"(<code>{_fmt(s.db.source_docs)} md</code>)"
+            "✅ <b>진입 자격 ↔ mirror</b>: 일치 "
+            f"(<code>{_fmt(s.db.eligible)} md</code>) — *지식화된 자료*만 mirror에 박힘."
             "</div>",
             unsafe_allow_html=True,
         )
     elif m_gap > 0:
         st.markdown(
             "<div class='flow-gap warn'>"
-            f"⚠️ <b>_index.db source ↔ mirror</b>: mirror에 <code>{m_gap}</code>건 부족 "
-            f"(<code>db source {_fmt(s.db.source_docs)} > mirror {_fmt(s.mirror.md_count)}</code>)"
-            "<br/><span style='color:#999'>Obsidian sync로 미러 갱신 필요 — *📦 데이터* 탭의 Obsidian 동기화 UI 사용.</span>"
+            f"⚠️ <b>진입 자격 ↔ mirror</b>: mirror에 <code>{m_gap}</code>건 부족 "
+            f"(<code>자격 {_fmt(s.db.eligible)} > mirror {_fmt(s.mirror.md_count)}</code>)"
+            "<br/><span style='color:#999'>📦 데이터 탭의 Obsidian 동기화로 보충.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            "<div class='flow-gap warn'>"
-            f"⚠️ <b>_index.db source ↔ mirror</b>: mirror가 <code>{abs(m_gap)}</code>건 더 많음 "
-            f"(<code>mirror {_fmt(s.mirror.md_count)} > db source {_fmt(s.db.source_docs)}</code>)"
-            "<br/><span style='color:#999'>이전 LearningMaster/iris-mirror에서 단방향 카피된 잔재일 가능성. "
-            "정상 신호 아님 — db 재인제스트 또는 mirror 정리 검토.</span>"
+            "<div class='flow-gap alert'>"
+            f"❌ <b>진입 자격 ↔ mirror</b>: mirror에 <code>{abs(m_gap)}</code>건 잉여 "
+            f"(<code>자격 {_fmt(s.db.eligible)} < mirror {_fmt(s.mirror.md_count)}</code>)"
+            "<br/><span style='color:#999'>K2 미분석 자료 또는 좀비. "
+            "📦 데이터 탭의 Obsidian 동기화 실행 시 자동 정리됨 (V2.6.3.6).</span>"
             "</div>",
             unsafe_allow_html=True,
         )

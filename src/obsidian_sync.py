@@ -1,12 +1,14 @@
-"""Obsidian mirror sync — iris _index.db → ~/LearningMaster/iris-mirror/ (V2.6.2.5).
+"""Obsidian mirror sync — iris _index.db → ~/LearningMaster/iris-mirror/ (V2.6.2.5 → V2.6.3.6).
 
-정책 (V2.5.2 §3.B 정합):
+정책 (V2.5.2 §3.B 정합 + V2.6.3.6 진입 자격):
   - 단방향 export: SQLite truth → Obsidian는 *뷰어/거울*. 사용자 편집 덮어씀.
+  - **mirror는 *지식화된 자료*만 받는다 (저장소 X).**
+    진입 자격 = K2 분석 완료(document_meta 행) AND 매트릭스 키(industry+area NOT NULL)
+  - 자격 미달 → mirror 진입 거절. 기존 .md는 sync 시 삭제.
+  - 좀비(DB에 없는데 mirror에 .md만 있음) → sync 시 삭제.
   - 자료 1건 = .md 1건. 같은 자료가 3 파트(산업·시스템·관리)에 동시 노출되는
     의도된 중복은 frontmatter 멀티라벨 + Dataview 동적 뷰로 처리. 파일 복제 X.
   - 증분: iris_synced_at < (k2_at 또는 fetched_at)인 자료만 다시 씀.
-
-본 모듈은 1단계 — 코어 엔진. UI 트리거(2단계)와 자동 호출(3단계)은 별도 사이클.
 """
 from __future__ import annotations
 
@@ -27,7 +29,14 @@ README = """# iris-mirror
 🪞 **iris-hub의 단방향 거울입니다.** 이 디렉토리의 `.md` 파일은
 iris _index.db에서 자동 생성되며, 다음 sync에 *덮어씌워집니다*.
 
-- 정본: `iris-system/knowledge/_index.db`
+**진입 자격 (V2.6.3.6)** — *지식화*가 완료된 자료만 박힙니다:
+- K2 LLM 분석 통과 (`document_meta.classifier_version` 박힘)
+- 매트릭스 키 부여 (`industry`, `area` 모두 NOT NULL)
+
+자격 미달 자료는 *진입 거절*되며, 기존 .md는 다음 sync에 삭제됩니다.
+DB에 없는 좀비 `raw_*.md`, `ref_*.md`, `sec_*.md`도 함께 청소됩니다.
+
+- 정본: `iris-knowledge/2-processed/_index.db`
 - 자료별 .md: `<doc_id>.md`
 - frontmatter `iris_*` 필드는 Dataview에서 직접 쿼리 가능
 - `tags: [iris/industry/B, iris/system/APS, ...]` — Obsidian 그래프뷰 자동 클러스터링
@@ -41,14 +50,33 @@ iris _index.db에서 자동 생성되며, 다음 sync에 *덮어씌워집니다*
 @dataclass
 class SyncResult:
     scanned: int = 0
+    eligible: int = 0       # V2.6.3.6 — 진입 자격 통과
     written: int = 0
     skipped: int = 0
+    rejected: int = 0       # V2.6.3.6 — 자격 미달로 mirror 진입 거절 (DB에는 있음)
+    purged: int = 0         # V2.6.3.6 — 자격 미달로 기존 .md 삭제됨
+    zombies: int = 0        # V2.6.3.6 — DB에 없는데 mirror에만 있던 .md 삭제됨
     errors: list[tuple[str, str]] = field(default_factory=list)
-    deleted: int = 0  # 향후 — DB에서 사라진 자료 .md 정리
+    deleted: int = 0  # 호환 — 향후 제거 가능
 
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+# ─── 진입 자격 (V2.6.3.6) ─────────────────────────────────────────────
+def _is_eligible(d: dict) -> bool:
+    """mirror 진입 자격: K2 분석 완료 + 매트릭스 키.
+
+    - document_meta 행 존재 (classifier_version NOT NULL)
+    - industry, area 둘 다 NOT NULL
+    이 둘이 박혀야 *지식화된 자료*로 간주.
+    """
+    if not d.get("classifier_version"):
+        return False
+    if not d.get("industry") or not d.get("area"):
+        return False
+    return True
 
 
 # ─── frontmatter 직렬화 (의존성 X — PyYAML 회피) ──────────────────────
@@ -298,7 +326,13 @@ def _needs_update(d: dict, target: Path, force: bool) -> bool:
 def sync_all(*, force: bool = False,
              mirror_root: Path = MIRROR_ROOT,
              db_path: Path = DB_PATH) -> SyncResult:
-    """전체 자료 → mirror_root/. force=True면 변경 없어도 다시 씀."""
+    """전체 자료 → mirror_root/. force=True면 변경 없어도 다시 씀.
+
+    V2.6.3.6 정책:
+      - 진입 자격(K2+매트릭스) 미달 doc은 mirror 진입 거절 + 기존 .md 삭제
+      - DB에 없는 좀비 .md 삭제 (raw_*.md, ref_*.md, sec_*.md 패턴만)
+      - README.md 등 사용자 자산은 보존
+    """
     res = SyncResult()
     mirror_root.mkdir(parents=True, exist_ok=True)
     # README 1회만 박음 (사용자 편집 가능 영역으로 보지만, 부재 시 박아둠)
@@ -311,10 +345,31 @@ def sync_all(*, force: bool = False,
 
     synced_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # mirror가 *관리하는* 파일명 집합. 자격 통과 doc의 파일명을 모은다.
+    eligible_filenames: set[str] = set()
+    # DB에 어떤 형태로든 박혀 있는 모든 doc의 파일명 (좀비 판별용)
+    db_filenames: set[str] = set()
+
     for d in docs:
+        fname = _safe_filename(d["doc_id"]) + ".md"
+        db_filenames.add(fname)
+        target = mirror_root / fname
+
+        if not _is_eligible(d):
+            # 자격 미달 — 진입 거절. 기존 .md가 있으면 삭제.
+            res.rejected += 1
+            if target.exists():
+                try:
+                    target.unlink()
+                    res.purged += 1
+                except OSError as e:
+                    res.errors.append((d["doc_id"], f"purge failed: {e}"))
+            continue
+
+        # 자격 통과
+        res.eligible += 1
+        eligible_filenames.add(fname)
         try:
-            fname = _safe_filename(d["doc_id"]) + ".md"
-            target = mirror_root / fname
             if not _needs_update(d, target, force):
                 res.skipped += 1
                 continue
@@ -324,6 +379,22 @@ def sync_all(*, force: bool = False,
         except Exception as e:
             res.errors.append((d.get("doc_id", "?"), f"{type(e).__name__}: {e}"))
 
+    # 좀비 청소 — DB에 없는데 mirror에만 있는 .md (raw_/ref_/sec_ 패턴)
+    # README.md, index.md, 사용자 노트는 *보존*. doc_id 명명 규약 따른 것만 정리.
+    _ZOMBIE_PREFIXES = ("raw_", "ref_", "sec_")
+    for p in mirror_root.iterdir():
+        if not p.is_file() or p.suffix != ".md":
+            continue
+        if not p.name.startswith(_ZOMBIE_PREFIXES):
+            continue
+        if p.name in db_filenames:
+            continue
+        try:
+            p.unlink()
+            res.zombies += 1
+        except OSError as e:
+            res.errors.append((p.name, f"zombie purge failed: {e}"))
+
     return res
 
 
@@ -331,7 +402,10 @@ def sync_one(doc_id: str, *,
              force: bool = False,
              mirror_root: Path = MIRROR_ROOT,
              db_path: Path = DB_PATH) -> SyncResult:
-    """자료 1건만 동기화 — 향후 자동 hook용."""
+    """자료 1건만 동기화 — 향후 자동 hook용.
+
+    V2.6.3.6 — 자격 미달이면 진입 거절 + 기존 .md 삭제.
+    """
     res = SyncResult()
     mirror_root.mkdir(parents=True, exist_ok=True)
     docs = _load_docs(db_path, doc_id=doc_id)
@@ -339,11 +413,23 @@ def sync_one(doc_id: str, *,
     if not docs:
         res.errors.append((doc_id, "DB에 없음"))
         return res
-    synced_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     d = docs[0]
+    fname = _safe_filename(d["doc_id"]) + ".md"
+    target = mirror_root / fname
+
+    if not _is_eligible(d):
+        res.rejected += 1
+        if target.exists():
+            try:
+                target.unlink()
+                res.purged += 1
+            except OSError as e:
+                res.errors.append((doc_id, f"purge failed: {e}"))
+        return res
+
+    res.eligible += 1
+    synced_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
-        fname = _safe_filename(d["doc_id"]) + ".md"
-        target = mirror_root / fname
         if not _needs_update(d, target, force):
             res.skipped += 1
             return res

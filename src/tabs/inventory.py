@@ -345,22 +345,33 @@ def render() -> None:
             ):
                 sr = osync.sync_all(force=bool(sync_force))
 
+            # V2.6.3.6 — 진입 자격 + 좀비 정리 카운트
             sc1, sc2, sc3, sc4 = st.columns(4)
             sc1.metric("스캔", sr.scanned)
-            sc2.metric("작성", sr.written)
-            sc3.metric("변경 없음 (skip)", sr.skipped)
-            sc4.metric("오류", len(sr.errors))
+            sc2.metric("자격 통과", sr.eligible, help="K2 분석 완료 + 매트릭스 키")
+            sc3.metric("작성", sr.written)
+            sc4.metric("변경 없음", sr.skipped)
+
+            sd1, sd2, sd3, sd4 = st.columns(4)
+            sd1.metric("진입 거절", sr.rejected, help="자격 미달 — 지식화 미완")
+            sd2.metric("기존 .md 삭제", sr.purged, help="자격 미달로 mirror에서 제거")
+            sd3.metric("좀비 삭제", sr.zombies, help="DB에 없는 잔재 .md")
+            sd4.metric("오류", len(sr.errors))
 
             if sr.errors:
                 with st.expander(f"⚠️ 오류 {len(sr.errors)}건", expanded=True):
                     for doc_id, err in sr.errors[:20]:
                         st.write(f"- `{doc_id}` — {err}")
             else:
+                cleanup = sr.purged + sr.zombies
+                msg_bits = []
                 if sr.written > 0:
-                    st.success(
-                        f"✅ {sr.written:,}건 작성 · {sr.skipped:,}건 변경 없음"
-                    )
+                    msg_bits.append(f"✅ {sr.written:,}건 작성")
+                if sr.skipped > 0:
+                    msg_bits.append(f"{sr.skipped:,}건 변경 없음")
+                if cleanup > 0:
+                    msg_bits.append(f"🧹 {cleanup:,}건 정리(거절·좀비)")
+                if msg_bits:
+                    st.success(" · ".join(msg_bits))
                 else:
-                    st.info(
-                        f"🟢 모든 자료가 최신 상태 — {sr.skipped:,}건 skip"
-                    )
+                    st.info("🟢 mirror 상태 동기 완료 — 변경 없음")
