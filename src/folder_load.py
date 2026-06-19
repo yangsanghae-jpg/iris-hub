@@ -270,10 +270,11 @@ def ingest_paths(paths: list[Path], *,
                 staged = staging_dir / f"{src_path.stem}_{_hash_short(src_path)}{src_path.suffix}"
                 shutil.copy2(src_path, staged)
 
-                # ② parse + chunk (V2.6.3.10 — converter 위임)
+                # ② parse + chunk (V2.6.3.10 — converter 위임, V2.6.3.11 — OCR 메타 박힘)
                 _emit(idx, "parsing", src_path)
                 try:
-                    body = converter.convert_to_markdown(src_path)
+                    conv = converter.convert_with_meta(src_path)
+                    body = conv.body
                 except converter.ConversionError as e:
                     fr.error = f"변환 실패: {e}"
                     res.errors.append((src_path.name, fr.error))
@@ -394,7 +395,7 @@ def ingest_paths(paths: list[Path], *,
                     )
                     res.classified += 1
 
-                # ⑥ manifest 박기 (V2.6.3.9 — content_sha1 + original_sha1 추가)
+                # ⑥ manifest 박기 (V2.6.3.9 — content_sha1 + original_sha1, V2.6.3.11 — OCR 메타)
                 import hashlib as _hashlib
                 original_bytes = original_target.read_bytes()
                 content_bytes = content_target.read_bytes()
@@ -414,10 +415,13 @@ def ingest_paths(paths: list[Path], *,
                     "size_bytes": src_path.stat().st_size,
                     "content_sha1": _hashlib.sha1(content_bytes).hexdigest(),
                     "original_sha1": _hashlib.sha1(original_bytes).hexdigest(),
+                    "extraction_method": conv.extraction_method,
+                    "pages": conv.pages,
+                    "ocr_pages": conv.ocr_pages,
                     "ingested_at": dt.datetime.now(dt.timezone.utc)
                         .strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "work_id": work_id,
-                    "schema_version": "v1",
+                    "schema_version": "v2",
                     "k2": k2_payload,
                 }
                 (dest_dir / "manifest.json").write_text(

@@ -6,3 +6,6 @@ streamlit-agraph>=0.0.45
 pdfplumber>=0.11
 python-pptx>=1.0
 mammoth>=1.10
+# V2.6.3.11 — 스캔 PDF OCR fallback (시스템에 tesseract + poppler 별도 설치 필요)
+pytesseract>=0.3
+pdf2image>=1.17
