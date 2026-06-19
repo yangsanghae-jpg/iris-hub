@@ -2,3 +2,7 @@ streamlit>=1.40
 pyyaml>=6.0
 pytest>=8.0
 streamlit-agraph>=0.0.45
+# V2.6.3.10 — 비-마크다운 변환기
+pdfplumber>=0.11
+python-pptx>=1.0
+mammoth>=1.10

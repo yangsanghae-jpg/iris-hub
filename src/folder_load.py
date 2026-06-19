@@ -220,8 +220,9 @@ def ingest_paths(paths: list[Path], *,
             res.errors.append(("classify", f"import 실패: {e}"))
             return res
 
-    # V2.6.3.9: 마크다운/텍스트만 — 지원 확장자
-    SUPPORTED_SUFFIXES = {".md", ".txt"}
+    # V2.6.3.10: 지원 포맷 = converter.SUPPORTED_SUFFIXES (.md/.txt/.pdf/.pptx/.docx)
+    from src import converter
+    SUPPORTED_SUFFIXES = converter.SUPPORTED_SUFFIXES
 
     # work_dir 생성
     work_id = dt.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
@@ -269,11 +270,24 @@ def ingest_paths(paths: list[Path], *,
                 staged = staging_dir / f"{src_path.stem}_{_hash_short(src_path)}{src_path.suffix}"
                 shutil.copy2(src_path, staged)
 
-                # ② parse + chunk
+                # ② parse + chunk (V2.6.3.10 — converter 위임)
                 _emit(idx, "parsing", src_path)
-                text = src_path.read_text(encoding="utf-8")
-                meta, body = parse_frontmatter(text)
-                title = meta.get("title") or src_path.stem
+                try:
+                    body = converter.convert_to_markdown(src_path)
+                except converter.ConversionError as e:
+                    fr.error = f"변환 실패: {e}"
+                    res.errors.append((src_path.name, fr.error))
+                    _emit(idx, "error", src_path)
+                    if staged and staged.exists():
+                        staged.unlink()
+                    res.files.append(fr)
+                    continue
+                # 마크다운/텍스트는 frontmatter 메타에서 title 추출, 그 외는 stem
+                if src_path.suffix.lower() in converter.LOSSLESS_SUFFIXES:
+                    meta, _ = parse_frontmatter(src_path.read_text(encoding="utf-8"))
+                    title = meta.get("title") or src_path.stem
+                else:
+                    title = src_path.stem
                 chunks = split_chunks(body)
                 if not chunks:
                     fr.skipped_reason = "empty"

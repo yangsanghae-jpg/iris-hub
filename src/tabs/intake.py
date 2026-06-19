@@ -380,11 +380,11 @@ def render() -> None:
     # ─── (A) 파일 업로드 패턴 ─────────────────────────────────────────
     st.divider()
     st.markdown("### (A) 📂 파일 업로드 — drag & drop")
-    st.caption(".md / .txt 파일을 *raw 폴더에 직접 박기*. 여러 개 한 번에 가능.")
+    st.caption(".md / .txt / .pdf / .pptx / .docx 파일을 *raw 폴더에 직접 박기*. 여러 개 한 번에 가능.")
 
     uploaded = st.file_uploader(
         "파일 끌어다 놓기 또는 클릭해서 선택",
-        type=["md", "txt"],
+        type=["md", "txt", "pdf", "pptx", "docx"],
         accept_multiple_files=True,
         key="intake_files",
     )
@@ -415,11 +415,13 @@ def render() -> None:
 
             st.info("💡 다음: `make build-faiss`로 시맨틱 인덱스 갱신 (별도 명령, 1~2분)")
 
-    # ─── (B) 📁 폴더 로딩 — 외부 폴더 경로 그대로 인덱싱 ─────────────
+    # ─── (B) 📁 폴더 로딩 — 외부 폴더 경로 일괄 인덱싱 ─────────────
     st.divider()
     st.markdown("### (B) 📁 폴더 로딩 — 외부 자료 일괄 인덱싱")
     st.caption(
-        "진단툴 산출물 등 *외부 폴더 경로 그대로* 인덱싱. 원본은 복사하지 않음 (No-Copy)."
+        "V2.6.3.10 지원 포맷: **.md · .txt · .pdf · .pptx · .docx**. "
+        "원본은 3-archive로 카피 보존되고, content.md로 자동 변환됩니다. "
+        "변환 안 되는 포맷은 skip-unsupported."
     )
     _render_folder_load()
 
