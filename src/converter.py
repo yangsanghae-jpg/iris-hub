@@ -89,52 +89,76 @@ def _convert_text(src: Path) -> str:
 
 
 def _convert_pdf_with_meta(src: Path) -> ConversionResult:
-    """PDF — pdfplumber로 페이지 추출. 스캔본 의심 시 OCR fallback (V2.6.3.11)."""
+    """PDF — 페이지별 분기 (V2.7.4 hybrid).
+
+    페이지마다:
+      - pdfplumber 텍스트 추출 → IRIS_OCR_MIN_CHARS 미만이면 OCR fallback
+      - 일부 페이지만 OCR하는 경우 extraction_method = "hybrid"
+
+    이전 V2.6.3.11은 *전체 평균*으로 판단 → 부분 스캔 PDF에서 텍스트 페이지 손실
+    또는 불필요한 전체 OCR 발생. V2.7.4는 페이지별 결정으로 정밀화.
+    """
     try:
         import pdfplumber
     except ImportError as e:
         raise ConversionError(f"pdfplumber 미설치: {e}")
 
     OCR_MIN_CHARS = int(os.environ.get("IRIS_OCR_MIN_CHARS", "20"))
+    OCR_MAX_PAGES = int(os.environ.get("IRIS_OCR_MAX_PAGES", "200"))  # 안전상한
 
-    out: list[str] = []
-    text_total_chars = 0
-    page_count = 0
-    page_texts: list[tuple[int, str, list]] = []  # (page_no, text, tables)
-
+    # 1) 모든 페이지 텍스트 + 표 한 번에 추출
+    page_data: list[tuple[int, str, list]] = []  # (page_no, text, tables)
     try:
         with pdfplumber.open(src) as pdf:
             page_count = len(pdf.pages)
             for i, page in enumerate(pdf.pages, 1):
                 text = (page.extract_text() or "").strip()
                 tables = page.extract_tables() or []
-                page_texts.append((i, text, tables))
-                text_total_chars += len(text)
+                page_data.append((i, text, tables))
     except Exception as e:
         raise ConversionError(f"PDF 파싱 실패: {type(e).__name__}: {e}")
 
-    # OCR fallback 판단 — 페이지당 평균 < OCR_MIN_CHARS
-    avg_chars = text_total_chars / page_count if page_count else 0
-    needs_ocr = page_count > 0 and avg_chars < OCR_MIN_CHARS
+    if page_count == 0:
+        return ConversionResult(body="", extraction_method="text", pages=0)
 
-    extraction_method = "text"
+    # 2) OCR 필요한 페이지 번호 식별
+    ocr_needed_pages = [
+        pno for pno, text, _tables in page_data
+        if len(text) < OCR_MIN_CHARS
+    ]
+
+    # 3) OCR 일괄 수행 (필요한 페이지만)
     ocr_pages = 0
+    ocr_results: dict[int, str] = {}
+    if ocr_needed_pages:
+        if len(ocr_needed_pages) > OCR_MAX_PAGES:
+            # 안전 상한 — 앞 OCR_MAX_PAGES만
+            ocr_needed_pages = ocr_needed_pages[:OCR_MAX_PAGES]
+        ocr_results = _ocr_pdf_pages(src, ocr_needed_pages)
+        ocr_pages = sum(1 for pno in ocr_needed_pages if ocr_results.get(pno))
 
-    if needs_ocr:
-        ocr_results = _ocr_pdf(src, page_count)
-        if ocr_results is not None:
-            # OCR 결과로 빈 페이지 보충
-            extraction_method = "ocr"
-            for i, ocr_text in ocr_results:
-                # 같은 페이지 인덱스의 텍스트가 비어 있으면 OCR로 교체
-                for j, (pno, text, tables) in enumerate(page_texts):
-                    if pno == i and len(text) < OCR_MIN_CHARS:
-                        page_texts[j] = (pno, ocr_text.strip(), tables)
-                        ocr_pages += 1
-                        break
+    # 4) 페이지 데이터에 OCR 결과 머지
+    merged: list[tuple[int, str, list]] = []
+    text_pages_used = 0
+    for pno, text, tables in page_data:
+        if pno in ocr_results and ocr_results[pno]:
+            merged.append((pno, ocr_results[pno].strip(), tables))
+        else:
+            merged.append((pno, text, tables))
+            if len(text) >= OCR_MIN_CHARS:
+                text_pages_used += 1
 
-    # 본문 조립
-    for pno, text, tables in page_texts:
+    # 5) extraction_method 결정
+    if ocr_pages == 0:
+        extraction_method = "text"
+    elif text_pages_used == 0:
+        extraction_method = "ocr"
+    else:
+        extraction_method = "hybrid"
+
+    # 6) 본문 조립 + 페이지 표식 (어떤 방식으로 추출됐는지 미세 표시)
+    out: list[str] = []
+    for pno, text, tables in merged:
         page_md = []
         if text:
             page_md.append(text)
@@ -143,7 +167,9 @@ def _convert_pdf_with_meta(src: Path) -> ConversionResult:
             if md_table:
                 page_md.append(md_table)
         if page_md:
-            out.append(f"## 페이지 {pno}\n\n" + "\n\n".join(page_md))
+            # hybrid일 때 OCR 페이지에는 작은 표식 (디버그용)
+            marker = " · OCR" if pno in ocr_results and ocr_results.get(pno) else ""
+            out.append(f"## 페이지 {pno}{marker}\n\n" + "\n\n".join(page_md))
 
     return ConversionResult(
         body="\n\n".join(out),
@@ -153,34 +179,63 @@ def _convert_pdf_with_meta(src: Path) -> ConversionResult:
     )
 
 
-def _ocr_pdf(src: Path, page_count: int) -> list[tuple[int, str]] | None:
-    """PDF → 이미지 → Tesseract OCR. 페이지별 (페이지번호, 텍스트) 리스트.
+def _ocr_pdf_pages(src: Path, pages: list[int]) -> dict[int, str]:
+    """지정한 페이지 번호들만 OCR. V2.7.4 — pdf2image first_page/last_page 활용.
 
-    None 반환 = Tesseract/pdf2image 미설치 등으로 OCR 자체 불가.
+    반환: {page_no: text}. 라이브러리 미설치 시 빈 dict.
     """
     try:
         import pytesseract
         from pdf2image import convert_from_path
     except ImportError:
-        return None
+        return {}
+
+    if not pages:
+        return {}
 
     lang = os.environ.get("IRIS_OCR_LANG", "kor+chi_sim+eng")
     dpi = int(os.environ.get("IRIS_OCR_DPI", "200"))
 
-    try:
-        images = convert_from_path(str(src), dpi=dpi)
-    except Exception:
-        # poppler 미설치 또는 PDF 손상
-        return None
+    results: dict[int, str] = {}
+    # pdf2image는 연속 범위가 효율적. 연속된 페이지 그룹화.
+    pages_sorted = sorted(pages)
+    ranges: list[tuple[int, int]] = []
+    start = pages_sorted[0]
+    prev = start
+    for p in pages_sorted[1:]:
+        if p == prev + 1:
+            prev = p
+        else:
+            ranges.append((start, prev))
+            start = prev = p
+    ranges.append((start, prev))
 
-    results: list[tuple[int, str]] = []
-    for i, img in enumerate(images, 1):
+    for first, last in ranges:
         try:
-            text = pytesseract.image_to_string(img, lang=lang)
-            results.append((i, text))
+            images = convert_from_path(
+                str(src), dpi=dpi,
+                first_page=first, last_page=last,
+            )
         except Exception:
-            results.append((i, ""))
+            continue
+        for offset, img in enumerate(images):
+            pno = first + offset
+            try:
+                text = pytesseract.image_to_string(img, lang=lang)
+                results[pno] = text
+            except Exception:
+                results[pno] = ""
     return results
+
+
+# 하위 호환 — 옛 시그니처 유지 (V2.6.3.11 이전 호출자)
+def _ocr_pdf(src: Path, page_count: int) -> list[tuple[int, str]] | None:
+    """전체 페이지 OCR. V2.7.4부터 권장 안 함 (_ocr_pdf_pages 사용)."""
+    all_pages = list(range(1, page_count + 1))
+    results = _ocr_pdf_pages(src, all_pages)
+    if not results:
+        return None
+    return [(p, results.get(p, "")) for p in all_pages]
 
 
 # 하위 호환 — 옛 시그니처 유지
