@@ -105,13 +105,31 @@ def upsert(doc_id: str, *,
         conn.execute("PRAGMA busy_timeout=5000")
         own = True
     try:
+        # V2.7.0 — INSERT OR REPLACE 대신 ON CONFLICT DO UPDATE로 *지정 컬럼만* 갱신.
+        # 단계별 timestamp (extract_at, classify_at, summarize_at, processing_started_at)는 보존.
         conn.execute(
-            """INSERT OR REPLACE INTO document_meta
+            """INSERT INTO document_meta
                (doc_id, summary, topics_json, entities_json, concepts_json,
                 classifier_version, confidence, reason, k2_ms, fallback_used,
                 automation_levels_json, system_domains_json, mgmt_categories_json,
                 blurb_industry, blurb_system, blurb_mgmt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(doc_id) DO UPDATE SET
+                 summary=excluded.summary,
+                 topics_json=excluded.topics_json,
+                 entities_json=excluded.entities_json,
+                 concepts_json=excluded.concepts_json,
+                 classifier_version=excluded.classifier_version,
+                 confidence=excluded.confidence,
+                 reason=excluded.reason,
+                 k2_ms=excluded.k2_ms,
+                 fallback_used=excluded.fallback_used,
+                 automation_levels_json=excluded.automation_levels_json,
+                 system_domains_json=excluded.system_domains_json,
+                 mgmt_categories_json=excluded.mgmt_categories_json,
+                 blurb_industry=excluded.blurb_industry,
+                 blurb_system=excluded.blurb_system,
+                 blurb_mgmt=excluded.blurb_mgmt""",
             (
                 doc_id,
                 summary,

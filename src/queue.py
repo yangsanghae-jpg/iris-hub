@@ -223,7 +223,7 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
     clear_stale_locks(stale_minutes=30, db_path=db_path)
 
     if use_k2:
-        from src import k2 as k2mod
+        from src import k2_pipeline as k2pl
         from src import document_meta as dm
     else:
         from src.classify import suggest_classification
@@ -251,7 +251,68 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
                     continue
 
                 if use_k2:
-                    k2_result = k2mod.analyze(title, body, timeout=60.0)
+                    # V2.7.0 — 3 단계 파이프라인. 각 단계 직후 timestamp 박음.
+                    # ① extract (deep 모델 — fast는 JSON 안정성 낮음)
+                    r_ext = k2pl.stage_extract(title, body, role="deep")
+                    if r_ext.ok:
+                        k2pl.mark_stage(conn, doc_id, "extract")
+                        conn.commit()
+                    keywords = r_ext.data if r_ext.ok else {"topics": [], "entities": [], "concepts": []}
+
+                    # ② classify
+                    r_cls = k2pl.stage_classify(title, body, keywords, role="deep")
+                    if r_cls.ok:
+                        k2pl.mark_stage(conn, doc_id, "classify")
+                        conn.commit()
+                        classification = r_cls.data
+                    else:
+                        # fallback 규칙
+                        rule = suggest_classification(title, body) if False else None
+                        from src.classify import suggest_classification as _sc
+                        rule = _sc(title, body)
+                        classification = {
+                            "industry": rule.get("industry"),
+                            "area": rule.get("area"),
+                            "level": rule.get("level"),
+                            "automation_levels": [],
+                            "system_domains": [],
+                            "mgmt_categories": [],
+                            "confidence": 0.3,
+                            "reason": f"LLM classify 실패, 규칙 fallback: {r_cls.error}",
+                        }
+
+                    # ③ summarize
+                    r_sum = k2pl.stage_summarize(title, body, classification, role="deep")
+                    if r_sum.ok:
+                        k2pl.mark_stage(conn, doc_id, "summarize")
+                        conn.commit()
+
+                    # 최종 K2Result 합쳐서 한 번에 upsert (호환)
+                    from src.k2 import K2Result, _k2_version
+                    used_model = r_cls.model or r_sum.model or r_ext.model
+                    classifier_version = _k2_version(used_model) if used_model else "rule-fallback"
+                    any_fail = not (r_ext.ok and r_cls.ok and r_sum.ok)
+
+                    k2_result = K2Result(
+                        industry=classification.get("industry"),
+                        area=classification.get("area"),
+                        level=classification.get("level"),
+                        summary=r_sum.data.get("summary", ""),
+                        topics=keywords.get("topics", []),
+                        entities=keywords.get("entities", []),
+                        concepts=keywords.get("concepts", []),
+                        reason=classification.get("reason", ""),
+                        confidence=classification.get("confidence", 0.0),
+                        elapsed_ms=r_ext.elapsed_ms + r_cls.elapsed_ms + r_sum.elapsed_ms,
+                        classifier_version=classifier_version,
+                        fallback_used=any_fail,
+                        automation_levels=classification.get("automation_levels", []),
+                        system_domains=classification.get("system_domains", []),
+                        mgmt_categories=classification.get("mgmt_categories", []),
+                        blurb_industry=r_sum.data.get("blurb_industry", ""),
+                        blurb_system=r_sum.data.get("blurb_system", ""),
+                        blurb_mgmt=r_sum.data.get("blurb_mgmt", ""),
+                    )
                     dm.upsert(
                         doc_id,
                         summary=k2_result.summary,

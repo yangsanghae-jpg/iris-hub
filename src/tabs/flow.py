@@ -149,6 +149,34 @@ def _render_queue_row() -> None:
         )
 
 
+def _render_stage_progress() -> None:
+    """V2.7.0 — K2 3 단계 진척 가시화."""
+    from src.flow import measure_flow
+    s = measure_flow()
+    total = s.db.source_docs
+    if total == 0:
+        return
+
+    st.markdown("##### K2 단계별 진척")
+    cols = st.columns(3)
+    stages = [
+        ("① extract", "🔑 키워드", s.db.extract_done, "topics·entities·concepts"),
+        ("② classify", "🏷 분류", s.db.classify_done, "industry·area·5축"),
+        ("③ summarize", "📝 요약", s.db.summarize_done, "summary·3 blurb"),
+    ]
+    for col, (label, emoji, done, sub) in zip(cols, stages):
+        pct = (done / total) * 100 if total else 0
+        with col:
+            st.markdown(
+                f"<div style='font-size:0.78em;color:#888'>{label}</div>"
+                f"<div style='font-size:0.95em;font-weight:600'>{emoji}</div>"
+                f"<div style='font-size:1.4em;font-weight:700'>{done:,} <span style='font-size:0.6em;color:#888'>/ {total:,}</span></div>"
+                f"<div style='font-size:0.75em;color:#999'>{sub}</div>",
+                unsafe_allow_html=True,
+            )
+            st.progress(min(pct / 100, 1.0))
+
+
 # ─── ② 처리 액션 (묶음 / 개별 / 선택) ──────────────────────────────────
 def _render_actions() -> None:
     from src import queue as q
@@ -423,6 +451,7 @@ def render() -> None:
     )
 
     _render_queue_row()
+    _render_stage_progress()
     _render_actions()
     st.divider()
     _render_sync()

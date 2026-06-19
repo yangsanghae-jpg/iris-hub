@@ -55,6 +55,10 @@ class DBStage:
     chunks: int = 0
     fts: int = 0
     db_size_mb: float = 0.0
+    # V2.7.0 — K2 단계별 진척
+    extract_done: int = 0
+    classify_done: int = 0
+    summarize_done: int = 0
 
 
 @dataclass
@@ -144,6 +148,21 @@ def _measure_db() -> DBStage:
                 "  AND d.kind = 'source'"
             ).fetchone()
             s.eligible = row[0] if row else 0
+
+            # V2.7.0 — K2 단계별 진척 카운트
+            try:
+                s.extract_done = c.execute(
+                    "SELECT COUNT(*) FROM document_meta WHERE extract_at IS NOT NULL"
+                ).fetchone()[0]
+                s.classify_done = c.execute(
+                    "SELECT COUNT(*) FROM document_meta WHERE classify_at IS NOT NULL"
+                ).fetchone()[0]
+                s.summarize_done = c.execute(
+                    "SELECT COUNT(*) FROM document_meta WHERE summarize_at IS NOT NULL"
+                ).fetchone()[0]
+            except sqlite3.OperationalError:
+                # 마이그레이션 v006 안 박힌 DB
+                pass
     except sqlite3.Error:
         s.eligible = 0
     return s
