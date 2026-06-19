@@ -20,7 +20,7 @@ import socket
 
 import streamlit as st
 
-from src.tabs import dashboard, external, external_capture, flow, graph, intake, inventory, placeholders, wiki_k2
+from src.tabs import dashboard, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, wiki_k2
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -99,10 +99,10 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.7.4 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
+    st.caption("V2.7.5 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
     tabs = st.tabs([
-        # IRIS 자체 (7) — 📊 진척 V2.6.2.9 숨김 (phase 추적 임무 완결, dashboard.py·import 보존)
+        # IRIS 자체 (8) — 📊 진척 V2.6.2.9 숨김
         "📥 입력",
         "🌐 외부응답",
         "🔄 흐름",
@@ -110,7 +110,8 @@ def main() -> None:
         "🕸️ 그래프",
         "📊 인사이트",
         "📚 위키",
-        # 외부 진입점 (4) — V2.6.2.2: 🧠 memory 제거 (페르소나 관리 의의 소멸)
+        "📊 PPT",
+        # 외부 진입점 (4) — V2.6.2.2: 🧠 memory 제거
         "💬 WebUI",
         "🦅 OpenClaw",
         "🌐 Grafana",
@@ -130,13 +131,14 @@ def main() -> None:
         wiki_k2.render()
         st.divider()
         placeholders.render_wiki()
+    with tabs[7]:  pptx.render()                # V2.7.5 — 마크다운 → PPT
     # 외부
-    with tabs[7]:  external.render_openwebui()
-    with tabs[8]:  external.render_openclaw()
-    with tabs[9]:  external.render_grafana()
-    with tabs[10]: external.render_obsidian()
+    with tabs[8]:  external.render_openwebui()
+    with tabs[9]:  external.render_openclaw()
+    with tabs[10]: external.render_grafana()
+    with tabs[11]: external.render_obsidian()
     # 설정 (맨 뒤)
-    with tabs[11]: placeholders.render_settings()
+    with tabs[12]: placeholders.render_settings()
 
 
 if __name__ == "__main__":

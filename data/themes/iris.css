@@ -1,0 +1,154 @@
+/* @theme iris */
+/* IRIS 다크 테마 — 깔끔한 한국어 슬라이드 */
+/* V2.7.5 — Marp Core 4.x 호환 */
+
+@import 'default';
+
+:root {
+  --iris-bg: #0e1117;
+  --iris-fg: #e6edf3;
+  --iris-muted: #8b949e;
+  --iris-accent: #58a6ff;
+  --iris-accent-2: #7ee787;
+  --iris-line: #30363d;
+  --iris-code-bg: #161b22;
+}
+
+section {
+  background: var(--iris-bg);
+  color: var(--iris-fg);
+  font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo",
+               "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 28px;
+  line-height: 1.55;
+  padding: 70px 80px;
+}
+
+h1, h2, h3, h4 {
+  color: var(--iris-accent);
+  font-weight: 700;
+  margin: 0 0 0.5em 0;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 2.2em; }
+h2 { font-size: 1.5em; color: var(--iris-fg); border-bottom: 2px solid var(--iris-line); padding-bottom: 0.3em; }
+h3 { font-size: 1.2em; color: var(--iris-accent-2); }
+
+p, li { color: var(--iris-fg); }
+
+ul, ol { padding-left: 1.5em; }
+li { margin: 0.3em 0; }
+li::marker { color: var(--iris-accent); }
+
+strong { color: var(--iris-accent-2); font-weight: 700; }
+em { color: var(--iris-muted); font-style: normal; }
+
+code {
+  background: var(--iris-code-bg);
+  color: var(--iris-accent-2);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+pre {
+  background: var(--iris-code-bg);
+  border: 1px solid var(--iris-line);
+  border-radius: 8px;
+  padding: 1em;
+  font-size: 0.78em;
+  line-height: 1.4;
+  overflow-x: auto;
+}
+pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--iris-fg);
+}
+
+blockquote {
+  border-left: 4px solid var(--iris-accent);
+  background: rgba(88, 166, 255, 0.08);
+  padding: 0.8em 1.2em;
+  margin: 0.8em 0;
+  color: var(--iris-fg);
+  border-radius: 0 8px 8px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+  font-size: 0.85em;
+}
+th, td {
+  border: 1px solid var(--iris-line);
+  padding: 0.5em 0.8em;
+  text-align: left;
+}
+th {
+  background: var(--iris-code-bg);
+  color: var(--iris-accent);
+  font-weight: 700;
+}
+tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+a {
+  color: var(--iris-accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--iris-accent);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--iris-line);
+  margin: 1em 0;
+}
+
+img {
+  display: block;
+  margin: 0.5em auto;
+  max-width: 100%;
+  max-height: 65%;
+  border-radius: 8px;
+}
+
+/* 페이지 번호 */
+section::after {
+  color: var(--iris-muted);
+  font-size: 0.7em;
+}
+
+/* 표지 슬라이드 — 첫 슬라이드 강조 */
+section.cover {
+  background: linear-gradient(135deg, #0e1117 0%, #1a2332 100%);
+  text-align: center;
+  justify-content: center;
+  display: flex;
+  flex-direction: column;
+}
+section.cover h1 {
+  font-size: 3em;
+  color: var(--iris-accent);
+  margin-bottom: 0.3em;
+}
+section.cover h2 {
+  font-size: 1.4em;
+  color: var(--iris-muted);
+  border: none;
+  font-weight: 400;
+}
+
+/* 강조 슬라이드 — 카드형 */
+section.card {
+  background: var(--iris-code-bg);
+}
+
+/* lead 클래스 — 큰 키워드 */
+section.lead h1 {
+  font-size: 3.5em;
+}
