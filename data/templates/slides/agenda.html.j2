@@ -1,0 +1,24 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header">
+  <h1>{{ title }}</h1>
+  <span class="pageno">{{ pageno }}/{{ total_pages }}</span>
+</div>
+{% endblock %}
+{% block style %}
+.agenda-row { display: flex; align-items: center; height: 70px; border-bottom: 1px solid var(--line); }
+.agenda-ch { background: var(--accent); color: white; font-weight: 700; font-size: 16px;
+  width: 80px; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-right: 24px; flex-shrink: 0; }
+.agenda-title { flex: 1; font-weight: 700; font-size: 22px; }
+.agenda-summary { color: var(--fg-muted); font-size: 18px; max-width: 480px; text-align: right; }
+{% endblock %}
+{% block body %}
+<div class="subtitle">{{ subtitle }}</div>
+{% for item in items %}
+<div class="agenda-row">
+  <div class="agenda-ch">{{ item.ch }}</div>
+  <div class="agenda-title">{{ item.title }}</div>
+  <div class="agenda-summary">{{ item.summary }}</div>
+</div>
+{% endfor %}
+{% endblock %}

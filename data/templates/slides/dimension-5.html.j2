@@ -1,0 +1,37 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header"><h1>{{ title }}</h1><span class="pageno">{{ pageno }}/{{ total_pages }}</span></div>
+{% endblock %}
+{% block style %}
+.dims { display: flex; gap: 14px; margin-top: 16px; }
+.dim { flex: 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); height: 720px; display: flex; flex-direction: column; }
+.dim-h { padding: 16px; color: white; font-weight: 800; font-size: 17px; text-align: center; }
+.dim-h.blue { background: var(--accent); }
+.dim-h.orange { background: var(--orange); }
+.dim-h.purple { background: var(--purple); }
+.dim-h.green { background: var(--green); }
+.dim-body { padding: 20px 16px; flex: 1; background: var(--bg-card); }
+.bullet { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px; font-size: 16px; line-height: 1.45; }
+.dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.dot.blue { background: var(--accent); }
+.dot.orange { background: var(--orange); }
+.dot.purple { background: var(--purple); }
+.dot.green { background: var(--green); }
+.note { margin-top: 16px; background: var(--bg-card); padding: 14px 18px; font-size: 17px; color: var(--fg-muted); border-left: 4px solid var(--accent); }
+{% endblock %}
+{% block body %}
+<div class="subtitle">{{ subtitle }}</div>
+<div class="dims">
+  {% for d in dimensions %}
+  <div class="dim">
+    <div class="dim-h {{ d.color }}">{{ d.label }}</div>
+    <div class="dim-body">
+      {% for b in d.bullets %}
+      <div class="bullet"><span class="dot {{ d.color }}"></span><span>{{ b }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% if footer_note %}<div class="note">{{ footer_note }}</div>{% endif %}
+{% endblock %}

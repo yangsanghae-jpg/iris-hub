@@ -1,0 +1,37 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header"><h1>{{ title }}</h1><span class="pageno">{{ pageno }}/{{ total_pages }}</span></div>
+{% endblock %}
+{% block style %}
+.cols { display: flex; gap: 40px; }
+.col { flex: 1; }
+.col-hdr { padding: 16px 24px; color: white; font-weight: 800; font-size: 20px; border-radius: 8px 8px 0 0; }
+.col-hdr.red { background: var(--red); }
+.col-hdr.green { background: var(--green); }
+.col-body { background: var(--bg-card); padding: 20px 24px; border-radius: 0 0 8px 8px; min-height: 620px; }
+.item { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.item:last-child { border-bottom: none; }
+.item-title { font-weight: 700; font-size: 20px; margin-bottom: 6px; }
+.item-detail { color: var(--fg-muted); font-size: 17px; line-height: 1.4; }
+{% endblock %}
+{% block body %}
+<div class="subtitle">{{ subtitle }}</div>
+<div class="cols">
+  <div class="col">
+    <div class="col-hdr red">{{ left_label }}</div>
+    <div class="col-body">
+      {% for it in left_items %}
+      <div class="item"><div class="item-title">{{ it.title }}</div><div class="item-detail">{{ it.detail }}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col">
+    <div class="col-hdr green">{{ right_label }}</div>
+    <div class="col-body">
+      {% for it in right_items %}
+      <div class="item"><div class="item-title">{{ it.title }}</div><div class="item-detail">{{ it.detail }}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

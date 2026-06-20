@@ -1,0 +1,31 @@
+{% extends "_base.html.j2" %}
+{% block style %}
+.slide { background: var(--bg-dark); padding: 0; }
+.footer { color: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.2); }
+.cover-wrap { display: flex; height: 100%; padding: 80px 100px; position: relative; }
+.cover-left { flex: 0 0 60%; display: flex; flex-direction: column; justify-content: center; }
+.cover-company { color: var(--orange); font-size: 36px; font-weight: 700; margin-bottom: 24px; }
+.cover-title { color: var(--fg-inverse); font-size: 72px; font-weight: 800; line-height: 1.15; margin-bottom: 20px; }
+.cover-line { width: 120px; height: 4px; background: var(--orange); margin: 24px 0; }
+.cover-sub { color: rgba(255,255,255,0.85); font-size: 24px; }
+.cover-bottom { position: absolute; bottom: 100px; left: 100px; right: 100px; display: flex; gap: 24px; }
+.cover-box { flex: 1; background: rgba(255,255,255,0.12); padding: 20px 28px; border-radius: 8px; }
+.cover-box label { font-size: 14px; color: rgba(255,255,255,0.6); display: block; margin-bottom: 6px; }
+.cover-box span { color: var(--fg-inverse); font-size: 20px; font-weight: 600; }
+.cover-conf { position: absolute; bottom: 40px; right: 100px; color: rgba(255,255,255,0.4); font-size: 14px; }
+{% endblock %}
+{% block body %}
+<div class="cover-wrap">
+  <div class="cover-left">
+    <div class="cover-company">{{ company }}</div>
+    <div class="cover-title">{{ title }}</div>
+    <div class="cover-line"></div>
+    <div class="cover-sub">{{ subtitle }}</div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-box"><label>보고 대상</label><span>{{ target }}</span></div>
+    <div class="cover-box"><label>보고 일자 / 버전</label><span>{{ date_version }}</span></div>
+  </div>
+  <div class="cover-conf">Confidential — 사내 한정 사용</div>
+</div>
+{% endblock %}

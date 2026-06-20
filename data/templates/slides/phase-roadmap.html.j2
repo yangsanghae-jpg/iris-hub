@@ -1,0 +1,34 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header"><h1>{{ title }}</h1><span class="pageno">{{ pageno }}/{{ total_pages }}</span></div>
+{% endblock %}
+{% block style %}
+.phases { display: flex; gap: 16px; margin-top: 16px; }
+.phase { flex: 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); height: 700px; display: flex; flex-direction: column; }
+.phase-h { height: 60px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 20px; }
+.phase-h.blue-light { background: var(--blue-light); }
+.phase-h.blue { background: var(--accent); }
+.phase-h.orange { background: var(--orange); }
+.phase-h.green { background: var(--green); }
+.phase-body { padding: 20px; flex: 1; background: var(--bg-card); }
+.phase-title { font-weight: 800; font-size: 18px; margin-bottom: 6px; }
+.phase-period { color: var(--fg-muted); font-size: 15px; margin-bottom: 16px; }
+.task-item { font-size: 16px; margin-bottom: 10px; padding-left: 8px; border-left: 3px solid var(--accent); }
+.note { margin-top: 20px; background: #fef3c7; border-left: 4px solid var(--orange); padding: 14px 18px; font-size: 17px; color: #92400e; }
+{% endblock %}
+{% block body %}
+<div class="subtitle">{{ subtitle }}</div>
+<div class="phases">
+  {% for phase in phases %}
+  <div class="phase">
+    <div class="phase-h {{ phase.color }}">{{ phase.label }}</div>
+    <div class="phase-body">
+      <div class="phase-title">{{ phase.title }}</div>
+      <div class="phase-period">{{ phase.period }}</div>
+      {% for task in phase.tasks %}<div class="task-item">{{ task }}</div>{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% if footer_note %}<div class="note">{{ footer_note }}</div>{% endif %}
+{% endblock %}

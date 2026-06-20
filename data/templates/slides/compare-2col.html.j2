@@ -1,0 +1,35 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header"><h1>{{ title }}</h1><span class="pageno">{{ pageno }}/{{ total_pages }}</span></div>
+{% endblock %}
+{% block style %}
+.cols { display: flex; gap: 32px; }
+.col { flex: 1; }
+.col-hdr { padding: 14px 20px; color: white; font-weight: 700; font-size: 18px; border-radius: 8px 8px 0 0; }
+.col-hdr.red { background: var(--red); }
+.col-hdr.green { background: var(--green); }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; background: var(--bg-card); border-radius: 0 0 8px 8px; min-height: 480px; }
+.grid-right { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--bg-card); border-radius: 0 0 8px 8px; min-height: 480px; }
+.card { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 16px; font-size: 18px; font-weight: 600; text-align: center; }
+.card-big { background: var(--accent); color: white; padding: 24px; border-radius: 8px; font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 8px; }
+.note { margin-top: 24px; background: #fef3c7; border-left: 4px solid var(--orange); padding: 16px 20px; font-size: 18px; color: #92400e; }
+{% endblock %}
+{% block body %}
+<div class="subtitle">{{ subtitle }}</div>
+<div class="cols">
+  <div class="col">
+    <div class="col-hdr red">{{ left_label }}</div>
+    <div class="grid">
+      {% for it in left_items %}<div class="card">{{ it }}</div>{% endfor %}
+    </div>
+  </div>
+  <div class="col">
+    <div class="col-hdr green">{{ right_label }}</div>
+    <div class="grid-right">
+      {% if right_items %}<div class="card-big">{{ right_items[0] }}</div>{% endif %}
+      {% for it in right_items[1:] %}<div class="card">{{ it }}</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% if footer_note %}<div class="note">{{ footer_note }}</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-card: #f8f9fb;
+    --bg-dark: #1a3a6b;
+    --bg-darker: #0f2444;
+    --fg: #1a1a1a;
+    --fg-muted: #6b7280;
+    --fg-inverse: #ffffff;
+    --accent: #1a3a6b;
+    --accent-2: #2563eb;
+    --orange: #e89324;
+    --red: #dc2626;
+    --green: #15803d;
+    --purple: #7c3aed;
+    --line: #e5e7eb;
+    --blue-light: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; background: var(--bg); }
+  body {
+    font-family: "Pretendard Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--fg);
+    font-size: 22px;
+    overflow: hidden;
+  }
+  .slide {
+    width: 1920px; height: 1080px; position: relative;
+    padding: 60px; background: var(--bg);
+  }
+  .header {
+    background: var(--bg-dark);
+    color: var(--fg-inverse);
+    padding: 28px 60px;
+    margin: -60px -60px 40px -60px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .header h1 { font-size: 34px; font-weight: 800; }
+  .header .pageno { font-size: 16px; opacity: 0.7; }
+  .subtitle { color: var(--fg-muted); font-size: 18px; margin-bottom: 30px; }
+  .footer {
+    position: absolute; bottom: 18px; left: 60px; right: 60px;
+    display: flex; justify-content: space-between;
+    color: var(--fg-muted); font-size: 14px;
+    border-top: 1px solid var(--line); padding-top: 12px;
+  }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+  <div class="slide">
+    {% block header %}{% endblock %}
+    {% block body %}{% endblock %}
+    <div class="footer">
+      <span>{{ company_name }} | {{ deck_title }}</span>
+      <span>Confidential | {{ deck_date }}</span>
+    </div>
+  </div>
+</body>
+</html>
