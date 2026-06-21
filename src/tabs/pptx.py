@@ -242,6 +242,15 @@ def render() -> None:
             help="iris-knowledge/2-processed/exports/ 에도 카피",
             key="pptx_save_disk",
         )
+        use_llm_restructure = st.checkbox(
+            "🤖 LLM 재구조화 (품질 ↑)",
+            value=False,
+            help="Marp 변환 *전*에 LLM(qwen3:8b deep)이 마크다운을 프레젠테이션용으로 재구조화. "
+                 "문서형 .md(예: 보고서)를 박으면 디자인·밀도 크게 향상. "
+                 "M2 ~30~60s, M5 ~60~120s (모델 차이). "
+                 "본문 8000자 초과시 앞부분만 사용.",
+            key="pptx_use_llm",
+        )
 
         st.divider()
 
@@ -263,6 +272,28 @@ def render() -> None:
     if gen_btn or gen_pdf:
         from src import exporter
 
+        # V2.7.5.2 — LLM 재구조화 (옵션)
+        effective_md = md_text
+        if use_llm_restructure:
+            from src import exporter_llm
+            try:
+                with st.spinner(
+                    "🤖 LLM 재구조화 중… (~30~120s, 모델 따라 다름)"
+                ):
+                    rr = exporter_llm.restructure_markdown(md_text)
+                effective_md = rr.md
+                st.info(
+                    f"🤖 재구조화 완료 — {rr.model} · {rr.elapsed_ms / 1000:.1f}s · "
+                    f"{rr.original_chars:,} → {rr.output_chars:,}자 · "
+                    f"슬라이드 ~{rr.slides_count}장"
+                )
+                with st.expander("📋 재구조화된 마크다운 미리보기", expanded=False):
+                    st.code(effective_md[:1500] +
+                            ("..." if len(effective_md) > 1500 else ""),
+                            language="markdown")
+            except exporter_llm.RestructureError as e:
+                st.warning(f"⚠️ LLM 재구조화 실패: {e} — 원본 마크다운 사용")
+
         # 테마 이름 매핑
         theme_map = {
             "iris (다크)": "iris",
@@ -278,14 +309,14 @@ def render() -> None:
             with st.spinner(f"{'PDF' if gen_pdf else 'PPT'} 생성 중… (3~10초)"):
                 if gen_pdf:
                     res = exporter.md_to_pdf(
-                        md_text,
+                        effective_md,
                         theme_css=theme_css,
                         theme_name=theme_id,
                         paginate=paginate,
                     )
                 else:
                     res = exporter.md_to_pptx(
-                        md_text,
+                        effective_md,
                         theme_css=theme_css,
                         theme_name=theme_id,
                         paginate=paginate,

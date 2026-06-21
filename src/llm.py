@@ -92,6 +92,52 @@ def generate_json(prompt: str, *,
     return {"ok": True, "data": data, "ms": ms, "raw": raw, "model": resolved_model}
 
 
+def generate_text(prompt: str, *,
+                  role: str = "deep",
+                  model: str | None = None,
+                  timeout: float | None = None,
+                  temperature: float = 0.3) -> dict[str, Any]:
+    """V2.7.5.2 — Ollama raw text 모드. JSON 강제 없음.
+
+    PPT 재구조화처럼 *마크다운 그대로* 받아야 할 때 사용.
+
+    반환:
+        성공: {"ok": True, "text": <str>, "ms": <elapsed>, "model": <name>}
+        실패: {"ok": False, "error": <str>, "ms": 0, "model": <name>}
+    """
+    resolved_model = model or model_for(role)
+    resolved_timeout = timeout if timeout is not None else (
+        FAST_TIMEOUT if role == "fast" else DEFAULT_TIMEOUT
+    )
+
+    body = json.dumps({
+        "model": resolved_model,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,
+        "options": {"temperature": temperature},
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=resolved_timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        return {"ok": False, "error": f"Ollama 연결 실패: {e}", "ms": 0, "model": resolved_model}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": 0, "model": resolved_model}
+
+    ms = payload.get("total_duration", 0) // 1_000_000
+    text = payload.get("response", "")
+    return {"ok": True, "text": text, "ms": ms, "model": resolved_model}
+
+
 def embed(text: str, *, model: str | None = None,
           timeout: float = 10.0) -> dict[str, Any]:
     """Ollama /api/embeddings 호출.

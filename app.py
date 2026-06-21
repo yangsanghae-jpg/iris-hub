@@ -99,7 +99,7 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.7.6.1 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
+    st.caption("V2.7.5.2 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
     tabs = st.tabs([
         # IRIS 자체 (9) — 📊 진척 V2.6.2.9 숨김
