@@ -1,6 +1,9 @@
-"""탭: 📊 PPT — 마크다운 → PPTX 변환 (V2.7.5).
+"""탭: 📊 PPT — 마크다운 → PPTX 변환 (V2.7.5 → V2.7.5.1).
 
-사용자가 textarea에 마크다운을 박으면 Marp로 .pptx 생성 → 다운로드.
+V2.7.5.1: 입력 방식 3종 — 직접 입력 / 파일 업로드 / 디스크 .md 선택
+  - 3-archive/<doc>/content.md (인덱싱된 자료)
+  - /0Dev/docs/system/*.md (보고서·지시서)
+  - 사용자 textarea 직접 입력
 
 특징:
   - frontmatter 자동 박힘 (사용자가 안 박아도 됨)
@@ -68,24 +71,160 @@ def _save_to_exports(pptx_path: Path) -> Path:
     return target
 
 
+# ─── V2.7.5.1 — 디스크 마크다운 소스 ──────────────────────────────────
+def _list_archive_content_md() -> list[tuple[str, Path]]:
+    """3-archive/<date>/<doc_id>/content.md 목록 — (라벨, 경로)."""
+    from src.config import IRIS_KNOWLEDGE_ARCHIVE
+    if not IRIS_KNOWLEDGE_ARCHIVE.exists():
+        return []
+    items: list[tuple[str, Path]] = []
+    for date_dir in sorted(IRIS_KNOWLEDGE_ARCHIVE.iterdir(), reverse=True):
+        if not date_dir.is_dir():
+            continue
+        for doc_dir in sorted(date_dir.iterdir()):
+            content = doc_dir / "content.md"
+            if content.exists():
+                # title 추출: manifest.json에서 가져옴, 없으면 doc_id
+                title = doc_dir.name
+                manifest = doc_dir / "manifest.json"
+                if manifest.exists():
+                    try:
+                        import json
+                        m = json.loads(manifest.read_text(encoding="utf-8"))
+                        title = m.get("title") or doc_dir.name
+                    except Exception:
+                        pass
+                size_kb = content.stat().st_size / 1024
+                label = f"📦 [{date_dir.name}] {title[:50]} ({size_kb:.1f}KB)"
+                items.append((label, content))
+    return items
+
+
+def _list_docs_md() -> list[tuple[str, Path]]:
+    """/0Dev/docs/system/*.md 목록."""
+    docs_dir = Path("/Users/iris/Documents/0Dev/docs/system")
+    if not docs_dir.exists():
+        return []
+    items: list[tuple[str, Path]] = []
+    for p in sorted(docs_dir.glob("*.md"), reverse=True):
+        size_kb = p.stat().st_size / 1024
+        label = f"📄 {p.name[:60]} ({size_kb:.1f}KB)"
+        items.append((label, p))
+    return items
+
+
 def render() -> None:
-    st.markdown("### 📊 마크다운 → PPT — V2.7.5")
+    st.markdown("### 📊 마크다운 → PPT — V2.7.5.1")
     st.caption(
-        "마크다운을 박으면 Marp로 .pptx 생성. 슬라이드 구분은 `---` (3 하이픈). "
-        "frontmatter는 자동으로 박힘 (안 박아도 됨)."
+        "마크다운을 박으면 Marp로 .pptx 생성. 입력 3 방식 — *직접 입력 / 파일 업로드 / 디스크 .md 선택*. "
+        "슬라이드 구분 `---`. frontmatter 자동 박힘."
     )
 
-    # 사용자 입력
-    col_l, col_r = st.columns([3, 2])
-    with col_l:
+    # ─── 입력 방식 선택 ──────────────────────────────────────────
+    source_mode = st.radio(
+        "마크다운 소스",
+        options=[
+            "✍️ 직접 입력 (textarea)",
+            "📂 파일 업로드 (.md)",
+            "📦 archive 자료 (content.md)",
+            "📄 docs/system 보고서",
+        ],
+        horizontal=True,
+        key="pptx_source_mode",
+    )
+
+    # ─── 소스에 따른 본문 결정 ──────────────────────────────────
+    md_text = ""
+    source_label = ""
+
+    if source_mode.startswith("✍️"):
         md_text = st.text_area(
             "마크다운 입력",
             value=st.session_state.get("pptx_md", _SAMPLE_MD),
             key="pptx_md_input",
-            height=420,
+            height=380,
             help="`---`로 슬라이드 구분. 표·인용·코드 모두 박힘.",
         )
         st.session_state["pptx_md"] = md_text
+        source_label = "직접 입력"
+
+    elif source_mode.startswith("📂"):
+        uploaded = st.file_uploader(
+            ".md 파일 선택", type=["md", "markdown", "txt"],
+            key="pptx_upload",
+            help="마크다운 1개 파일. UTF-8 인코딩 권장.",
+        )
+        if uploaded:
+            try:
+                md_text = uploaded.read().decode("utf-8")
+                source_label = f"파일: {uploaded.name}"
+                st.success(f"✅ 로딩 — {uploaded.name} ({len(md_text):,} chars)")
+                with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
+                    st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                            language="markdown")
+            except Exception as e:
+                st.error(f"❌ 파일 읽기 실패: {e}")
+                md_text = ""
+
+    elif source_mode.startswith("📦"):
+        archive_items = _list_archive_content_md()
+        if not archive_items:
+            st.info(
+                "📦 3-archive에 인덱싱된 자료 없음. "
+                "📥 입력 탭에서 폴더 박은 후 흐름 탭에서 처리하면 archive에 박힘."
+            )
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in archive_items]
+            picked = st.selectbox(
+                f"archive 자료 ({len(archive_items)}건)",
+                options=labels, key="pptx_archive_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = archive_items[idx][1]
+                try:
+                    md_text = path.read_text(encoding="utf-8")
+                    source_label = f"archive: {path.parent.name}"
+                    st.success(f"✅ 로딩 — {path.parent.name} ({len(md_text):,} chars)")
+                    with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
+                        st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 파일 읽기 실패: {e}")
+
+    elif source_mode.startswith("📄"):
+        docs_items = _list_docs_md()
+        if not docs_items:
+            st.info("📄 /0Dev/docs/system/ 에 .md 없음.")
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in docs_items]
+            picked = st.selectbox(
+                f"docs/system 보고서 ({len(docs_items)}건)",
+                options=labels, key="pptx_docs_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = docs_items[idx][1]
+                try:
+                    md_text = path.read_text(encoding="utf-8")
+                    source_label = f"docs: {path.name}"
+                    st.success(f"✅ 로딩 — {path.name} ({len(md_text):,} chars)")
+                    with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
+                        st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 파일 읽기 실패: {e}")
+
+    st.divider()
+
+    # ─── 옵션 + 생성 버튼 ───────────────────────────────────────
+    col_l, col_r = st.columns([3, 2])
+
+    with col_l:
+        if source_label:
+            st.caption(f"📥 소스: **{source_label}** · 본문 **{len(md_text):,}** chars")
+        else:
+            st.caption("📥 소스 미선택")
 
     with col_r:
         st.markdown("**🎨 옵션**")
@@ -94,12 +233,14 @@ def render() -> None:
             options=["iris (다크)", "default (기본)", "gaia (밝음)", "uncover (미니멀)"],
             index=0,
             help="iris는 IRIS 전용 다크 테마. 다른 테마는 Marp 내장.",
+            key="pptx_theme",
         )
-        paginate = st.checkbox("페이지 번호", value=True)
+        paginate = st.checkbox("페이지 번호", value=True, key="pptx_paginate")
         save_to_disk = st.checkbox(
             "exports/ 에 영구 저장",
             value=False,
             help="iris-knowledge/2-processed/exports/ 에도 카피",
+            key="pptx_save_disk",
         )
 
         st.divider()
@@ -109,12 +250,14 @@ def render() -> None:
             type="primary",
             use_container_width=True,
             disabled=not md_text.strip(),
+            key="pptx_gen_pptx",
         )
 
         gen_pdf = st.button(
             "📄 PDF 생성 (보너스)",
             use_container_width=True,
             disabled=not md_text.strip(),
+            key="pptx_gen_pdf",
         )
 
     if gen_btn or gen_pdf:
