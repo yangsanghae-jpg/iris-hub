@@ -3,14 +3,15 @@
 <div class="header"><h1>{{ title }}</h1><span class="pageno">{{ pageno }}/{{ total_pages }}</span></div>
 {% endblock %}
 {% block style %}
-.metrics { display: flex; gap: 24px; margin-top: 20px; }
-.metric { flex: 1; height: 240px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-top: 20px; }
+.metric { min-height: 200px; padding: 24px 12px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; }
 .metric.blue { background: var(--accent); }
 .metric.orange { background: var(--orange); }
-.metric.red { background: var(--red); }
+.metric.red { background: var(--red, #e74c3c); }
 .metric.green { background: var(--green); }
-.metric-val { font-size: 80px; font-weight: 800; line-height: 1; }
-.metric-lbl { font-size: 24px; margin-top: 12px; opacity: 0.95; text-align: center; padding: 0 16px; }
+.metric.purple { background: var(--purple, #8e44ad); }
+.metric-val { font-size: 56px; font-weight: 800; line-height: 1; }
+.metric-lbl { font-size: 18px; margin-top: 12px; opacity: 0.95; padding: 0 8px; line-height: 1.3; }
 {% endblock %}
 {% block body %}
 <div class="subtitle">{{ subtitle }}</div>

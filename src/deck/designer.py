@@ -1,4 +1,11 @@
-"""V2.7.6 — LLM 슬라이드 설계기."""
+"""V2.7.6 → V2.8.2 — LLM 슬라이드 설계기.
+
+V2.8.2 핵심:
+- PATTERN_SLOTS 항목 수 *유연화* (4·5 고정 → 범위)
+- 프롬프트에서 "80자 이내", "20자/40자" 글자수 제한 *제거*
+- target_min/max 공식 확장 (6~10 → 15~30)
+- pre_expanded 인자 — Stage 1 확장 결과를 받았으면 자르기 X
+"""
 from __future__ import annotations
 
 import json
@@ -14,23 +21,39 @@ class DesignError(Exception):
 
 PATTERN_SLOTS = {
     "cover": "company, title, subtitle, target, date_version",
-    "agenda": "title, subtitle, items=[{ch, title, summary}, ...]",
-    "exec-summary": "title, subtitle, left_label, right_label, left_items=[{title, detail}*5], right_items=[{title, detail}*5]",
-    "metrics-row": "title, subtitle, metrics=[{value, label, color in [blue,orange,red,green]}*4]",
-    "compare-2col": "title, subtitle, left_label, right_label, left_items=[str], right_items=[str], footer_note?",
-    "card-grid-4": "title, subtitle, intro?={label, lines}, section_title, cards=[{title, subtitle, color}*4], outro?={label, bullets}",
-    "phase-roadmap": "title, subtitle, phases=[{label, title, period, color, tasks=[str]}*4], footer_note?",
-    "dimension-5": "title, subtitle, dimensions=[{label, color, bullets=[str]*3}*5], footer_note?",
+    "agenda": "title, subtitle, items=[{ch, title, summary} 4~10개]",
+    "exec-summary": "title, subtitle, left_label, right_label, "
+                    "left_items=[{title, detail} 4~8개], right_items=[{title, detail} 4~8개]",
+    "metrics-row": "title, subtitle, "
+                   "metrics=[{value, label, color in [blue,orange,red,green]} 3~6개]",
+    "compare-2col": "title, subtitle, left_label, right_label, "
+                    "left_items=[str 4~10개], right_items=[str 4~10개], footer_note?",
+    "card-grid-4": "title, subtitle, intro?={label, lines}, section_title, "
+                   "cards=[{title, subtitle, color} 3~8개], outro?={label, bullets}",
+    "phase-roadmap": "title, subtitle, "
+                     "phases=[{label, title, period, color, tasks=[str 2~6개]} 3~8개], footer_note?",
+    "dimension-5": "title, subtitle, "
+                   "dimensions=[{label, color, bullets=[str 2~6개]} 4~8개], footer_note?",
 }
 
 
-def _build_prompt(md_text: str, meta: dict) -> str:
+def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
+                  target_slides: int | None) -> str:
     patterns_doc = "\n".join(f"- {pid}: {slots}" for pid, slots in PATTERN_SLOTS.items())
-    # V2.8.1.2 — 응답 토큰 한도 안 깨지게 슬라이드 수 보수적으로 (8b 모델 기준)
-    target_min = max(6, min(10, len(md_text) // 1500))
-    target_max = min(12, target_min + 2)
-    return f"""당신은 IRIS 슬라이드 디자이너입니다. 사용자가 박은 마크다운 내용을
-*컨설팅급 PPT 슬라이드 사양*으로 변환합니다. JSON으로만 답하세요.
+
+    # V2.8.2 — 슬라이드 수 *확장*. pre_expanded면 입력이 이미 풍부하므로 더 박을 수 있음
+    if target_slides:
+        target_min, target_max = target_slides, target_slides + 3
+    elif pre_expanded:
+        # Stage 1 확장 통과한 입력 → 글자당 슬라이드 밀도 ↑
+        target_min = max(15, min(30, len(md_text) // 500))
+        target_max = min(35, target_min + 5)
+    else:
+        target_min = max(8, min(20, len(md_text) // 800))
+        target_max = min(25, target_min + 5)
+
+    return f"""당신은 컨설팅급 PPT 슬라이드 디자이너입니다. 사용자가 박은 마크다운을
+*정보를 풍부하게 유지*하면서 슬라이드 사양으로 변환합니다. JSON으로만 답하세요.
 
 ## 메타
 회사명: {meta.get('company', '')}
@@ -46,77 +69,77 @@ def _build_prompt(md_text: str, meta: dict) -> str:
 ```json
 {{
   "slides": [
-    {{"pattern": "<위 8종 중 하나>", "data": {{ ...해당 패턴의 슬롯... }}}},
-    {{"pattern": "<...>", "data": {{ ... }}}}
+    {{"pattern": "<위 8종 중 하나>", "data": {{ ...해당 패턴의 슬롯... }}}}
   ]
 }}
 ```
 
 - **각 슬라이드는 정확히 두 키 `pattern`과 `data`만 가짐**
-- `pattern` 값은 위 8종 ID 중 하나의 *문자열* (예: "cover", "agenda", "phase-roadmap")
+- `pattern` 값은 위 8종 ID 중 하나의 *문자열* (예: "cover", "phase-roadmap")
 - `data` 값은 *객체* (해당 패턴의 슬롯을 다 채움)
-- `slide_id`·`type`·`id` 같은 다른 키 박지 마. *오직 `pattern`과 `data`*.
-- 모든 슬롯을 `data` *안*에 박음. *밖에* 박으면 무효.
+- `slide_id`·`type`·`id` 같은 다른 키 박지 마
 
-## 완전한 예시 (이 형태 그대로 따를 것)
+## ⚠️ 풍부함 규칙 (V2.8.2 핵심)
+
+1. **슬라이드 개수**: {target_min}~{target_max}장. 입력의 *모든 섹션·소절을 슬라이드로 전개*.
+2. **항목은 풍부하게**: 각 슬롯의 항목 수는 위 패턴 정의의 *범위 안에서 많은 쪽으로*.
+   예: phases는 3~8개면 6~8개 박음, dimensions 4~8개면 5~7개 박음.
+3. **항목 내용도 풍부하게**: title은 *완전한 구절* (10~30자), detail/summary는
+   *문장형* (40~150자). 단어 나열·줄임 금지. **3~4단어로 줄이지 마**.
+4. **원본 정보 손실 금지**: 마크다운의 표·리스트·인용을 *그대로* 슬롯에 박음.
+   원본이 27개 항목이면 27개 다 박음 (여러 슬라이드로 쪼개도 좋음).
+5. **표는 그대로 보존**: 마크다운 표가 있으면 compare-2col·exec-summary·dimension-5로 전개.
+6. **수치 인용**: 원본에 박힌 수치(99.9%, 24시간, 1년, 27항목, 7단계 등)는 슬라이드에 *그대로* 박음.
+7. **다국어 보존**: 입력이 중국어/영어면 슬라이드도 같은 언어로 박음.
+8. cover 1장 + agenda 1장 + 본문 {target_min - 2}~{target_max - 2}장.
+9. 색상 일관: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'.
+
+## 패턴 매칭 전략 (입력 구조 → 패턴)
+
+- 비교/대조 (As-Is vs To-Be 등) → exec-summary 또는 compare-2col
+- N단계·N구역·N카드 → card-grid-4 (N=3~8)
+- 시간·단계 로드맵 → phase-roadmap (단계 3~8)
+- N관점·N차원·N측면 → dimension-5 (N=4~8)
+- 지표·KPI 나열 → metrics-row (3~6 지표)
+- 일반 항목 리스트 → agenda 또는 dimension-5
+
+## 풍부한 예시 (이 정도 밀도로 박을 것)
 
 ```json
 {{
   "slides": [
-    {{"pattern": "cover", "data": {{"company": "회사", "title": "제목", "subtitle": "부제", "target": "대상", "date_version": "2026.06"}}}},
-    {{"pattern": "agenda", "data": {{"title": "목차", "subtitle": "주요 내용", "items": [{{"ch": "1", "title": "배경", "summary": "..."}}, {{"ch": "2", "title": "전략", "summary": "..."}}]}}}},
-    {{"pattern": "phase-roadmap", "data": {{"title": "로드맵", "subtitle": "12개월", "phases": [{{"label": "1", "title": "준비", "period": "0-3M", "color": "blue", "tasks": ["조사", "평가"]}}, {{"label": "2", "title": "설계", "period": "3-6M", "color": "green", "tasks": ["설계"]}}, {{"label": "3", "title": "개발", "period": "6-9M", "color": "orange", "tasks": ["개발"]}}, {{"label": "4", "title": "배포", "period": "9-12M", "color": "purple", "tasks": ["배포"]}}]}}}}
+    {{"pattern": "cover", "data": {{"company": "赛美特 (SEMI-TECH)", "title": "SSIM项目实施方法论完整文档", "subtitle": "标准化·可复制·高可靠的产品交付体系", "target": "项目管理团队、客户方、实施顾问", "date_version": "2026.06 | CMMI 5级认证"}}}},
+    {{"pattern": "phase-roadmap", "data": {{"title": "SSIM七大实施阶段", "subtitle": "从启动到关闭的完整生命周期", "phases": [
+       {{"label": "IM100", "title": "投入与准备", "period": "项目启动会", "color": "blue", "tasks": ["制定详细项目日程", "项目整体启动落地", "输出WBS工作分解结构", "输出SOW工作说明书"]}},
+       {{"label": "IM200", "title": "业务分析", "period": "分析结果报告会", "color": "blue", "tasks": ["第一轮：现场现状调研", "第二轮：业务现状深度分析", "输出现状分析书"]}},
+       {{"label": "IM300", "title": "蓝图设计", "period": "蓝图报告会", "color": "green", "tasks": ["初步方案讲解", "详细方案讲解", "确认定稿业务蓝图", "签署蓝图完成报告书"]}}
+    ]}}}}
   ]
 }}
 ```
 
-## ⚠️ 다른 규칙
-1. **슬라이드 개수**: 정확히 {target_min}~{target_max}장. 더 많이 박지 마.
-2. cover 1장 + agenda 1장 + 본문 {target_min - 2}~{target_max - 2}장
-3. 입력 마크다운의 핵심 섹션을 그룹핑해서 슬라이드로 전개
-4. 각 슬라이드 필수 슬롯 채우되 *간결하게* (필드값 80자 이내)
-5. exec-summary의 left_items / right_items는 5개씩, *짧게* (title 20자, detail 40자)
-6. 색상 일관: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'
-
-## 패턴 매칭 전략
-- 비교/대조 → compare-2col
-- 4구역·4단계 → card-grid-4
-- 시간·단계 로드맵 → phase-roadmap
-- 5관점·5차원 → dimension-5
-- 지표 4개 → metrics-row
-- As-Is vs To-Be → exec-summary
-
 ## 사용자 입력 마크다운
-{md_text[:12000]}
+{md_text[:24000] if pre_expanded else md_text[:16000]}
 
-## 출력 시작 (JSON만, 다른 말 절대 금지)
+## 출력 시작 (JSON만, 다른 말 절대 금지, 풍부하게)
 """
 
 
 # ─── V2.8.1.2 — JSON 복구 ────────────────────────────────────────
 def _repair_truncated_json(raw: str) -> dict | None:
-    """LLM 응답이 num_predict로 잘렸을 때 *완성된 슬라이드만* 살림.
-
-    전략:
-      1. 정상 파싱 시도 → 성공이면 그대로
-      2. 실패면 "slides": [ 위치 찾고, 각 슬라이드 객체를 brace 카운팅으로 분리
-      3. 끝까지 파싱 성공한 슬라이드만 모음
-    """
+    """LLM 응답이 num_predict로 잘렸을 때 *완성된 슬라이드만* 살림."""
     raw = raw.strip()
-    # 시도 1: 그대로 파싱
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
-    # 시도 2: 끝에 닫는 ]} 박아서 재시도 (가장 흔한 케이스)
     for suffix in ("]}", "\"}}]}", "}]}", "}}]}", "\"}]}"):
         try:
             return json.loads(raw + suffix)
         except json.JSONDecodeError:
             pass
 
-    # 시도 3: 슬라이드 객체 하나씩 brace 카운팅으로 살림
     m = re.search(r'"slides"\s*:\s*\[', raw)
     if not m:
         return None
@@ -125,12 +148,10 @@ def _repair_truncated_json(raw: str) -> dict | None:
     i = start
     n = len(raw)
     while i < n:
-        # 다음 슬라이드 객체 시작 `{` 찾기
         while i < n and raw[i] in ' \t\n\r,':
             i += 1
         if i >= n or raw[i] != '{':
             break
-        # brace 카운팅 + 문자열 내부 인식
         depth = 0
         j = i
         in_str = False
@@ -149,7 +170,6 @@ def _repair_truncated_json(raw: str) -> dict | None:
                 elif c == '}':
                     depth -= 1
                     if depth == 0:
-                        # i..j 한 슬라이드 객체
                         try:
                             slides.append(json.loads(raw[i:j + 1]))
                         except json.JSONDecodeError:
@@ -158,7 +178,6 @@ def _repair_truncated_json(raw: str) -> dict | None:
                         break
             j += 1
         else:
-            # 끝까지 안 닫힘 — 이 슬라이드는 버림
             break
     if slides:
         return {"slides": slides}
@@ -167,21 +186,23 @@ def _repair_truncated_json(raw: str) -> dict | None:
 
 def design_deck(md_text: str, meta: dict, *,
                 timeout: float = 300.0,
-                model: str | None = None) -> Deck:
+                model: str | None = None,
+                pre_expanded: bool = False,
+                target_slides: int | None = None) -> Deck:
     """LLM이 마크다운을 받아 슬라이드 사양 출력.
 
-    model 인자가 None이면 deep 슬롯 (config IRIS_LLM_DEEP, 기본 qwen3:8b/30b/80b).
-    UI에서 사용자가 직접 박은 모델이 있으면 그걸 우선.
+    V2.8.2 새 인자:
+      pre_expanded: Stage 1 확장 통과한 입력이면 True (자르기 24k, 더 밀도 높게)
+      target_slides: 사용자가 슬라이드 수 직접 박았으면 (auto면 None)
 
-    V2.8.1.2 — JSON 잘림 복구:
-      - num_predict 16384로 확장
-      - num_ctx 32768
-      - 그래도 잘리면 _repair_truncated_json()으로 완성된 슬라이드만 살림
+    V2.8.1.2 JSON 복구 그대로.
     """
-    prompt = _build_prompt(md_text, meta)
+    prompt = _build_prompt(md_text, meta,
+                           pre_expanded=pre_expanded, target_slides=target_slides)
+    # V2.8.2 — num_predict 32768로 더 키움 (풍부한 슬라이드 30장 박을 여유)
     resp = llm.generate_json(
         prompt, role="deep", model=model, timeout=timeout,
-        num_ctx=32768, num_predict=16384,
+        num_ctx=32768, num_predict=32768,
     )
 
     data: dict | None = None
@@ -191,7 +212,6 @@ def design_deck(md_text: str, meta: dict, *,
         data = resp.get("data", {})
     else:
         err = resp.get("error", "")
-        # JSON 파싱 실패면 raw로 복구 시도
         if "JSON 파싱 실패" in err or "Expecting" in err:
             data = _repair_truncated_json(raw_text)
             if data is None:
@@ -207,13 +227,11 @@ def design_deck(md_text: str, meta: dict, *,
     for sl in raw_slides:
         if not isinstance(sl, dict):
             continue
-        # V2.8.1.2 — flat 스키마 자동 변환 ({slide_id, ...} → {pattern, data})
         pid = sl.get("pattern") or sl.get("slide_id") or sl.get("type") or sl.get("id")
         if pid not in PATTERN_TEMPLATES:
             continue
         sl_data = sl.get("data")
         if not isinstance(sl_data, dict):
-            # flat 형식이면 pattern/slide_id/type/id 빼고 나머지를 data로
             sl_data = {k: v for k, v in sl.items()
                        if k not in ("pattern", "slide_id", "type", "id")}
         slides.append(Slide(pattern=pid, data=sl_data))
@@ -231,3 +249,4 @@ def design_deck(md_text: str, meta: dict, *,
 
 
 __all__ = ["DesignError", "design_deck", "PATTERN_SLOTS"]
+

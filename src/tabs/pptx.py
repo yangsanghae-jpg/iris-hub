@@ -364,6 +364,23 @@ def render() -> None:
                 index=0,
                 key="pptx_deck_format",
             )
+            # V2.8.2 — 2단 파이프라인 (극한 품질)
+            use_2stage = st.checkbox(
+                "🚀 2단 파이프라인 (품질 ↑↑)",
+                value=True,
+                help="① LLM이 입력을 풍부한 슬라이드용 마크다운으로 확장 (30~180초)\n"
+                     "② 확장된 마크다운을 슬라이드 패턴에 매칭 (30~180초)\n"
+                     "총 2~10분, 결과 25~30장 풍부함. OFF면 단일-패스 (V2.8.1).",
+                key="pptx_use_2stage",
+            )
+            slide_target = st.selectbox(
+                "🎯 목표 슬라이드 수",
+                options=["auto (입력 크기에 따라)", "10장", "15장", "20장", "25장", "30장"],
+                index=0,
+                key="pptx_slide_target",
+                help="auto: 입력 크기·2단 여부 자동 결정. "
+                     "박은 수: LLM에게 정확히 그 장수 박으라 강제.",
+            )
             paginate = True  # 디자인은 항상 페이지 번호
             theme_name = None
             use_llm_restructure = False
@@ -403,8 +420,16 @@ def render() -> None:
 
     # ─── 생성 분기 ──────────────────────────────────────────────
     if is_design and gen_btn:
+        # 슬라이드 수 파싱
+        target_n: int | None = None
+        if not slide_target.startswith("auto"):
+            try:
+                target_n = int(slide_target.replace("장", "").strip())
+            except ValueError:
+                target_n = None
         _generate_design(md_text, picked_model, output_format, save_to_disk,
-                         deck_company, deck_title, deck_subtitle, deck_date)
+                         deck_company, deck_title, deck_subtitle, deck_date,
+                         use_2stage=use_2stage, target_slides=target_n)
         return
 
     if not is_design and (gen_btn or gen_pdf):
@@ -491,25 +516,82 @@ def _generate_marp(md_text: str, picked_model: str | None,
 
 def _generate_design(md_text: str, picked_model: str | None,
                      output_format: str, save_to_disk: bool,
-                     company: str, title: str, subtitle: str, date: str) -> None:
-    """V2.7.6 디자인 엔진 — LLM 슬라이드 설계 + HTML 템플릿 렌더."""
+                     company: str, title: str, subtitle: str, date: str,
+                     *,
+                     use_2stage: bool = True,
+                     target_slides: int | None = None) -> None:
+    """V2.7.6 → V2.8.2 디자인 엔진.
+
+    V2.8.2 변경:
+    - use_2stage: True면 expander로 입력 확장 후 designer 호출
+    - target_slides: 사용자가 직접 박은 슬라이드 수 (None=auto)
+    """
     meta = {"company": company, "title": title, "subtitle": subtitle, "date": date}
+    model_label = picked_model or "default"
 
     try:
-        with st.spinner("① LLM 슬라이드 설계 중… (30~180초, 입력·모델 따라)"):
-            from src.deck import designer
-            deck = designer.design_deck(md_text, meta, model=picked_model)
+        # ─── Stage 1: 입력 확장 (옵션) ──────────────────────────
+        effective_md = md_text
+        pre_expanded = False
 
-        st.success(f"✅ 슬라이드 {len(deck.slides)}장 설계됨 (model: {picked_model or 'default'})")
+        if use_2stage and len(md_text) >= 2000:
+            from src.deck import expander
+            try:
+                with st.spinner(
+                    "① LLM 입력 확장 중… (30~180초, 모델·입력 크기 따라)"
+                ):
+                    er = expander.expand_for_slides(
+                        md_text, meta, model=picked_model, timeout=900,
+                    )
+                effective_md = er.md
+                pre_expanded = True
+                st.info(
+                    f"🚀 확장 완료 — {er.model} · {er.elapsed_ms / 1000:.1f}s · "
+                    f"{er.original_chars:,} → {er.output_chars:,}자"
+                )
+                with st.expander("📋 확장된 마크다운 미리보기 (앞 2000자)", expanded=False):
+                    st.code(effective_md[:2000] +
+                            ("..." if len(effective_md) > 2000 else ""),
+                            language="markdown")
+            except expander.ExpansionError as e:
+                st.warning(f"⚠️ Stage 1 확장 실패: {e} — 원본 마크다운으로 계속")
+        elif use_2stage:
+            st.caption(f"📌 입력 {len(md_text):,}자 < 2000자 — Stage 1 자동 skip")
+
+        # ─── Stage 2: 슬라이드 설계 ─────────────────────────────
+        with st.spinner(
+            f"② LLM 슬라이드 설계 중… (30~300초, model: {model_label})"
+        ):
+            from src.deck import designer
+            deck = designer.design_deck(
+                effective_md, meta,
+                model=picked_model, timeout=600,
+                pre_expanded=pre_expanded,
+                target_slides=target_slides,
+            )
+
+        st.success(
+            f"✅ 슬라이드 {len(deck.slides)}장 설계됨 "
+            f"(model: {model_label}, "
+            f"2단: {'ON' if use_2stage and pre_expanded else 'OFF'})"
+        )
 
         with st.expander("📋 슬라이드 패턴 미리보기", expanded=False):
             for i, sl in enumerate(deck.slides, 1):
-                label = str(sl.data.get("title", sl.data.get("company", "?")))[:60]
-                st.write(f"{i}. **{sl.pattern}** — {label}")
+                label = str(sl.data.get("title", sl.data.get("company", "?")))[:80]
+                # 항목 수 정보
+                item_count = ""
+                for key in ("phases", "dimensions", "cards", "metrics", "items",
+                            "left_items", "right_items"):
+                    if key in sl.data and isinstance(sl.data[key], list):
+                        item_count = f" [{key}={len(sl.data[key])}]"
+                        break
+                st.write(f"{i}. **{sl.pattern}** — {label}{item_count}")
 
+        # ─── Stage 3: 렌더 ──────────────────────────────────────
         fmt_label = "PDF" if "PDF" in output_format else "PPTX"
         with st.spinner(
-            f"② {fmt_label} 렌더 중… (슬라이드당 ~2초, 총 {len(deck.slides)*2}~{len(deck.slides)*4}초)"
+            f"③ {fmt_label} 렌더 중… (슬라이드당 ~2초, 총 {len(deck.slides)*2}~{len(deck.slides)*4}초)"
         ):
             if "PDF" in output_format:
                 from src.deck.renderer import render_deck_to_pdf
