@@ -45,6 +45,9 @@ _THEMES = ["royal_blue", "cream", "light_red", "faint_yellow", "dark"]
 
 
 def render() -> None:
+    # 입력 헬퍼 공유
+    from src.tabs.pptx import _list_archive_content_md, _list_docs_md
+
     st.markdown("### 🦅 Presenton — V2.8.0")
     st.caption(
         "[Presenton](https://github.com/presenton/presenton) (8.4k★) — Docker로 띄운 외부 PPT 생성기. "
@@ -97,9 +100,23 @@ docker run -d --name presenton -p 5000:80 \\
 
     st.divider()
 
-    # 입력
-    col_l, col_r = st.columns([3, 2])
-    with col_l:
+    # ─── 입력 방식 선택 (4 모드) ────────────────────────────────
+    source_mode = st.radio(
+        "마크다운/프롬프트 소스",
+        options=[
+            "✍️ 직접 입력 (textarea)",
+            "📂 파일 업로드 (.md)",
+            "📦 archive 자료 (content.md)",
+            "📄 docs/system 보고서",
+        ],
+        horizontal=True,
+        key="presenton_source_mode",
+    )
+
+    prompt = ""
+    source_label = ""
+
+    if source_mode.startswith("✍️"):
         prompt = st.text_area(
             "프롬프트 (마크다운 또는 자연어)",
             value=st.session_state.get("presenton_prompt", _SAMPLE_PROMPT),
@@ -109,6 +126,79 @@ docker run -d --name presenton -p 5000:80 \\
                  "구조화된 마크다운일수록 결과 안정.",
         )
         st.session_state["presenton_prompt"] = prompt
+        source_label = "직접 입력"
+
+    elif source_mode.startswith("📂"):
+        uploaded = st.file_uploader(
+            ".md 파일 선택", type=["md", "markdown", "txt"],
+            key="presenton_upload",
+        )
+        if uploaded:
+            try:
+                prompt = uploaded.read().decode("utf-8")
+                source_label = f"파일: {uploaded.name}"
+                st.success(f"✅ 로딩 — {uploaded.name} ({len(prompt):,} chars)")
+                with st.expander("📋 본문 미리보기", expanded=False):
+                    st.code(prompt[:500] + ("..." if len(prompt) > 500 else ""),
+                            language="markdown")
+            except Exception as e:
+                st.error(f"❌ 파일 읽기 실패: {e}")
+
+    elif source_mode.startswith("📦"):
+        archive_items = _list_archive_content_md()
+        if not archive_items:
+            st.info("📦 3-archive에 인덱싱된 자료 없음.")
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in archive_items]
+            picked = st.selectbox(
+                f"archive 자료 ({len(archive_items)}건)",
+                options=labels, key="presenton_archive_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = archive_items[idx][1]
+                try:
+                    prompt = path.read_text(encoding="utf-8")
+                    source_label = f"archive: {path.parent.name}"
+                    st.success(f"✅ 로딩 — {path.parent.name} ({len(prompt):,} chars)")
+                    with st.expander("📋 본문 미리보기", expanded=False):
+                        st.code(prompt[:500] + ("..." if len(prompt) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 읽기 실패: {e}")
+
+    elif source_mode.startswith("📄"):
+        docs_items = _list_docs_md()
+        if not docs_items:
+            st.info("📄 /0Dev/docs/system/ 에 .md 없음.")
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in docs_items]
+            picked = st.selectbox(
+                f"docs/system 보고서 ({len(docs_items)}건)",
+                options=labels, key="presenton_docs_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = docs_items[idx][1]
+                try:
+                    prompt = path.read_text(encoding="utf-8")
+                    source_label = f"docs: {path.name}"
+                    st.success(f"✅ 로딩 — {path.name} ({len(prompt):,} chars)")
+                    with st.expander("📋 본문 미리보기", expanded=False):
+                        st.code(prompt[:500] + ("..." if len(prompt) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 읽기 실패: {e}")
+
+    st.divider()
+
+    # 옵션
+    col_l, col_r = st.columns([3, 2])
+    with col_l:
+        if source_label:
+            st.caption(f"📥 소스: **{source_label}** · 본문 **{len(prompt):,}** chars")
+        else:
+            st.caption("📥 소스 미선택")
 
     with col_r:
         st.markdown("**🎨 옵션**")
@@ -125,11 +215,17 @@ docker run -d --name presenton -p 5000:80 \\
         export_as = st.radio(
             "형식", options=["pptx", "pdf"], horizontal=True, key="presenton_format",
         )
+        save_to_disk = st.checkbox(
+            "exports/ 에 영구 저장",
+            value=True,
+            key="presenton_save_disk",
+            help="iris-knowledge/2-processed/exports/ 에 저장",
+        )
 
         st.divider()
 
         gen_btn = st.button(
-            "🦅 Presenton으로 ��성",
+            "🦅 Presenton으로 생성",
             type="primary",
             use_container_width=True,
             disabled=not prompt.strip(),
@@ -152,6 +248,17 @@ docker run -d --name presenton -p 5000:80 \\
             st.success(
                 f"✅ 생성 완료 — {r.size_bytes / 1024:.1f}KB · {r.elapsed_ms / 1000:.1f}초"
             )
+
+            # 영구 저장
+            if save_to_disk:
+                from src.config import IRIS_KNOWLEDGE_PROCESSED
+                exports_dir = IRIS_KNOWLEDGE_PROCESSED / "exports"
+                exports_dir.mkdir(parents=True, exist_ok=True)
+                stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+                target = exports_dir / f"presenton_{stamp}.{export_as}"
+                import shutil
+                shutil.copy2(r.out_path, target)
+                st.caption(f"📦 저장: `{target}`")
 
             with r.out_path.open("rb") as f:
                 data = f.read()

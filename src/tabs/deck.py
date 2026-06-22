@@ -55,21 +55,114 @@ def _save_to_exports(path: Path, ext: str) -> Path:
 
 
 def render() -> None:
+    # 입력 헬퍼는 pptx 탭과 공유
+    from src.tabs.pptx import _list_archive_content_md, _list_docs_md
+
     st.markdown("### 🎨 디자인 PPT — V2.7.6.1")
     st.caption(
         "마크다운 + 메타 정보를 박으면 LLM이 슬라이드 설계 → 컨설팅급 HTML 템플릿 렌더 → PDF/PPTX. "
-        "**처리 시간 30~120초** (LLM + Chrome 렌더). 단순 마크다운은 📊 PPT 탭(V2.7.5) 사용."
+        "**처리 시간 30~120초** (LLM + Chrome 렌더). 단순 마크다운은 📊 PPT 탭 사용."
     )
+
+    # ─── 입력 방식 선택 (4 모드) ────────────────────────────────
+    source_mode = st.radio(
+        "마크다운 소스",
+        options=[
+            "✍️ 직접 입력 (textarea)",
+            "📂 파일 업로드 (.md)",
+            "📦 archive 자료 (content.md)",
+            "📄 docs/system 보고서",
+        ],
+        horizontal=True,
+        key="deck_source_mode",
+    )
+
+    md_text = ""
+    source_label = ""
+
+    if source_mode.startswith("✍️"):
+        md_text = st.text_area(
+            "마크다운 입력",
+            value=st.session_state.get("deck_md", _SAMPLE_MD),
+            key="deck_md_input",
+            height=380,
+        )
+        st.session_state["deck_md"] = md_text
+        source_label = "직접 입력"
+
+    elif source_mode.startswith("📂"):
+        uploaded = st.file_uploader(
+            ".md 파일 선택", type=["md", "markdown", "txt"],
+            key="deck_upload",
+            help="마크다운 1개 파일. UTF-8 권장.",
+        )
+        if uploaded:
+            try:
+                md_text = uploaded.read().decode("utf-8")
+                source_label = f"파일: {uploaded.name}"
+                st.success(f"✅ 로딩 — {uploaded.name} ({len(md_text):,} chars)")
+                with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
+                    st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                            language="markdown")
+            except Exception as e:
+                st.error(f"❌ 파일 읽기 실패: {e}")
+
+    elif source_mode.startswith("📦"):
+        archive_items = _list_archive_content_md()
+        if not archive_items:
+            st.info(
+                "📦 3-archive에 인덱싱된 자료 없음. 📥 입력 탭 → 흐름 탭 처리 후 사용."
+            )
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in archive_items]
+            picked = st.selectbox(
+                f"archive 자료 ({len(archive_items)}건)",
+                options=labels, key="deck_archive_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = archive_items[idx][1]
+                try:
+                    md_text = path.read_text(encoding="utf-8")
+                    source_label = f"archive: {path.parent.name}"
+                    st.success(f"✅ 로딩 — {path.parent.name} ({len(md_text):,} chars)")
+                    with st.expander("📋 본문 미리보기", expanded=False):
+                        st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 읽기 실패: {e}")
+
+    elif source_mode.startswith("📄"):
+        docs_items = _list_docs_md()
+        if not docs_items:
+            st.info("📄 /0Dev/docs/system/ 에 .md 없음.")
+        else:
+            labels = ["(선택)"] + [lbl for lbl, _ in docs_items]
+            picked = st.selectbox(
+                f"docs/system 보고서 ({len(docs_items)}건)",
+                options=labels, key="deck_docs_pick",
+            )
+            if picked and picked != "(선택)":
+                idx = labels.index(picked) - 1
+                path = docs_items[idx][1]
+                try:
+                    md_text = path.read_text(encoding="utf-8")
+                    source_label = f"docs: {path.name}"
+                    st.success(f"✅ 로딩 — {path.name} ({len(md_text):,} chars)")
+                    with st.expander("📋 본문 미리보기", expanded=False):
+                        st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
+                                language="markdown")
+                except Exception as e:
+                    st.error(f"❌ 읽기 실패: {e}")
+
+    st.divider()
 
     col_l, col_r = st.columns([3, 2])
     with col_l:
-        md_text = st.text_area(
-            "마크다운 + 자유 텍스트",
-            value=st.session_state.get("deck_md", _SAMPLE_MD),
-            key="deck_md_input",
-            height=420,
-        )
-        st.session_state["deck_md"] = md_text
+        if source_label:
+            st.caption(f"📥 소스: **{source_label}** · 본문 **{len(md_text):,}** chars")
+        else:
+            st.caption("📥 소스 미선택")
 
     with col_r:
         st.markdown("**📝 메타 정보**")
@@ -84,14 +177,21 @@ def render() -> None:
             "출력 형식",
             options=["PDF (벡터, 편집 불가)", "PPTX (이미지 임베드)"],
             index=0,
+            key="deck_format",
         )
-        save_to_disk = st.checkbox("exports/ 에 영구 저장", value=True)
+        save_to_disk = st.checkbox(
+            "exports/ 에 영구 저장",
+            value=True,
+            key="deck_save_disk",
+            help="iris-knowledge/2-processed/exports/ 에 저장",
+        )
 
         gen_btn = st.button(
             "🎨 디자인 PPT 생성",
             type="primary",
             use_container_width=True,
             disabled=not md_text.strip(),
+            key="deck_gen",
         )
 
     if gen_btn:
