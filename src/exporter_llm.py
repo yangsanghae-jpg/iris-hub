@@ -129,8 +129,13 @@ def restructure_markdown(
     *,
     timeout: float = 300.0,
     max_input_chars: int = 8000,
+    model: str | None = None,
 ) -> RestructureResult:
-    """LLM이 마크다운을 Marp 프레젠테이션용으로 재구조화."""
+    """LLM이 마크다운을 Marp 프레젠테이션용으로 재구조화.
+
+    model 인자가 None이면 deep 슬롯 (config IRIS_LLM_DEEP).
+    UI에서 사용자가 직접 박은 모델이 있으면 그걸 우선.
+    """
     original_chars = len(md_text)
     if not md_text.strip():
         raise RestructureError("입력 마크다운 비어 있음")
@@ -142,7 +147,8 @@ def restructure_markdown(
     prompt = _PROMPT.format(md_text=truncated)
 
     t0 = time.time()
-    resp = llm.generate_text(prompt, role="deep", timeout=timeout, temperature=0.3)
+    resp = llm.generate_text(prompt, role="deep", model=model,
+                             timeout=timeout, temperature=0.3)
     elapsed_ms = int((time.time() - t0) * 1000)
 
     if not resp.get("ok"):

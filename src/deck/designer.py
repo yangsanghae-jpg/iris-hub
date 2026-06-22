@@ -71,12 +71,18 @@ def _build_prompt(md_text: str, meta: dict) -> str:
 """
 
 
-def design_deck(md_text: str, meta: dict, *, timeout: float = 300.0) -> Deck:
-    """LLM이 마크다운을 받아 슬라이드 사양 출력."""
+def design_deck(md_text: str, meta: dict, *,
+                timeout: float = 300.0,
+                model: str | None = None) -> Deck:
+    """LLM이 마크다운을 받아 슬라이드 사양 출력.
+
+    model 인자가 None이면 deep 슬롯 (config IRIS_LLM_DEEP, 기본 qwen3:8b/30b/80b).
+    UI에서 사용자가 직접 박은 모델이 있으면 그걸 우선.
+    """
     prompt = _build_prompt(md_text, meta)
     # V2.7.6.2 — 큰 입력은 응답도 큼. num_ctx 확장 + num_predict 충분히
     resp = llm.generate_json(
-        prompt, role="deep", timeout=timeout,
+        prompt, role="deep", model=model, timeout=timeout,
         num_ctx=16384, num_predict=8192,
     )
     if not resp.get("ok"):

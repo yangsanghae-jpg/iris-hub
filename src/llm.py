@@ -209,4 +209,23 @@ def health_all() -> dict[str, dict[str, Any]]:
     return {role: health(role) for role in ("deep", "fast", "embed")}
 
 
-__all__ = ["generate_json", "embed", "health", "health_all", "model_for"]
+def list_models(*, timeout: float = 3.0) -> list[str]:
+    """V2.7.6.3 — Ollama에 설치된 모델 이름 목록.
+
+    반환: 모델명 list (예: ['qwen3:8b', 'qwen3.5:4b', 'bge-m3:latest']).
+    Ollama가 죽었거나 모델 0개면 빈 리스트.
+
+    embed 전용 모델(bge-m3, nomic-*)은 *PPT 생성용*으론 의미 없지만,
+    필터링은 호출자가 결정 (UI에서 추천만).
+    """
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=timeout) as resp:
+            tags = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
+    names = [m.get("name") for m in tags.get("models", []) if m.get("name")]
+    return sorted(names)
+
+
+__all__ = ["generate_json", "generate_text", "embed", "health", "health_all",
+           "list_models", "model_for"]

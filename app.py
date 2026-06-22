@@ -20,7 +20,7 @@ import socket
 
 import streamlit as st
 
-from src.tabs import dashboard, deck as deck_tab, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, presenton as presenton_tab, wiki_k2
+from src.tabs import dashboard, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, presenton as presenton_tab, wiki_k2
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -99,10 +99,10 @@ def main() -> None:
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.8.0 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
+    st.caption("V2.8.1 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
     tabs = st.tabs([
-        # IRIS 자체 (10) — 📊 진척 V2.6.2.9 숨김
+        # IRIS 자체 (9) — V2.7.6.3: 🎨 디자인 PPT는 📊 PPT에 통합됨
         "📥 입력",
         "🌐 외부응답",
         "🔄 흐름",
@@ -111,7 +111,6 @@ def main() -> None:
         "📊 인사이트",
         "📚 위키",
         "📊 PPT",
-        "🎨 디자인 PPT",
         "🦅 Presenton",
         # 외부 진입점 (4)
         "💬 WebUI",
@@ -133,16 +132,15 @@ def main() -> None:
         wiki_k2.render()
         st.divider()
         placeholders.render_wiki()
-    with tabs[7]:  pptx.render()                # V2.7.5 — Marp
-    with tabs[8]:  deck_tab.render()            # V2.7.6 — 컨설팅급 디자인
-    with tabs[9]:  presenton_tab.render()       # V2.8.0 — Presenton bridge
+    with tabs[7]:  pptx.render()                # V2.7.6.3 — Marp + 디자인 통합
+    with tabs[8]:  presenton_tab.render()       # V2.8.0 — Presenton bridge
     # 외부
-    with tabs[10]: external.render_openwebui()
-    with tabs[11]: external.render_openclaw()
-    with tabs[12]: external.render_grafana()
-    with tabs[13]: external.render_obsidian()
+    with tabs[9]:  external.render_openwebui()
+    with tabs[10]: external.render_openclaw()
+    with tabs[11]: external.render_grafana()
+    with tabs[12]: external.render_obsidian()
     # 설정 (맨 뒤)
-    with tabs[14]: placeholders.render_settings()
+    with tabs[13]: placeholders.render_settings()
 
 
 if __name__ == "__main__":
