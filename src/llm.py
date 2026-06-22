@@ -47,6 +47,13 @@ def generate_json(prompt: str, *,
       - num_ctx: 컨텍스트 윈도우 (Ollama 기본 2048 — 큰 입력은 잘림)
       - num_predict: 출력 토큰 한도 (Ollama 기본 128 — 큰 JSON 잘림)
 
+    V2.8.1.3 — think: False 박음:
+      - Qwen3 / Qwen3.6 / Gemma4 / DeepSeek-R1 등 *추론 모델*은 기본 thinking ON
+      - thinking 켜진 채 format:json 호출하면 JSON이 *thinking 블록*에 박히고
+        response가 비어서 `raw=""` 회귀 (M5 진단)
+      - generate_text()엔 V2.7.5.2 사이클에 박혔으나 generate_json()은 누락
+      - non-thinking 모델(예: gemma4:e4b native JSON)엔 무해
+
     반환:
         성공: {"ok": True, "data": <parsed JSON>, "ms": <elapsed>, "raw": <text>, "model": <name>}
         실패: {"ok": False, "error": <str>, "ms": <elapsed>, "model": <name>}
@@ -67,6 +74,7 @@ def generate_json(prompt: str, *,
         "prompt": prompt,
         "stream": False,
         "format": "json",
+        "think": False,
         "options": options,
     }).encode("utf-8")
 
