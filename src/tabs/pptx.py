@@ -127,6 +127,34 @@ def _list_docs_md() -> list[tuple[str, Path]]:
     return items
 
 
+_DEFAULT_DECK_COMPANY = "赛美特"
+
+
+def _doc_title_from_upload(name: str) -> str:
+    return Path(name).stem
+
+
+def _init_deck_meta_defaults() -> None:
+    if "pptx_deck_company" not in st.session_state:
+        st.session_state["pptx_deck_company"] = _DEFAULT_DECK_COMPANY
+    if "pptx_deck_title" not in st.session_state:
+        st.session_state["pptx_deck_title"] = ""
+    if "pptx_deck_subtitle" not in st.session_state:
+        st.session_state["pptx_deck_subtitle"] = ""
+    if "pptx_deck_date" not in st.session_state:
+        st.session_state["pptx_deck_date"] = _dt.datetime.now().strftime("%Y.%m.%d | v1.0")
+
+
+def _sync_deck_meta_from_source(*, source_key: str, doc_title: str | None) -> None:
+    """새 문서 로딩 시 보고서 제목·부제를 문서명(확장자 제외)으로 채움."""
+    if not doc_title:
+        return
+    if st.session_state.get("pptx_meta_source_key") != source_key:
+        st.session_state["pptx_meta_source_key"] = source_key
+        st.session_state["pptx_deck_title"] = doc_title
+        st.session_state["pptx_deck_subtitle"] = doc_title
+
+
 def render() -> None:
     st.markdown("### 📊 PPT 생성 — V2.7.6.3")
     st.caption(
@@ -147,6 +175,8 @@ def render() -> None:
         horizontal=True,
         key="pptx_source_mode",
     )
+
+    _init_deck_meta_defaults()
 
     # ─── 소스에 따른 본문 결정 ──────────────────────────────────
     md_text = ""
@@ -173,6 +203,11 @@ def render() -> None:
             try:
                 md_text = uploaded.read().decode("utf-8")
                 source_label = f"파일: {uploaded.name}"
+                doc_title = _doc_title_from_upload(uploaded.name)
+                _sync_deck_meta_from_source(
+                    source_key=f"upload:{uploaded.name}",
+                    doc_title=doc_title,
+                )
                 st.success(f"✅ 로딩 — {uploaded.name} ({len(md_text):,} chars)")
                 with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
                     st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
@@ -200,6 +235,10 @@ def render() -> None:
                 try:
                     md_text = path.read_text(encoding="utf-8")
                     source_label = f"archive: {path.parent.name}"
+                    _sync_deck_meta_from_source(
+                        source_key=f"archive:{path}",
+                        doc_title=path.parent.name,
+                    )
                     st.success(f"✅ 로딩 — {path.parent.name} ({len(md_text):,} chars)")
                     with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
                         st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
@@ -223,6 +262,10 @@ def render() -> None:
                 try:
                     md_text = path.read_text(encoding="utf-8")
                     source_label = f"docs: {path.name}"
+                    _sync_deck_meta_from_source(
+                        source_key=f"docs:{path}",
+                        doc_title=path.stem,
+                    )
                     st.success(f"✅ 로딩 — {path.name} ({len(md_text):,} chars)")
                     with st.expander("📋 본문 미리보기 (앞 500자)", expanded=False):
                         st.code(md_text[:500] + ("..." if len(md_text) > 500 else ""),
@@ -261,15 +304,11 @@ def render() -> None:
             st.markdown("**📝 메타 정보 (디자인 엔진용)**")
             mc1, mc2 = st.columns(2)
             with mc1:
-                deck_company = st.text_input("회사명", value="NanoLN", key="pptx_deck_company")
-                deck_subtitle = st.text_input("부제", value="단결정 LN/LT 박막 공정 특성 기반",
-                                              key="pptx_deck_subtitle")
+                deck_company = st.text_input("회사명", key="pptx_deck_company")
+                deck_subtitle = st.text_input("부제", key="pptx_deck_subtitle")
             with mc2:
-                deck_title = st.text_input("보고서 제목",
-                                           value="종합 지표 관리 체계 진단 및 혁신 방안",
-                                           key="pptx_deck_title")
-                deck_date = st.text_input("날짜·버전", value="2026.06.01 | v2.0",
-                                          key="pptx_deck_date")
+                deck_title = st.text_input("보고서 제목", key="pptx_deck_title")
+                deck_date = st.text_input("날짜·버전", key="pptx_deck_date")
 
     with col_r:
         st.markdown("**🎨 옵션**")
@@ -331,7 +370,7 @@ def render() -> None:
 
         save_to_disk = st.checkbox(
             "exports/ 에 영구 저장",
-            value=is_design,  # 디자인�� 기본 켜짐, Marp는 꺼짐
+            value=is_design,  # 디자인은 기본 켜짐, Marp는 꺼짐
             help="iris-knowledge/2-processed/exports/ 에 카피",
             key="pptx_save_disk",
         )
