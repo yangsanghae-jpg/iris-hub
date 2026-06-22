@@ -140,8 +140,47 @@ def render_wiki() -> None:
 
 def render_settings() -> None:
     st.markdown("## ⚙️ 설정")
-    st.caption("v1에서 GUI 토글. 현재는 운영 환경변수 + 현 상태 *조회*만.")
+    st.caption("v1에서 GUI 토글. 현재는 운영 환경변수 + 현 상태 *조회*.")
 
+    from src.config import IRIS_HUB_WORK_DIR, IRIS_LLM_DEEP, IRIS_LLM_EMBED, IRIS_LLM_FAST
+    from src.ollama_models import chat_capable_models, list_installed_models, pick_default_chat_model
+
+    st.markdown("### 🤖 LLM 모델 (Ollama 설치 목록)")
+    chats = chat_capable_models()
+    all_m = list_installed_models()
+    embeds = [m for m in all_m if m not in chats]
+
+    if chats:
+        deep_default = pick_default_chat_model(chats) or chats[0]
+        if "iris_llm_deep" not in st.session_state:
+            st.session_state["iris_llm_deep"] = deep_default
+        d_idx = chats.index(st.session_state["iris_llm_deep"]) if st.session_state["iris_llm_deep"] in chats else 0
+        st.selectbox(
+            "deep (K2·PPT 재구조화·deck)",
+            options=chats,
+            index=d_idx,
+            key="iris_llm_deep",
+        )
+    else:
+        st.warning("Ollama chat 모델 없음")
+
+    if chats:
+        fast_default = IRIS_LLM_FAST if IRIS_LLM_FAST in chats else chats[0]
+        if "iris_llm_fast" not in st.session_state:
+            st.session_state["iris_llm_fast"] = fast_default
+        f_idx = chats.index(st.session_state["iris_llm_fast"]) if st.session_state["iris_llm_fast"] in chats else 0
+        st.selectbox("fast (UI 즉응)", options=chats, index=f_idx, key="iris_llm_fast")
+
+    if embeds:
+        e_default = IRIS_LLM_EMBED if IRIS_LLM_EMBED in embeds else embeds[0]
+        if "iris_llm_embed" not in st.session_state:
+            st.session_state["iris_llm_embed"] = e_default
+        e_idx = embeds.index(st.session_state["iris_llm_embed"]) if st.session_state["iris_llm_embed"] in embeds else 0
+        st.selectbox("embed", options=embeds, index=e_idx, key="iris_llm_embed")
+
+    st.caption(f"작업 산출물 폴더: `{IRIS_HUB_WORK_DIR}`")
+
+    st.divider()
     st.markdown("### 🌐 환경 변수 (운영 토글)")
     env_table = [
         ("IRIS_SECURE_GATE", "on", "secure lane 차단 게이트 (V2.6 Phase 2)"),

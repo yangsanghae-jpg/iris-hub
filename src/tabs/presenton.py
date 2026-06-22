@@ -1,17 +1,13 @@
-"""탭: 🦅 Presenton — V2.8.0.
-
-Presenton (https://github.com/presenton/presenton, 8.4k★) Docker로 띄우고
-HTTP API 호출해서 PPT 생성.
-
-V2.7.5 Marp / V2.7.6 deck보다 *훨씬 정교한* 디자인 (이미지·차트·아이콘 자동 박힘).
-대신 Docker 의존 + 외부 LLM 호출 + 인터넷 (이미지 API 사용 시).
-"""
+"""탭: 🦅 Presenton — V2.8.0."""
 from __future__ import annotations
 
 import datetime as _dt
-from pathlib import Path
 
 import streamlit as st
+
+from src.config import hub_work_subdir
+from src.ollama_models import chat_capable_models, list_installed_models, pick_default_chat_model
+from src.runtime_llm import effective_presenton_ollama_model
 
 
 _SAMPLE_PROMPT = """## NanoLN 종합 지표 관리 체계 — 진단 및 혁신
@@ -40,8 +36,16 @@ _SAMPLE_PROMPT = """## NanoLN 종합 지표 관리 체계 — 진단 및 혁신
 4. Phase 4 (9~12M): BI 자동화 구축
 """
 
+_TEMPLATES = ["general", "royal_blue", "cream", "light_red", "faint_yellow", "dark"]
 
-_THEMES = ["royal_blue", "cream", "light_red", "faint_yellow", "dark"]
+
+def _init_ollama_model_state() -> None:
+    models = chat_capable_models()
+    if "presenton_ollama_model" not in st.session_state:
+        default = pick_default_chat_model(models) or (models[0] if models else "")
+        st.session_state["presenton_ollama_model"] = default
+    if "iris_llm_deep" not in st.session_state:
+        st.session_state["iris_llm_deep"] = pick_default_chat_model(models) or ""
 
 
 def render() -> None:
@@ -50,57 +54,58 @@ def render() -> None:
 
     st.markdown("### 🦅 Presenton — V2.8.0")
     st.caption(
-        "[Presenton](https://github.com/presenton/presenton) (8.4k★) — Docker로 띄운 외부 PPT 생성기. "
-        "이미지·차트·아이콘 자동 박힘. Marp/deck 탭보다 *훨씬 정교*. "
-        "별도 컨테이너 필요 (아래 안내)."
+        "[Presenton](https://github.com/presenton/presenton) — Docker PPT 생성기. "
+        f"산출물: `{hub_work_subdir('presenton')}` (Desktop 미사용)"
     )
 
-    # 가동 상태
+    _init_ollama_model_state()
     from src import presenton
+
+    models = chat_capable_models()
+    if not models:
+        st.warning("Ollama 모델 없음 — `ollama list` 확인")
+        models = list_installed_models()
+
     alive = presenton.is_alive(timeout=1.5)
     col_status, col_url = st.columns([1, 4])
     with col_status:
-        if alive:
-            st.success(f"🟢 Presenton 가동")
-        else:
-            st.error(f"🔴 Presenton 미가동")
+        st.success("🟢 Presenton 가동") if alive else st.error("🔴 Presenton 미가동")
     with col_url:
-        st.caption(f"URL: `{presenton.PRESENTON_URL}` (env `PRESENTON_URL`로 변경)")
+        st.caption(f"URL: `{presenton.PRESENTON_URL}` · 작업 폴더: `{presenton.PRESENTON_WORK_DIR}`")
+
+    # Ollama 모델 선택 (컨테이너 OLLAMA_MODEL — 상황별 변경)
+    st.markdown("**🤖 Ollama 모델 (Presenton 컨테이너용)**")
+    if models:
+        idx = 0
+        cur = st.session_state.get("presenton_ollama_model", "")
+        if cur in models:
+            idx = models.index(cur)
+        chosen = st.selectbox(
+            "설치된 모델 중 선택",
+            options=models,
+            index=idx,
+            key="presenton_ollama_model_select",
+            help="Docker `OLLAMA_MODEL`에 박힘. 변경 후 컨테이너 재기동 필요.",
+        )
+        st.session_state["presenton_ollama_model"] = chosen
+        st.session_state["iris_llm_deep"] = chosen
+    else:
+        chosen = effective_presenton_ollama_model()
+        st.caption(f"현재 deep 슬롯: `{chosen}`")
+
+    port = 5001 if ":5001" in presenton.PRESENTON_URL else 5000
+    with st.expander("📦 Docker 명령 (선택 모델 반영)", expanded=not alive):
+        st.code(presenton.docker_run_hint(ollama_model=chosen, port=port), language="bash")
+        st.caption(
+            "macOS는 AirPlay가 :5000 점유 → M5는 **:5001** 권장. "
+            "`PRESENTON_URL=http://localhost:5001`"
+        )
 
     if not alive:
-        with st.expander("📦 Docker로 Presenton 띄우기 (안내)", expanded=True):
-            st.markdown(f"""
-**M2 (qwen3:8b)** — 한 줄로 띄움:
-```bash
-docker run -d --name presenton -p 5000:80 \\
-  -e LLM=ollama \\
-  -e OLLAMA_MODEL=qwen3:8b \\
-  -e OLLAMA_URL=http://host.docker.internal:11434 \\
-  -e CAN_CHANGE_KEYS=false \\
-  -v presenton-data:/app_data \\
-  ghcr.io/presenton/presenton:latest
-```
-
-**M5 (qwen3:30b 또는 qwen3-next:80b)**:
-```bash
-docker run -d --name presenton -p 5000:80 \\
-  -e LLM=ollama \\
-  -e OLLAMA_MODEL=qwen3:30b \\
-  -e OLLAMA_URL=http://host.docker.internal:11434 \\
-  -v presenton-data:/app_data \\
-  ghcr.io/presenton/presenton:latest
-```
-
-**이미지 제공자 (옵션, Pexels 무료)**:
-- `-e IMAGE_PROVIDER=pexels -e PEXELS_API_KEY=...` 박음
-
-띄운 후 위 상태가 🟢로 바뀌면 사용 가능.
-""")
         return
 
     st.divider()
 
-    # ─── 입력 방식 선택 (4 모드) ────────────────────────────────
     source_mode = st.radio(
         "마크다운/프롬프트 소스",
         options=[
@@ -122,8 +127,6 @@ docker run -d --name presenton -p 5000:80 \\
             value=st.session_state.get("presenton_prompt", _SAMPLE_PROMPT),
             key="presenton_prompt_input",
             height=380,
-            help="Presenton LLM이 내용을 보고 슬라이드 구조·디자인 결정. "
-                 "구조화된 마크다운일수록 결과 안정.",
         )
         st.session_state["presenton_prompt"] = prompt
         source_label = "직접 입력"
@@ -202,28 +205,25 @@ docker run -d --name presenton -p 5000:80 \\
 
     with col_r:
         st.markdown("**🎨 옵션**")
-        n_slides = st.slider("슬라이드 수", min_value=3, max_value=20, value=8,
-                              key="presenton_nslides")
+        n_slides = st.slider("슬라이드 수", min_value=3, max_value=20, value=8, key="presenton_nslides")
         language = st.selectbox(
             "언어", options=["Korean", "English", "Chinese", "Japanese"],
             index=0, key="presenton_lang",
         )
         theme = st.selectbox(
-            "테마 (Presenton 내장)", options=_THEMES,
-            index=0, key="presenton_theme",
+            "템플릿", options=_TEMPLATES, index=0, key="presenton_theme",
         )
         export_as = st.radio(
             "형식", options=["pptx", "pdf"], horizontal=True, key="presenton_format",
         )
         save_to_disk = st.checkbox(
-            "exports/ 에 영구 저장",
-            value=True,
+            "exports/ 에 추가 저장",
+            value=False,
             key="presenton_save_disk",
-            help="iris-knowledge/2-processed/exports/ 에 저장",
+            help="기본 저장은 작업 폴더. 체크 시 iris-knowledge/exports/에도 복사",
         )
 
         st.divider()
-
         gen_btn = st.button(
             "🦅 Presenton으로 생성",
             type="primary",
@@ -234,9 +234,7 @@ docker run -d --name presenton -p 5000:80 \\
 
     if gen_btn:
         try:
-            with st.spinner(
-                f"🦅 Presenton 생성 중… ({n_slides}장, 모델·이미지 따라 1~5분)"
-            ):
+            with st.spinner(f"🦅 Presenton 생성 중… ({chosen}, {n_slides}장, 1~5분)"):
                 r = presenton.generate(
                     prompt=prompt,
                     n_slides=n_slides,
@@ -246,8 +244,9 @@ docker run -d --name presenton -p 5000:80 \\
                 )
 
             st.success(
-                f"✅ 생성 완료 — {r.size_bytes / 1024:.1f}KB · {r.elapsed_ms / 1000:.1f}초"
+                f"✅ 완료 — {r.size_bytes / 1024:.1f}KB · {r.elapsed_ms / 1000:.1f}초"
             )
+            st.caption(f"📁 저장: `{r.out_path}`")
 
             # 영구 저장
             if save_to_disk:
@@ -262,11 +261,10 @@ docker run -d --name presenton -p 5000:80 \\
 
             with r.out_path.open("rb") as f:
                 data = f.read()
-            stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
             st.download_button(
-                f"💾 다운로드 (presenton_{stamp}.{export_as})",
+                f"💾 다운로드 ({r.out_path.name})",
                 data=data,
-                file_name=f"presenton_{stamp}.{export_as}",
+                file_name=r.out_path.name,
                 mime=(
                     "application/pdf" if export_as == "pdf"
                     else "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -275,9 +273,7 @@ docker run -d --name presenton -p 5000:80 \\
             )
 
             if r.edit_path:
-                st.markdown(
-                    f"🌐 [Presenton UI에서 편집·재생성·이미지 교체]({r.edit_path})"
-                )
+                st.markdown(f"🌐 [Presenton UI에서 편집]({r.edit_path})")
 
         except presenton.PresentonError as e:
             st.error(f"❌ 실패: {e}")

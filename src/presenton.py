@@ -4,30 +4,33 @@ Presenton (https://github.com/presenton/presenton)을 별도 Docker로 띄우고
 iris-hub가 HTTP 호출로 PPT 생성.
 
 흐름:
-  1. 사용자가 brew docker로 Presenton 컨테이너 띄움 (http://localhost:5000)
-  2. iris-hub의 🦅 Presenton 탭에서 마크다운/프롬프트 입력
-  3. iris-hub가 POST http://localhost:5000/api/v1/ppt/generate/presentation 호출
-  4. 응답의 path를 다운로드 → 사용자에게 제공
+  1. Docker Presenton (기본 http://localhost:5001 — macOS AirPlay :5000 회피)
+  2. iris-hub 🦅 탭에서 프롬프트 입력
+  3. POST /api/v1/ppt/presentation/generate (JSON, cookie 세션)
+  4. 결과를 Documents/0Dev/work/iris-hub/presenton/ 에 저장
 
 설정:
-  - 환경변수 PRESENTON_URL (기본 http://localhost:5000)
-  - 환경변수 PRESENTON_AUTH_USERNAME / PRESENTON_AUTH_PASSWORD (옵션)
+  PRESENTON_URL, PRESENTON_AUTH_USERNAME/PASSWORD
+  PRESENTON_OLLAMA_MODEL — Docker 컨테이너용 (UI에서 선택, 컨테이너 재기동 필요)
 """
 from __future__ import annotations
 
+import http.cookiejar
+import json
 import os
+import shutil
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin
 
-import urllib.request
-import urllib.error
-import json
-import tempfile
+from src.config import hub_work_subdir
 
-
-PRESENTON_URL = os.environ.get("PRESENTON_URL", "http://localhost:5000")
+PRESENTON_URL = os.environ.get("PRESENTON_URL", "http://localhost:5001")
+PRESENTON_WORK_DIR = hub_work_subdir("presenton")
 
 
 class PresentonError(Exception):
@@ -43,8 +46,54 @@ class PresentonResult:
     size_bytes: int
 
 
+def _build_opener() -> urllib.request.OpenerDirector:
+    jar = http.cookiejar.CookieJar()
+    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+
+def _auth_status(opener: urllib.request.OpenerDirector) -> dict:
+    req = urllib.request.Request(f"{PRESENTON_URL}/api/v1/auth/status")
+    with opener.open(req, timeout=5) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _auth_setup(opener: urllib.request.OpenerDirector) -> None:
+    user = os.environ.get("PRESENTON_AUTH_USERNAME", "iris")
+    pw = os.environ.get("PRESENTON_AUTH_PASSWORD", "iris-hub-local")
+    body = json.dumps({"username": user, "password": pw}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{PRESENTON_URL}/api/v1/auth/setup",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with opener.open(req, timeout=10):
+        pass
+
+
+def _auth_login(opener: urllib.request.OpenerDirector) -> None:
+    user = os.environ.get("PRESENTON_AUTH_USERNAME", "iris")
+    pw = os.environ.get("PRESENTON_AUTH_PASSWORD", "iris-hub-local")
+    body = json.dumps({"username": user, "password": pw}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{PRESENTON_URL}/api/v1/auth/login",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with opener.open(req, timeout=10):
+        pass
+
+
+def _ensure_authenticated(opener: urllib.request.OpenerDirector) -> None:
+    status = _auth_status(opener)
+    if not status.get("configured"):
+        _auth_setup(opener)
+    if not status.get("authenticated"):
+        _auth_login(opener)
+
+
 def is_alive(*, timeout: float = 1.0) -> bool:
-    """Presenton 가동 여부 체크."""
     try:
         req = urllib.request.Request(f"{PRESENTON_URL}/")
         with urllib.request.urlopen(req, timeout=timeout):
@@ -53,25 +102,27 @@ def is_alive(*, timeout: float = 1.0) -> bool:
         return False
 
 
-def _login_if_needed() -> str | None:
-    """AUTH 설정시 토큰 발급."""
-    user = os.environ.get("PRESENTON_AUTH_USERNAME")
-    pw = os.environ.get("PRESENTON_AUTH_PASSWORD")
-    if not (user and pw):
-        return None
-    body = json.dumps({"username": user, "password": pw}).encode("utf-8")
-    req = urllib.request.Request(
-        f"{PRESENTON_URL}/api/v1/auth/login",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+def docker_run_hint(*, ollama_model: str, port: int = 5001) -> str:
+    """Presenton Docker 한 줄 명령 (선택 모델 반영)."""
+    return (
+        f"docker rm -f presenton 2>/dev/null; docker run -d --name presenton "
+        f"--platform linux/amd64 -p {port}:80 \\\n"
+        f"  -e LLM=ollama \\\n"
+        f"  -e OLLAMA_MODEL={ollama_model} \\\n"
+        f"  -e OLLAMA_URL=http://host.docker.internal:11434 \\\n"
+        f"  -e DISABLE_IMAGE_GENERATION=true \\\n"
+        f"  -e CAN_CHANGE_KEYS=false \\\n"
+        f"  -v presenton-data:/app_data \\\n"
+        f"  ghcr.io/presenton/presenton:latest"
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            data = json.loads(r.read().decode("utf-8"))
-            return data.get("access_token")
-    except Exception as e:
-        raise PresentonError(f"인증 실패: {e}")
+
+
+def save_to_work_dir(src: Path, *, prefix: str = "presenton") -> Path:
+    """작업 폴더로 복사 — Desktop 사용 안 함."""
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    dest = PRESENTON_WORK_DIR / f"{prefix}_{stamp}{src.suffix}"
+    shutil.copy2(src, dest)
+    return dest
 
 
 def generate(
@@ -79,66 +130,44 @@ def generate(
     *,
     n_slides: int = 8,
     language: str = "Korean",
-    theme: str = "royal_blue",
+    theme: str = "general",
     export_as: str = "pptx",
     timeout: float = 600.0,
+    save_to_work: bool = True,
 ) -> PresentonResult:
-    """Presenton API 호출 → PPT/PDF 생성.
-
-    Args:
-      prompt: 마크다운 또는 자연어 (Presenton이 LLM으로 처리)
-      n_slides: 슬라이드 수 (보통 5~15)
-      language: "Korean" / "English" / ...
-      theme: royal_blue / cream / light_red / faint_yellow ... (Presenton 내장)
-      export_as: "pptx" 또는 "pdf"
-
-    raise PresentonError: 연결 실패, API 에러, 다운로드 실패.
-    """
+    """Presenton API 호출 → PPT/PDF 생성."""
     if not is_alive():
         raise PresentonError(
-            f"Presenton 미가동 ({PRESENTON_URL}). "
-            "Docker로 띄우기:\n"
-            "  docker run -d --name presenton -p 5000:80 \\\n"
-            "    -e LLM=ollama -e OLLAMA_MODEL=qwen3:8b \\\n"
-            "    -e OLLAMA_URL=http://host.docker.internal:11434 \\\n"
-            "    ghcr.io/presenton/presenton:latest"
+            f"Presenton 미가동 ({PRESENTON_URL}).\n"
+            "Docker 안내는 🦅 Presenton 탭 참고."
         )
 
-    token = _login_if_needed()
+    opener = _build_opener()
+    try:
+        _ensure_authenticated(opener)
+    except Exception as e:
+        raise PresentonError(f"인증 실패: {e}")
 
-    # multipart/form-data 직접 박음
-    boundary = "----iris-hub-boundary-x7y9z"
-    parts: list[bytes] = []
-    fields = {
-        "prompt": prompt,
-        "n_slides": str(n_slides),
+    payload = {
+        "content": prompt,
+        "n_slides": n_slides,
         "language": language,
-        "theme": theme,
+        "template": theme,
         "export_as": export_as,
+        "include_title_slide": True,
     }
-    for k, v in fields.items():
-        parts.append(f"--{boundary}\r\n".encode("utf-8"))
-        parts.append(f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode("utf-8"))
-        parts.append(v.encode("utf-8"))
-        parts.append(b"\r\n")
-    parts.append(f"--{boundary}--\r\n".encode("utf-8"))
-    body = b"".join(parts)
-
-    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
+    body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{PRESENTON_URL}/api/v1/ppt/generate/presentation",
+        f"{PRESENTON_URL}/api/v1/ppt/presentation/generate",
         data=body,
-        headers=headers,
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
 
     t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            payload = json.loads(r.read().decode("utf-8"))
+        with opener.open(req, timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         msg = e.read().decode("utf-8", errors="ignore")[:500]
         raise PresentonError(f"API 에러 (HTTP {e.code}): {msg}")
@@ -146,28 +175,23 @@ def generate(
         raise PresentonError(f"호출 실패: {type(e).__name__}: {e}")
     elapsed_ms = int((time.time() - t0) * 1000)
 
-    presentation_id = payload.get("presentation_id", "")
-    file_path = payload.get("path", "")
-    edit_path = payload.get("edit_path", "")
+    presentation_id = str(data.get("presentation_id", ""))
+    file_path = data.get("path", "")
+    edit_path = data.get("edit_path", "")
     if not file_path:
-        raise PresentonError(f"API 응답에 path 없음: {payload}")
+        raise PresentonError(f"API 응답에 path 없음: {data}")
 
-    # 결과 파일 다운로드 (Presenton 정적 경로)
-    if file_path.startswith("/"):
-        download_url = urljoin(PRESENTON_URL, file_path)
-    else:
-        download_url = file_path
-
-    out_path = Path(tempfile.mkdtemp(prefix="iris_presenton_")) / f"deck.{export_as}"
+    download_url = urljoin(PRESENTON_URL, file_path) if file_path.startswith("/") else file_path
+    tmp = PRESENTON_WORK_DIR / f"_tmp_{int(time.time())}.{export_as}"
     try:
-        req2 = urllib.request.Request(download_url)
-        if token:
-            req2.add_header("Authorization", f"Bearer {token}")
-        with urllib.request.urlopen(req2, timeout=60) as r:
-            data = r.read()
-        out_path.write_bytes(data)
+        with opener.open(download_url, timeout=120) as r:
+            tmp.write_bytes(r.read())
     except Exception as e:
         raise PresentonError(f"파일 다운로드 실패 ({download_url}): {e}")
+
+    out_path = save_to_work_dir(tmp, prefix="presenton") if save_to_work else tmp
+    if save_to_work and tmp.exists():
+        tmp.unlink(missing_ok=True)
 
     return PresentonResult(
         out_path=out_path,
@@ -178,4 +202,13 @@ def generate(
     )
 
 
-__all__ = ["PRESENTON_URL", "PresentonError", "PresentonResult", "generate", "is_alive"]
+__all__ = [
+    "PRESENTON_URL",
+    "PRESENTON_WORK_DIR",
+    "PresentonError",
+    "PresentonResult",
+    "docker_run_hint",
+    "generate",
+    "is_alive",
+    "save_to_work_dir",
+]

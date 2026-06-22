@@ -13,7 +13,7 @@
 
 호출:
   M2: qwen3:8b (deep 슬롯)
-  M5: qwen3:30b 또는 qwen3-next:80b (deep 슬롯, env IRIS_LLM_DEEP)
+  M5: hub UI에서 Ollama 설치 목록 중 deep 모델 선택 (80b 고정 아님)
 
 본문이 너무 길면 (>8000자) 앞부분만 사용 + 안내. 청크 분할은 V2.7.5.3에서.
 """
@@ -24,7 +24,6 @@ import time
 from dataclasses import dataclass
 
 from src import llm
-from src.config import IRIS_LLM_DEEP
 
 
 class RestructureError(Exception):
@@ -164,7 +163,7 @@ def restructure_markdown(
         md=out,
         slides_count=slides_count,
         elapsed_ms=elapsed_ms,
-        model=resp.get("model", IRIS_LLM_DEEP),
+        model=resp.get("model", model or ""),
         original_chars=original_chars,
         output_chars=len(out),
     )

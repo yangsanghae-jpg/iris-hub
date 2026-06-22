@@ -76,6 +76,21 @@ ALDA_BASELINE = {
 HUB_PORT = 8765
 HUB_HOST = "127.0.0.1"
 
+# M5 작업 산출물 (Desktop 대신 Documents 하위)
+IRIS_HUB_WORK_DIR = Path(
+    os.getenv(
+        "IRIS_HUB_WORK_DIR",
+        str(Path.home() / "Documents" / "0Dev" / "work" / "iris-hub"),
+    )
+)
+
+
+def hub_work_subdir(name: str) -> Path:
+    """presenton / deck / pptx 등 하위 작업 폴더."""
+    p = IRIS_HUB_WORK_DIR / name
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
 # ─── LLM 3슬롯 (V2.5.4 부록) ─────────────────────────────────────────────────
 OLLAMA_URL = os.getenv("IRIS_OLLAMA_URL", "http://localhost:11434")
 
