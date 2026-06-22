@@ -23,41 +23,62 @@ PATTERN_SLOTS = {
 
 def _build_prompt(md_text: str, meta: dict) -> str:
     patterns_doc = "\n".join(f"- {pid}: {slots}" for pid, slots in PATTERN_SLOTS.items())
-    return f"""당신은 IRIS 슬라이드 디자이너입니다. 사용자가 박은 마크다운 내용을
+    # 입력 길이 기반 슬라이드 수 가이드 (1k당 ~1장, 최소 8, 최대 16)
+    target_min = max(8, min(16, len(md_text) // 1500))
+    target_max = min(20, target_min + 4)
+    return f"""당신은 IRIS 슬라이드 디자이너입니다. 사용자가 박은 마크다운 *전체 내용*을
 *컨설팅급 PPT 슬라이드 사양*으로 변환합니다. JSON으로만 답하세요.
 
 ## 메타
 회사명: {meta.get('company', '')}
 보고서명: {meta.get('title', '')}
+부제: {meta.get('subtitle', '')}
 날짜: {meta.get('date', '')}
 
 ## 사용 가능 슬라이드 패턴 (이 8종만 사용)
 {patterns_doc}
 
-## 규칙
-1. *반드시* 위 8 패턴 ID 중에서만 선택
-2. 각 슬라이드는 *필수 슬롯*을 모두 채울 것
-3. 첫 슬라이드는 보통 cover, 두 번째는 agenda 또는 exec-summary
-4. 슬라이드 개수는 6~12장 권장
-5. 색상은 진단·문제는 'red', 해결·혁신은 'green', 중립은 'blue', 강조는 'orange', 분기는 'purple' 으로 일관
+## ⚠️ 절대 규칙 (위반 금지)
+1. **슬라이드 개수**: 반드시 {target_min}~{target_max}장. 입력 마크다운의 *모든 섹션을 빠짐없이* 슬라이드로 전개.
+2. cover 1장 + agenda 1장 + 본문 {target_min - 2}~{target_max - 2}장 (각 섹션·소절 1~2장씩)
+3. 마크다운의 ## / ### 헤더 1개당 *최소 1장*의 본문 슬라이드 박을 것
+4. *반드시* 위 8 패턴 ID 중에서만 선택
+5. 각 슬라이드는 *필수 슬롯*을 모두 채울 것 (생략 금지, 빈 문자열도 금지)
+6. 색상 일관: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'
+
+## 슬라이드 전개 전략
+- cover: 1장
+- agenda: 1장 (전체 목차)
+- exec-summary: 1장 (As-Is vs To-Be 또는 현황 vs 혁신)
+- 본문 섹션마다 적절한 패턴 선택:
+  · 비교/대조 → compare-2col
+  · 4구역·4단계 → card-grid-4
+  · 시간·단계 로드맵 → phase-roadmap
+  · 5관점·5차원 → dimension-5
+  · 지표 4개 → metrics-row
 
 ## 사용자 입력 마크다운
-{md_text[:4000]}
+{md_text[:16000]}
 
-## 출력 (JSON만, 다른 말 절대 금지)
+## 출력 (JSON만, 다른 말 절대 금지, 슬라이드 {target_min}장 이상)
 {{
   "slides": [
-    {{"pattern": "cover", "data": {{...}}}},
+    {{"pattern": "cover", "data": {{"company": "...", "title": "...", "subtitle": "...", "target": "...", "date_version": "..."}}}},
+    {{"pattern": "agenda", "data": {{"title": "...", "subtitle": "...", "items": [...]}}}},
     ...
   ]
 }}
 """
 
 
-def design_deck(md_text: str, meta: dict, *, timeout: float = 180.0) -> Deck:
+def design_deck(md_text: str, meta: dict, *, timeout: float = 300.0) -> Deck:
     """LLM이 마크다운을 받아 슬라이드 사양 출력."""
     prompt = _build_prompt(md_text, meta)
-    resp = llm.generate_json(prompt, role="deep", timeout=timeout)
+    # V2.7.6.2 — 큰 입력은 응답도 큼. num_ctx 확장 + num_predict 충분히
+    resp = llm.generate_json(
+        prompt, role="deep", timeout=timeout,
+        num_ctx=16384, num_predict=8192,
+    )
     if not resp.get("ok"):
         raise DesignError(f"LLM 실패: {resp.get('error', 'unknown')}")
 

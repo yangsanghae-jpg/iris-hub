@@ -36,10 +36,16 @@ def generate_json(prompt: str, *,
                   role: str = "deep",
                   model: str | None = None,
                   timeout: float | None = None,
-                  temperature: float = 0.1) -> dict[str, Any]:
+                  temperature: float = 0.1,
+                  num_ctx: int | None = None,
+                  num_predict: int | None = None) -> dict[str, Any]:
     """Ollama /api/generate 호출, JSON 모드 강제.
 
     role 또는 model 중 하나를 지정. role이 우선이며 model이 명시되면 override.
+
+    V2.7.6.2 — num_ctx / num_predict 옵션 추가:
+      - num_ctx: 컨텍스트 윈도우 (Ollama 기본 2048 — 큰 입력은 잘림)
+      - num_predict: 출력 토큰 한도 (Ollama 기본 128 — 큰 JSON 잘림)
 
     반환:
         성공: {"ok": True, "data": <parsed JSON>, "ms": <elapsed>, "raw": <text>, "model": <name>}
@@ -50,12 +56,18 @@ def generate_json(prompt: str, *,
         FAST_TIMEOUT if role == "fast" else DEFAULT_TIMEOUT
     )
 
+    options: dict[str, Any] = {"temperature": temperature}
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
+    if num_predict is not None:
+        options["num_predict"] = num_predict
+
     body = json.dumps({
         "model": resolved_model,
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "options": {"temperature": temperature},
+        "options": options,
     }).encode("utf-8")
 
     req = urllib.request.Request(
