@@ -1,7 +1,7 @@
-"""iris-hub v0 — 평면 탭 구조 (V2.6.2.9 — 진척 탭 숨김).
+"""iris-hub v0 — 사이드바 내비게이션 (V2.8.2).
 
-탭 구조:
-  IRIS 자체 (6): 📥 입력 | 🌐 외부응답 | 📦 데이터 | 🕸️ 그래프 | 📊 인사이트 | 📚 위키
+메뉴 (사이드바 세로 목록):
+  IRIS 자체 (10): 🔧 진단툴 | 📥 입력 | 🌐 외부응답 | 🔄 흐름 | 📦 데이터 | ...
   외부 진입점 (4): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 📚 Obsidian
   설정 (1):       ⚙️ 설정
 
@@ -13,14 +13,16 @@ V2.6.2.2 — 🧠 memory 진입점 제거 (페르소나 관리 의의 소멸).
 
 UI 정책:
   - 헤더 간소화 (iris-hub 제목 작게)
-  - 상단 탭 sticky (스크롤 무관 항상 표시)
-  - 사이드바: 운영 콘솔 + 라이브 상태 (장기 통합 후보)
+  - 사이드바: 전체 메뉴 + 라이브 상태 (좁은 화면에서도 스크롤 없이 접근)
 """
+from __future__ import annotations
+
 import socket
+from collections.abc import Callable
 
 import streamlit as st
 
-from src.tabs import dashboard, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, presenton as presenton_tab, wiki_k2
+from src.tabs import diagnosis_mgmt, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, presenton as presenton_tab, wiki_k2
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -31,8 +33,35 @@ def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
         return False
 
 
+def _render_wiki() -> None:
+    wiki_k2.render()
+    st.divider()
+    placeholders.render_wiki()
+
+
+NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
+    ("diagnosis", "🔧 진단툴", diagnosis_mgmt.render),
+    ("intake", "📥 입력", intake.render),
+    ("external_capture", "🌐 외부응답", external_capture.render),
+    ("flow", "🔄 흐름", flow.render),
+    ("inventory", "📦 데이터", inventory.render),
+    ("graph", "🕸️ 그래프", graph.render),
+    ("insights", "📊 인사이트", placeholders.render_insights),
+    ("wiki", "📚 위키", _render_wiki),
+    ("pptx", "📊 PPT", pptx.render),
+    ("presenton", "🦅 Presenton", presenton_tab.render),
+    ("webui", "💬 WebUI", external.render_openwebui),
+    ("openclaw", "🦅 OpenClaw", external.render_openclaw),
+    ("grafana", "🌐 Grafana", external.render_grafana),
+    ("obsidian", "📚 Obsidian", external.render_obsidian),
+    ("settings", "⚙️ 설정", placeholders.render_settings),
+]
+NAV_LABELS = {key: label for key, label, _ in NAV_ITEMS}
+NAV_RENDERERS = {key: render for key, _, render in NAV_ITEMS}
+
+
 def _inject_css() -> None:
-    """헤더 축소 + 탭 sticky."""
+    """헤더 축소 + 사이드바 내비 여백."""
     st.markdown("""
 <style>
 /* 상단 여백 축소 */
@@ -42,35 +71,28 @@ def _inject_css() -> None:
 h1 { font-size: 1.4rem !important; margin: 0 !important; padding: 0 !important; }
 h1 + div[data-testid="stCaptionContainer"] { margin-bottom: 0.5rem !important; }
 
-/* 상단 탭 sticky */
-div[data-testid="stTabs"] > div:first-child {
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 999;
-    padding: 0.25rem 0;
-    border-bottom: 1px solid #eee;
+/* 사이드바 메뉴 — 세로 목록, 좁은 화면에서도 전체 항목 접근 */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.92rem !important;
 }
-/* dark mode 호환 */
-@media (prefers-color-scheme: dark) {
-    div[data-testid="stTabs"] > div:first-child { background: #0e1117; }
+section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
+    gap: 0.15rem !important;
 }
-
-/* 탭 폰트·여백 압축 */
-button[data-baseweb="tab"] { padding: 0.4rem 0.8rem !important; font-size: 0.9rem !important; }
 </style>
     """, unsafe_allow_html=True)
 
 
-def _sidebar() -> None:
+def _sidebar_nav() -> str:
     with st.sidebar:
-        st.markdown("### 🔗 운영 콘솔")
-        st.caption("외부 백엔드 (장기: 상단 탭과 통합 후보)")
-        st.link_button("📊 Grafana", "http://127.0.0.1:3030", use_container_width=True)
-        st.link_button("💬 OpenWebUI", "http://127.0.0.1:3000", use_container_width=True)
-        st.link_button("🦅 OpenClaw", "http://127.0.0.1:18789", use_container_width=True)
-        st.link_button("📚 Obsidian", "obsidian://open?vault=LearningMaster",
-                       use_container_width=True)
+        st.markdown("### 📋 메뉴")
+        page = st.radio(
+            "메뉴",
+            options=[key for key, _, _ in NAV_ITEMS],
+            format_func=lambda key: NAV_LABELS[key],
+            label_visibility="collapsed",
+            key="iris_hub_nav",
+        )
 
         st.divider()
         st.markdown("### 🟢 라이브 상태")
@@ -87,6 +109,8 @@ def _sidebar() -> None:
             icon = "🟢" if alive else "🔴"
             st.caption(f"{icon} {label}")
 
+    return page
+
 
 def main() -> None:
     st.set_page_config(
@@ -95,52 +119,13 @@ def main() -> None:
         layout="wide",
     )
     _inject_css()
-    _sidebar()
+    page = _sidebar_nav()
 
     # 간소 헤더 (1행)
     st.markdown("# 📊 iris-hub")
-    st.caption("V2.8.1 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
+    st.caption("V2.8.2 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
-    tabs = st.tabs([
-        # IRIS 자체 (9) — V2.7.6.3: 🎨 디자인 PPT는 📊 PPT에 통합됨
-        "📥 입력",
-        "🌐 외부응답",
-        "🔄 흐름",
-        "📦 데이터",
-        "🕸️ 그래프",
-        "📊 인사이트",
-        "📚 위키",
-        "📊 PPT",
-        "🦅 Presenton",
-        # 외부 진입점 (4)
-        "💬 WebUI",
-        "🦅 OpenClaw",
-        "🌐 Grafana",
-        "📚 Obsidian",
-        # 설정 — 맨 뒤
-        "⚙️ 설정",
-    ])
-
-    # IRIS 자체
-    with tabs[0]:  intake.render()
-    with tabs[1]:  external_capture.render()
-    with tabs[2]:  flow.render()
-    with tabs[3]:  inventory.render()
-    with tabs[4]:  graph.render()
-    with tabs[5]:  placeholders.render_insights()
-    with tabs[6]:
-        wiki_k2.render()
-        st.divider()
-        placeholders.render_wiki()
-    with tabs[7]:  pptx.render()                # V2.7.6.3 — Marp + 디자인 통합
-    with tabs[8]:  presenton_tab.render()       # V2.8.0 — Presenton bridge
-    # 외부
-    with tabs[9]:  external.render_openwebui()
-    with tabs[10]: external.render_openclaw()
-    with tabs[11]: external.render_grafana()
-    with tabs[12]: external.render_obsidian()
-    # 설정 (맨 뒤)
-    with tabs[13]: placeholders.render_settings()
+    NAV_RENDERERS[page]()
 
 
 if __name__ == "__main__":

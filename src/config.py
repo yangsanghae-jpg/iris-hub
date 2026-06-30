@@ -4,8 +4,16 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEPS_YAML = REPO_ROOT / "data" / "phase_deps.yaml"
+DIAGNOSIS_MIGRATION_YAML = REPO_ROOT / "data" / "diagnosis_migration.yaml"
 
 DEV_ROOT = REPO_ROOT.parent  # iris-hub의 부모 (M2: /1Dev, M5: /0Dev)
+
+# diagnosis-tool Git 정본 (평가·표시 기준 URL)
+DIAGNOSIS_TOOL_GITHUB = os.getenv(
+    "DIAGNOSIS_TOOL_GITHUB",
+    "https://github.com/yangsanghae-jpg/diagnosis-tool",
+)
+# 로컬 clone 경로 override: DIAGNOSIS_TOOL_GIT=/path/to/clone
 
 # ─── iris-knowledge 데이터 루트 (V2.6.3.0) ──────────────────────────────────
 # 새 구조: iris-knowledge/{1-inbox,2-processed,3-archive}/
