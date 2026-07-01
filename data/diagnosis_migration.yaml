@@ -1,11 +1,12 @@
-# diagnosis-tool 데이터 재구조화 마이그레이션 추적
+# diagnosis-tool 데이터 재구조화 + A1 규모평가 오버레이 마이그레이션 추적
 # 상태: git HEAD 기준 자동 평가 (diagnosis_eval.py) — 수동 설정 없음
 # 정본: diagnosis-tool/docs/data_restructure/diagnosis_tool_data_restructure_design_M5_2026-06-29.md §7
+# A1 overlay: diagnosis-tool/docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
 
-version: data-restructure-v1
+version: data-restructure-v1.1
 project: diagnosis-tool
 github: https://github.com/yangsanghae-jpg/diagnosis-tool
-doc_ref: docs/data_restructure/diagnosis_tool_data_restructure_design_M5_2026-06-29.md
+doc_ref: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
 
 items:
   # ── Phase 0 — 가드·drift ─────────────────────────────────────────────
@@ -230,6 +231,80 @@ items:
       tracked:
         - server/data/MANIFEST.json
 
+  # ── Phase A1 — A1 Ch2 규모 평가 오버레이 (A~I) ─────────────────────
+  - phase: "A1"
+    id: "1"
+    title: "SUBIND-OVERLAY compose 훅"
+    gate: "pipeline overlay merge"
+    check:
+      tracked:
+        - server/assemble/ch2_system/compose.py
+      grep:
+        - path: server/assemble/ch2_system/compose.py
+          contains: "_apply_pipeline_subindustry_overlay"
+
+  - phase: "A1"
+    id: "2"
+    title: "merge_a1_industry_scale_overlay.py"
+    gate: "A~I 정규화·병합"
+    check:
+      tracked:
+        - scripts/merge_a1_industry_scale_overlay.py
+
+  - phase: "A1"
+    id: "3"
+    title: "runtime overlay 74 subindustries"
+    gate: "3330 cells"
+    check:
+      tracked:
+        - server/knowledge/step5/ch2/_overlay/subindustry_scale_overlay_v1.json
+      grep:
+        - path: server/knowledge/step5/ch2/_overlay/subindustry_scale_overlay_v1.json
+          contains: '"sample_count": 74'
+
+  - phase: "A1"
+    id: "4"
+    title: "test_a1_scale_overlay_all_industries"
+    gate: "74종 스모크"
+    check:
+      tracked:
+        - server/tests/test_a1_scale_overlay_all_industries.py
+      grep:
+        - path: docs/by_step/diagnosis_tool_A1_산업팩_A-I_적용보고_M5_2026-06-30.md
+          contains: "3330"
+
+  - phase: "A1"
+    id: "5"
+    title: "평가형 zh/ko i18n (Ch2 2.3)"
+    gate: "localizedPipelineField"
+    check:
+      grep:
+        - path: server/assemble/ch2_system/compose.py
+          contains: "normal_criterion_zh"
+        - path: client/i18n/zh/ui.json
+          contains: "a1.card.eval.scale_meaning"
+        - path: client/src/ui/a1/a1_ch2_card_renderer_common.js
+          contains: "localizedPipelineField"
+
+  - phase: "A1"
+    id: "6"
+    title: "마이그레이션 계획 문서"
+    gate: "Phase 2 Exit"
+    check:
+      tracked:
+        - docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
+      grep:
+        - path: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
+          contains: "iris-hub Phase A1"
+
+  - phase: "A1"
+    id: "7"
+    title: "Ch2 2.2·2.4·2.5 다국어 (Phase 3)"
+    gate: "assets/maturity/stack zh"
+    check:
+      tracked:
+        - client/src/ui/a1/a1_ch2_assets_i18n.js
+
 deps:
   "0/2": ["0/1"]
   "0/4": ["0/1"]
@@ -246,3 +321,9 @@ deps:
   "2/5": ["1/3"]
   "3/1": ["2/1"]
   "3/2": ["3/1"]
+  "A1/2": ["A1/1"]
+  "A1/3": ["A1/2"]
+  "A1/4": ["A1/3"]
+  "A1/5": ["A1/3"]
+  "A1/6": ["A1/4", "A1/5"]
+  "A1/7": ["A1/6"]
