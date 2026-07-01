@@ -1,12 +1,12 @@
 # diagnosis-tool 데이터 재구조화 + A1 규모평가 오버레이 마이그레이션 추적
 # 상태: git HEAD 기준 자동 평가 (diagnosis_eval.py) — 수동 설정 없음
 # 정본: diagnosis-tool/docs/data_restructure/diagnosis_tool_data_restructure_design_M5_2026-06-29.md §7
-# A1 overlay: diagnosis-tool/docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
+# A1 overlay: diagnosis-tool/docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_설계_M5_2026-06-30.md
 
 version: data-restructure-v1.1
 project: diagnosis-tool
 github: https://github.com/yangsanghae-jpg/diagnosis-tool
-doc_ref: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
+doc_ref: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_설계_M5_2026-06-30.md
 
 items:
   # ── Phase 0 — 가드·drift ─────────────────────────────────────────────
@@ -298,6 +298,17 @@ items:
           contains: "A1_DATA_DIR"
 
   - phase: "A1"
+    id: "8"
+    title: "마이그레이션 설계 문서"
+    gate: "ADR·i18n 계약·Phase 경계"
+    check:
+      grep:
+        - path: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_설계_M5_2026-06-30.md
+          contains: "A1-SCALE-OVERLAY-MIGRATION-DESIGN"
+        - path: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_설계_M5_2026-06-30.md
+          contains: "localizedPipelineField"
+
+  - phase: "A1"
     id: "7"
     title: "Ch2 2.2·2.4·2.5 다국어 (Phase 3)"
     gate: "assets/maturity/stack zh"
@@ -326,4 +337,5 @@ deps:
   "A1/4": ["A1/3"]
   "A1/5": ["A1/3"]
   "A1/6": ["A1/4", "A1/5"]
-  "A1/7": ["A1/6"]
+  "A1/8": ["A1/6"]
+  "A1/7": ["A1/8"]
