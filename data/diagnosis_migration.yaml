@@ -289,13 +289,13 @@ items:
   - phase: "A1"
     id: "6"
     title: "마이그레이션 계획 문서"
-    gate: "Phase 2 Exit"
+    gate: "Phase 2 Exit · iris-hub 연동"
     check:
-      tracked:
-        - docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
       grep:
-        - path: docs/by_step/diagnosis_tool_A1_산업팩_마이그레이션_계획_M5_2026-06-30.md
+        - path: docs/by_step/diagnosis_tool_A1_산업팩_A-I_적용보고_M5_2026-06-30.md
           contains: "iris-hub Phase A1"
+        - path: scripts/merge_a1_industry_scale_overlay.py
+          contains: "merge_a1_industry_scale_overlay"
 
   - phase: "A1"
     id: "7"
