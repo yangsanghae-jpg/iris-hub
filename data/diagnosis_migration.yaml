@@ -295,7 +295,7 @@ items:
         - path: docs/by_step/diagnosis_tool_A1_산업팩_A-I_적용보고_M5_2026-06-30.md
           contains: "iris-hub Phase A1"
         - path: scripts/merge_a1_industry_scale_overlay.py
-          contains: "merge_a1_industry_scale_overlay"
+          contains: "A1_DATA_DIR"
 
   - phase: "A1"
     id: "7"
