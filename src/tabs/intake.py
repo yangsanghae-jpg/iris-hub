@@ -22,6 +22,170 @@ import streamlit as st
 from src.config import IRIS_RAW_PATH
 from src.ui_kit import hub_kpi_grid, hub_pagebar, hub_section
 
+
+_CSS = """
+<style>
+.intake-mode-grid {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin:12px 0 14px 0;
+}
+.intake-mode-card {
+  min-height:104px;
+  padding:14px;
+  border:1px solid rgba(47,128,196,0.16);
+  border-radius:14px;
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+}
+.intake-mode-card.primary {
+  border-color:rgba(47,128,196,0.42);
+  background:linear-gradient(180deg, #f7fbff 0%, #eef7ff 100%);
+}
+.intake-mode-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+}
+.intake-mode-badge {
+  display:inline-flex;
+  align-items:center;
+  padding:3px 8px;
+  border-radius:999px;
+  background:rgba(47,128,196,0.09);
+  color:#2f80c4;
+  font-size:0.7rem;
+  line-height:1;
+  font-weight:850;
+}
+.intake-mode-primary-label {
+  color:#667085;
+  font-size:0.72rem;
+  font-weight:750;
+}
+.intake-mode-title {
+  color:#172033;
+  font-size:0.92rem;
+  font-weight:850;
+  margin-bottom:5px;
+}
+.intake-mode-detail {
+  color:#667085;
+  font-size:0.78rem;
+  line-height:1.45;
+}
+.intake-workspace {
+  display:grid;
+  grid-template-columns:minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap:14px;
+  align-items:start;
+  margin-top:8px;
+}
+.intake-panel {
+  border:1px solid rgba(47,128,196,0.16);
+  border-radius:14px;
+  background:linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+  overflow:hidden;
+  margin-bottom:14px;
+}
+.intake-panel-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid rgba(47,128,196,0.10);
+  background:rgba(47,128,196,0.035);
+}
+.intake-panel-title {
+  color:#172033;
+  font-size:0.9rem;
+  font-weight:850;
+}
+.intake-panel-subtitle {
+  margin-top:3px;
+  color:#667085;
+  font-size:0.76rem;
+  line-height:1.4;
+}
+.intake-panel-body {
+  padding:14px;
+}
+.intake-pill {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(47,128,196,0.10);
+  color:#2f80c4;
+  font-size:0.7rem;
+  line-height:1;
+  font-weight:850;
+  white-space:nowrap;
+}
+.intake-dropzone {
+  padding:18px;
+  border:1px dashed rgba(47,128,196,0.28);
+  border-radius:13px;
+  background:rgba(47,128,196,0.035);
+  text-align:center;
+  color:#667085;
+  font-size:0.8rem;
+  margin-bottom:10px;
+}
+.intake-note-box {
+  margin-top:12px;
+  padding:10px 12px;
+  border:1px solid rgba(47,128,196,0.14);
+  border-radius:11px;
+  background:rgba(47,128,196,0.045);
+  color:#475467;
+  font-size:0.8rem;
+  line-height:1.5;
+}
+.hub-pagebar {
+  min-height:82px;
+  overflow:visible !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  padding-top:16px !important;
+  padding-bottom:16px !important;
+  border-color:rgba(47,128,196,0.18) !important;
+  background:linear-gradient(135deg, #ffffff 0%, #f7fbff 100%) !important;
+  box-shadow:0 10px 28px rgba(16,24,40,0.055);
+}
+.hub-pagebar-title {
+  font-size:1.32rem !important;
+  line-height:1.28 !important;
+  color:#101828 !important;
+}
+.hub-pagebar-desc {
+  line-height:1.5 !important;
+  overflow:visible !important;
+}
+.hub-pagebar-title-row {
+  align-items:center !important;
+  min-height:28px;
+}
+.hub-kpi-card {
+  border-color:rgba(47,128,196,0.16) !important;
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%) !important;
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+}
+@media (max-width: 980px) {
+  .intake-mode-grid,
+  .intake-workspace,
+  .hub-kpi-grid {
+    grid-template-columns:1fr !important;
+  }
+}
+</style>
+"""
+
 # V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM·sys.path hack 제거.
 RAW_DIR = IRIS_RAW_PATH
 INCLUDE_SUFFIXES = {".md", ".txt"}
@@ -98,6 +262,53 @@ def _render_raw_snapshot(files_now: list[str]) -> None:
         for filename in files_now:
             st.code(filename)
 
+
+def _render_mode_cards() -> None:
+    st.markdown(
+        """
+<div class="intake-mode-grid">
+  <div class="intake-mode-card">
+    <div class="intake-mode-top">
+      <span class="intake-mode-badge">A</span>
+    </div>
+    <div class="intake-mode-title">파일 업로드</div>
+    <div class="intake-mode-detail">md, txt, pdf, pptx, docx를 raw 폴더에 바로 저장합니다.</div>
+  </div>
+  <div class="intake-mode-card primary">
+    <div class="intake-mode-top">
+      <span class="intake-mode-badge">B</span>
+      <span class="intake-mode-primary-label">Primary</span>
+    </div>
+    <div class="intake-mode-title">폴더 로딩</div>
+    <div class="intake-mode-detail">외부 폴더를 스캔하고 선택한 파일을 일괄 인덱싱합니다.</div>
+  </div>
+  <div class="intake-mode-card">
+    <div class="intake-mode-top">
+      <span class="intake-mode-badge">C</span>
+    </div>
+    <div class="intake-mode-title">텍스트 저장</div>
+    <div class="intake-mode-detail">챗 응답, 회의 메모, 수동 노트를 markdown으로 저장합니다.</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_panel_header(title: str, subtitle: str, pill: str | None = None) -> None:
+    pill_html = f"<span class='intake-pill'>{pill}</span>" if pill else ""
+    st.markdown(
+        f"""
+<div class="intake-panel-head">
+  <div>
+    <div class="intake-panel-title">{title}</div>
+    <div class="intake-panel-subtitle">{subtitle}</div>
+  </div>
+  {pill_html}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 def _pick_folder_dialog(prompt: str = "폴더 선택", default: str = "") -> str | None:
     """macOS Finder 폴더 선택 다이얼로그. POSIX 경로 반환. 취소면 None.
@@ -377,7 +588,116 @@ def _render_folder_load() -> None:
             st.caption(f"FTS rebuild: {result.fts_counts}")
 
 
+def _render_upload_panel() -> None:
+    _render_panel_header(
+        "A · 파일 업로드",
+        "작은 작업은 여기서 즉시 raw 저장 + K1 인제스트를 실행합니다.",
+    )
+    st.markdown(
+        "<div class='intake-dropzone'><strong>Drop files here</strong><br/>md · txt · pdf · pptx · docx</div>",
+        unsafe_allow_html=True,
+    )
+
+    uploaded = st.file_uploader(
+        "파일 끌어다 놓기 또는 클릭해서 선택",
+        type=["md", "txt", "pdf", "pptx", "docx"],
+        accept_multiple_files=True,
+        key="intake_files",
+        label_visibility="collapsed",
+    )
+
+    if uploaded:
+        st.markdown(f"**업로드 대기: {len(uploaded)}개**")
+        for uploaded_file in uploaded:
+            st.write(f"- `{uploaded_file.name}` ({uploaded_file.size:,} bytes)")
+
+        if st.button("raw 폴더에 저장 + 인제스트 실행", type="primary", use_container_width=True):
+            saved = []
+            for uploaded_file in uploaded:
+                target = _save_to_raw(uploaded_file.name, uploaded_file.read())
+                saved.append(target)
+            st.success(f"raw 폴더 저장 {len(saved)}개")
+
+            with st.spinner("K1 인제스트 실행 중 (raw_intake.main)..."):
+                ok, log = _run_raw_intake()
+
+            if ok:
+                st.success("인제스트 완료. 그래프 탭에서 새 노드를 확인할 수 있습니다.")
+            else:
+                st.error(f"인제스트 실패\n```\n{log[:1000]}\n```")
+                return
+
+            with st.expander("실행 로그", expanded=False):
+                st.code(log[-3000:])
+
+            st.info("다음: `make build-faiss`로 시맨틱 인덱스 갱신")
+
+
+def _render_text_panel() -> None:
+    _render_panel_header(
+        "C · 텍스트 저장",
+        "챗 응답과 회의 메모를 markdown 문서로 빠르게 저장합니다.",
+    )
+
+    title = st.text_input("제목 *", placeholder="예: MES 핵심 개념 정리", key="intake_title")
+    source = st.selectbox(
+        "출처",
+        ["openwebui-chat", "manual-note", "meeting-memo", "external-doc", "other"],
+        index=0,
+        key="intake_source",
+    )
+
+    meta_col1, meta_col2, meta_col3 = st.columns(3)
+    with meta_col1:
+        industry = st.text_input("industry", placeholder="A/B/C/...", key="intake_industry")
+    with meta_col2:
+        area = st.text_input("area", placeholder="planning/strategy/...", key="intake_area")
+    with meta_col3:
+        level = st.text_input("level", placeholder="default", key="intake_level")
+
+    body = st.text_area(
+        "본문 (markdown 허용) *",
+        height=220,
+        placeholder="여기에 챗 응답 또는 노트 붙여넣기...",
+        key="intake_body",
+    )
+
+    if st.button(
+        ".md 생성 후 저장 + 인제스트",
+        type="primary",
+        disabled=not (title and body),
+        key="intake_paste_btn",
+        use_container_width=True,
+    ):
+        safe_title = "".join(c if c.isalnum() or c in "-_가-힣" else "_" for c in title)[:50]
+        timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_title}_{timestamp}.md"
+
+        md_content = _build_md(
+            title=title,
+            source=source,
+            body=body,
+            industry=industry,
+            area=area,
+            level=level,
+        )
+        target = _save_to_raw(filename, md_content)
+        st.success(f"저장: `{target.name}`")
+
+        with st.spinner("K1 인제스트 실행 중..."):
+            ok, log = _run_raw_intake()
+
+        if ok:
+            st.success("인제스트 완료. 그래프 탭에서 새 노드를 확인할 수 있습니다.")
+        else:
+            st.error(f"인제스트 실패\n```\n{log[:1000]}\n```")
+
+        with st.expander("실행 로그", expanded=False):
+            st.code(log[-3000:])
+
+
 def render() -> None:
+    st.markdown(_CSS, unsafe_allow_html=True)
     hub_pagebar(
         "입력",
         "Knowledge Intake",
@@ -389,121 +709,37 @@ def render() -> None:
         st.error(f"raw 디렉터리 없음: {RAW_DIR}")
         return
 
-    # 사이드 정보
     files_now = sorted(p.name for p in RAW_DIR.iterdir() if p.is_file())
     _render_raw_snapshot(files_now)
+    _render_mode_cards()
 
-    # ─── (A) 파일 업로드 패턴 ─────────────────────────────────────────
-    hub_section("A · 파일 업로드")
-    st.caption(".md / .txt / .pdf / .pptx / .docx 파일을 raw 폴더에 직접 박기. 여러 개 한 번에 가능.")
+    main_column, side_column = st.columns([1.35, 0.65], gap="medium")
 
-    uploaded = st.file_uploader(
-        "파일 끌어다 놓기 또는 클릭해서 선택",
-        type=["md", "txt", "pdf", "pptx", "docx"],
-        accept_multiple_files=True,
-        key="intake_files",
-    )
+    with main_column:
+        with st.container(border=True):
+            _render_panel_header(
+                "B · 폴더 로딩",
+                "소스와 archive 정책을 확정한 뒤 스캔 결과에서 파일을 선택해 일괄 인덱싱합니다.",
+                "Bulk",
+            )
+            st.markdown(
+                "<div class='intake-panel-body'>지원 포맷: <strong>.md · .txt · .pdf · .pptx · .docx</strong>. 원본은 3-archive로 보존되고 content.md로 자동 변환됩니다.</div>",
+                unsafe_allow_html=True,
+            )
+            _render_folder_load()
 
-    if uploaded:
-        st.markdown(f"**업로드 대기: {len(uploaded)}개**")
-        for f in uploaded:
-            st.write(f"- `{f.name}` ({f.size:,} bytes)")
+    with side_column:
+        with st.container(border=True):
+            _render_upload_panel()
 
-        if st.button("📥 raw 폴더에 저장 + 인제스트 실행", type="primary", use_container_width=True):
-            saved = []
-            for f in uploaded:
-                target = _save_to_raw(f.name, f.read())
-                saved.append(target)
-            st.success(f"✅ raw 폴더 저장 {len(saved)}개")
+        with st.container(border=True):
+            _render_text_panel()
 
-            with st.spinner("K1 인제스트 실행 중 (raw_intake.main)..."):
-                ok, log = _run_raw_intake()
-
-            if ok:
-                st.success("✅ 인제스트 완료. 그래프 탭으로 가서 새로고침해보세요.")
-            else:
-                st.error(f"❌ 인제스트 실패\n```\n{log[:1000]}\n```")
-                return
-
-            with st.expander("실행 로그", expanded=False):
-                st.code(log[-3000:])
-
-            st.info("💡 다음: `make build-faiss`로 시맨틱 인덱스 갱신 (별도 명령, 1~2분)")
-
-    # ─── (B) 📁 폴더 로딩 — 외부 폴더 경로 일괄 인덱싱 ─────────────
-    hub_section("B · 폴더 로딩")
-    st.caption(
-        "V2.6.3.10 지원 포맷: **.md · .txt · .pdf · .pptx · .docx**. "
-        "원본은 3-archive로 카피 보존되고, content.md로 자동 변환됩니다. "
-        "변환 안 되는 포맷은 skip-unsupported."
-    )
-    _render_folder_load()
-
-    # ─── (C) 텍스트 붙여넣기 패턴 — 챗 응답 저장 ─────────────────────
-    hub_section("C · 텍스트 붙여넣기")
-    st.caption("OpenWebUI 챗 답변, 회의 메모, 외부 자료를 수동 복붙해 raw로 박기.")
-
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        title = st.text_input("제목 *", placeholder="예: MES 핵심 개념 정리", key="intake_title")
-    with c2:
-        source = st.selectbox(
-            "출처",
-            ["openwebui-chat", "manual-note", "meeting-memo", "external-doc", "other"],
-            index=0,
-            key="intake_source",
-        )
-
-    cm1, cm2, cm3 = st.columns(3)
-    with cm1:
-        industry = st.text_input("industry", placeholder="A/B/C/...", key="intake_industry")
-    with cm2:
-        area = st.text_input("area", placeholder="planning/strategy/...", key="intake_area")
-    with cm3:
-        level = st.text_input("level", placeholder="default", key="intake_level")
-
-    body = st.text_area(
-        "본문 (markdown 허용) *",
-        height=300,
-        placeholder="여기에 챗 응답 또는 노트 붙여넣기...",
-        key="intake_body",
-    )
-
-    if st.button("📥 .md 생성 후 저장 + 인제스트", type="primary",
-                 disabled=not (title and body), key="intake_paste_btn",
-                 use_container_width=True):
-        # 파일명: 제목 → slug + 날짜
-        safe_title = "".join(c if c.isalnum() or c in "-_가-힣" else "_" for c in title)[:50]
-        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_title}_{ts}.md"
-
-        md_content = _build_md(
-            title=title, source=source, body=body,
-            industry=industry, area=area, level=level,
-        )
-        target = _save_to_raw(filename, md_content)
-        st.success(f"✅ 저장: `{target.name}`")
-
-        with st.spinner("K1 인제스트 실행 중..."):
-            ok, log = _run_raw_intake()
-
-        if ok:
-            st.success("✅ 인제스트 완료. 🕸️ 그래프 탭에서 새 노드 확인 가능.")
-        else:
-            st.error(f"❌ 인제스트 실패\n```\n{log[:1000]}\n```")
-
-        with st.expander("실행 로그", expanded=False):
-            st.code(log[-3000:])
-
-    # ─── 하단 안내 ───────────────────────────────────────────────────
-    hub_section("다음 단계")
-    st.markdown("""
-- **(B) 위키 직접 편집** — `wiki/*.md` 인라인 에디터
-- **(D) 외부 에디터 watch** — VS Code에서 `wiki/`·`raw/` 편집 → 자동 인덱싱
-- **(E) K6 Curate** — 챗 로그 → wiki 자동 정제 (V2.6 후반)
-- **OpenWebUI plugin** — 응답에 *"IRIS 저장"* 버튼 직접 박기 (큰 작업)
-    """)
-    st.caption(
-        "💡 시맨틱 검색 갱신: 인제스트 후 터미널에서 "
-        "`cd ~/Documents/1Dev/iris-hub && make build-faiss`"
+    st.markdown(
+        """
+<div class="intake-note-box">
+  다음 단계 후보: wiki 인라인 편집, 외부 에디터 watch, K6 Curate, OpenWebUI 저장 버튼. 시맨틱 검색 갱신은 인제스트 후 <code>make build-faiss</code>로 실행합니다.
+</div>
+""",
+        unsafe_allow_html=True,
     )
