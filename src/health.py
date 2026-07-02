@@ -58,7 +58,7 @@ def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
     conn.execute("PRAGMA foreign_keys=OFF")  # 일부 정리 단계에서 임시 OFF
     try:
         # (1) 좀비 락 정리
-        from src import queue as q
+        from src.engine.curate import queue as q
         cleared = q.clear_stale_locks(stale_minutes=stale_minutes, db_path=db_path)
         rep.stale_locks = cleared
         if cleared:

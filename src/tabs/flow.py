@@ -268,7 +268,7 @@ def _arrow() -> str:
 
 # ─── ① 처리 상태 4 카드 ────────────────────────────────────────────────
 def _render_queue_row() -> None:
-    from src import queue as q
+    from src.engine.curate import queue as q
     snap = q.measure_queue(max_list=20)
 
     sub_waiting = "K2 미분석" if snap.waiting else "처리 대기 없음"
@@ -350,7 +350,7 @@ def _render_stage_progress() -> None:
 
 # ─── ② 처리 액션 (묶음 / 개별 / 선택) ──────────────────────────────────
 def _render_actions() -> None:
-    from src import queue as q
+    from src.engine.curate import queue as q
 
     hub_section("처리 액션")
 
