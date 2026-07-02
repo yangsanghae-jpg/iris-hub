@@ -4,7 +4,6 @@ import socket
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEPS_YAML = REPO_ROOT / "data" / "phase_deps.yaml"
 DIAGNOSIS_MIGRATION_YAML = REPO_ROOT / "data" / "diagnosis_migration.yaml"
 
 # ─── 머신 인식 (2026-07-02 정책) ─────────────────────────────────────────────
@@ -69,6 +68,33 @@ IRIS_WIKI_PATH = (
     else IRIS_SYSTEM_WIKI
 )
 IRIS_MIRROR_PATH = IRIS_KNOWLEDGE_MIRROR  # 볼트 내부(2-processed/mirror). ~/Documents 폴백 제거.
+
+# ─── iris-data 단일 데이터 루트 (S1 / HUB_REARCHITECTURE §2) ─────────────────
+# 재구축 저장소. STORE_SCHEMA_DESIGN §1·§5. repo 밖, git 아님.
+#   M5: /Users/iris/0Dev/iris-data · M2: /Users/iris/Documents/1Dev/iris-data
+# 대용량 바이너리(index.db, faiss)는 .nosync/ 실파일 + 심볼릭으로 iCloud 회피.
+#
+# 주의(S1 방침): 아래는 신규 store 계층(src/store)이 물는 독립 경로다.
+# 라이브 IRIS_DB_PATH 재지정 + IRIS_SYSTEM_* 폴백 제거는 소비자(엔진·탭) 이주와
+# 함께 S2/S3 에서 착지한다. S1 은 기반만 깔고 앱을 깨지 않는다.
+IRIS_DATA_ROOT   = Path(os.getenv("IRIS_DATA_ROOT") or MACHINE_BASE / "iris-data")
+
+# ④ 데이터볼트 (문서층)
+IRIS_VAULT         = IRIS_DATA_ROOT / "vault"
+IRIS_VAULT_NOSYNC  = IRIS_VAULT / ".nosync"          # iCloud 제외 실파일
+IRIS_VAULT_DB      = IRIS_VAULT / "index.db"         # 심볼릭 → .nosync/index.db
+IRIS_ORIGINALS     = IRIS_VAULT / "originals"        # 원본 보존 (copy-on-ingest)
+IRIS_EXTRACTED     = IRIS_VAULT / "extracted"        # 추출 md
+IRIS_FAISS_DIR     = IRIS_VAULT_NOSYNC / "faiss"     # 임베딩 인덱스 (사이드카)
+IRIS_ORIGINAL_CHANNELS = ("doc", "chat", "web")      # originals/ 하위 채널
+
+# ③ 지식저장소 (개념층) — 레거시 IRIS_KNOWLEDGE_ROOT(문서볼트)와 별개
+IRIS_KNOWLEDGE_STORE = IRIS_DATA_ROOT / "knowledge"
+IRIS_CONCEPTS_YAML   = IRIS_KNOWLEDGE_STORE / "concepts.yaml"
+IRIS_WIKI_STORE      = IRIS_KNOWLEDGE_STORE / "wiki"  # Gold md (Obsidian vault)
+
+# concepts.yaml 시드 정본 (repo 내 — init_vault 가 IRIS_CONCEPTS_YAML 로 배포)
+CONCEPTS_SEED_YAML   = REPO_ROOT / "data" / "concepts.seed.yaml"
 
 # 알다 격차 비교 기준 (V2.5.2 §6.1)
 ALDA_BASELINE = {

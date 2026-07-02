@@ -1,0 +1,73 @@
+# 개념 사전 시드 (S1) — STORE_SCHEMA_DESIGN §4.
+# init_vault.py 가 이 파일을 IRIS_CONCEPTS_YAML(iris-data/knowledge/concepts.yaml)로
+# 배포하고 concepts + concept_aliases(trust=verified) 로 로드한다.
+#
+# 이관이 아니라 개념 추출 — 표시명/별칭(ko·en·zh)으로 정규화 씨앗만 심는다.
+# 전체 확장(기존 위키 44노트 → 개념)은 S4(CONCEPT_LAYER)에서 수행. 여기는 출발점.
+#
+# 형식:
+#   concept_id: canonical snake_case (안정 키)
+#   canonical : 표시명
+#   definition: 1~2문장 정의 (선택)
+#   aliases   : [{alias, lang}] — lang ∈ ko|en|zh
+version: 1
+concepts:
+  - concept_id: mes
+    canonical: MES(생산실행시스템)
+    definition: 제조 현장의 작업 지시·실적·품질을 실시간으로 관리하는 실행 계층 시스템.
+    aliases:
+      - {alias: MES, lang: en}
+      - {alias: Manufacturing Execution System, lang: en}
+      - {alias: 생산실행시스템, lang: ko}
+      - {alias: 制造执行系统, lang: zh}
+
+  - concept_id: yield_rate
+    canonical: 수율
+    definition: 투입 대비 양품 산출 비율. 공정 품질·손실의 핵심 지표.
+    aliases:
+      - {alias: yield, lang: en}
+      - {alias: yield rate, lang: en}
+      - {alias: 수율, lang: ko}
+      - {alias: 良率, lang: zh}
+
+  - concept_id: oee
+    canonical: 설비종합효율(OEE)
+    definition: 가동률×성능×양품률로 설비 생산성을 종합 평가하는 지표.
+    aliases:
+      - {alias: OEE, lang: en}
+      - {alias: Overall Equipment Effectiveness, lang: en}
+      - {alias: 설비종합효율, lang: ko}
+      - {alias: 设备综合效率, lang: zh}
+
+  - concept_id: spc
+    canonical: 통계적공정관리(SPC)
+    definition: 관리도 등 통계 기법으로 공정 변동을 감시·관리하는 방법.
+    aliases:
+      - {alias: SPC, lang: en}
+      - {alias: Statistical Process Control, lang: en}
+      - {alias: 통계적공정관리, lang: ko}
+      - {alias: 统计过程控制, lang: zh}
+
+  - concept_id: rtd
+    canonical: 실시간 디스패칭(RTD)
+    definition: 실시간 상태에 따라 작업·설비 배정을 자동 결정하는 스케줄링 방식.
+    aliases:
+      - {alias: RTD, lang: en}
+      - {alias: Real-Time Dispatching, lang: en}
+      - {alias: 실시간 디스패칭, lang: ko}
+
+  - concept_id: smart_factory
+    canonical: 스마트팩토리
+    definition: 데이터·자동화·연결성으로 자율 최적화하는 지능형 제조 체계.
+    aliases:
+      - {alias: smart factory, lang: en}
+      - {alias: 스마트팩토리, lang: ko}
+      - {alias: 智能工厂, lang: zh}
+
+  - concept_id: digital_twin
+    canonical: 디지털 트윈
+    definition: 물리 자산·공정을 가상으로 동기 복제해 예측·시뮬레이션하는 모델.
+    aliases:
+      - {alias: digital twin, lang: en}
+      - {alias: 디지털 트윈, lang: ko}
+      - {alias: 数字孪生, lang: zh}
