@@ -15,11 +15,32 @@ V2.6.2.2 (2026-06-16): 🧠 memory 진입점 제거.
 """
 from __future__ import annotations
 
+import json
 import socket
+from pathlib import Path
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+_OPENCLAW_CONFIG = Path.home() / ".openclaw" / "openclaw.json"
+
+
+def _openclaw_token() -> str | None:
+    """gateway.auth.token 읽기 (~/.openclaw/openclaw.json). 실패 시 None.
+
+    V2.9 OpenClaw 연동 개선 — 토큰은 URL 프래그먼트(#token=)로만 전달한다.
+    (OpenClaw 공식 방식: 쿼리 파라미터가 아니라 프래그먼트 — 프래그먼트는
+    HTTP 요청에 실려 나가지 않아 서버 로그·Referer에 노출되지 않는다.
+    Control UI는 로드 후 sessionStorage로 옮기고 URL에서 즉시 제거한다.)
+    """
+    try:
+        cfg = json.loads(_OPENCLAW_CONFIG.read_text(encoding="utf-8"))
+        token = cfg.get("gateway", {}).get("auth", {}).get("token")
+        return token or None
+    except Exception:
+        return None
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -117,14 +138,25 @@ def render_openwebui() -> None:
 def render_openclaw() -> None:
     alive = _port_alive("127.0.0.1", 18789)
     if alive:
+        token = _openclaw_token()
+        base = "http://127.0.0.1:18789/chat?session=main"
+        # 127.0.0.1 한정 — 로컬 전용 서비스만 토큰을 URL에 싣는다.
+        url = f"{base}#token={quote(token)}" if token else base
         _iframe_or_help(
-            url="http://127.0.0.1:18789",
+            url=url,
             host="127.0.0.1", port=18789, name="L1-chat-claw (OpenClaw)",
         )
-        st.caption(
-            "💡 OpenClaw는 자체 gateway 토큰 인증 필요 — "
-            "처음 접속 시 `~/.openclaw` 에서 토큰 확인 후 Control UI에서 입력."
-        )
+        if token:
+            st.caption(
+                "🔑 gateway 토큰 자동 포함 링크 — 붙여넣기 불필요 "
+                "(URL 프래그먼트 `#token=`로 전달, 서버 로그에 남지 않음). "
+                "`session=main` 고정으로 항상 같은 대화로 이어짐."
+            )
+        else:
+            st.caption(
+                "⚠️ `~/.openclaw/openclaw.json`에서 gateway 토큰을 읽지 못함 — "
+                "Control UI에서 수동 입력 필요."
+            )
     else:
         st.warning("🟡 **L1-chat-claw (OpenClaw)** — 워크스페이스만 존재 (V2.5.1 §11 #10 stack 미연결)")
         st.markdown(
