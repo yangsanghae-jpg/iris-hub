@@ -20,12 +20,12 @@ from __future__ import annotations
 import datetime as dt
 import re
 import sqlite3
-import sys
 from pathlib import Path
 
 import streamlit as st
 
 from src.config import IRIS_DB_PATH, IRIS_KNOWLEDGE_EXTERNAL
+from src.ui_kit import hub_kpi_grid, hub_pagebar
 
 # V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM·sys.path hack 제거.
 EXTERNAL_DIR = IRIS_KNOWLEDGE_EXTERNAL
@@ -44,6 +44,268 @@ SOURCES = [
     "meeting-memo",
     "other",
 ]
+
+
+_CSS = """
+<style>
+.external-capture-grid {
+  display:grid;
+  grid-template-columns:minmax(0, 1.28fr) minmax(300px, 0.72fr);
+  gap:14px;
+  align-items:start;
+  margin-top:12px;
+}
+.external-panel {
+  border:1px solid rgba(47,128,196,0.16);
+  border-radius:14px;
+  background:linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+  overflow:hidden;
+  margin-bottom:14px;
+}
+.external-panel-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid rgba(47,128,196,0.10);
+  background:rgba(47,128,196,0.035);
+}
+.external-panel-title {
+  color:#172033;
+  font-size:0.9rem;
+  font-weight:850;
+}
+.external-panel-subtitle {
+  margin-top:3px;
+  color:#667085;
+  font-size:0.76rem;
+  line-height:1.4;
+}
+.external-panel-body {
+  padding:14px;
+}
+.external-pill {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(47,128,196,0.10);
+  color:#2f80c4;
+  font-size:0.7rem;
+  line-height:1;
+  font-weight:850;
+  white-space:nowrap;
+}
+.external-path-box,
+.external-note-box {
+  padding:10px 12px;
+  border:1px solid rgba(47,128,196,0.14);
+  border-radius:11px;
+  background:rgba(47,128,196,0.045);
+  color:#475467;
+  font-size:0.8rem;
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+.external-recent-row {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid rgba(47,128,196,0.12);
+  border-radius:11px;
+  background:linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  margin-bottom:8px;
+}
+.external-recent-title {
+  color:#172033;
+  font-size:0.84rem;
+  font-weight:800;
+}
+.external-recent-meta {
+  color:#667085;
+  font-size:0.74rem;
+  margin-top:3px;
+}
+.hub-pagebar {
+  min-height:82px;
+  overflow:visible !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  padding-top:16px !important;
+  padding-bottom:16px !important;
+  border-color:rgba(47,128,196,0.18) !important;
+  background:linear-gradient(135deg, #ffffff 0%, #f7fbff 100%) !important;
+  box-shadow:0 10px 28px rgba(16,24,40,0.055);
+}
+.hub-pagebar-title {
+  font-size:1.32rem !important;
+  line-height:1.28 !important;
+  color:#101828 !important;
+}
+.hub-pagebar-desc {
+  line-height:1.5 !important;
+  overflow:visible !important;
+}
+.hub-pagebar-title-row {
+  align-items:center !important;
+  min-height:28px;
+}
+.hub-kpi-card,
+div[data-testid="stMetric"] {
+  border-color:rgba(47,128,196,0.16) !important;
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%) !important;
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+}
+@media (max-width: 980px) {
+  .external-capture-grid,
+  .hub-kpi-grid {
+    grid-template-columns:1fr !important;
+  }
+}
+</style>
+"""
+
+
+def _format_count(value: int) -> str:
+    return f"{value:,}"
+
+
+def _render_panel_header(title: str, subtitle: str, pill: str | None = None) -> None:
+    pill_html = f"<span class='external-pill'>{pill}</span>" if pill else ""
+    st.markdown(
+        f"""
+<div class="external-panel-head">
+  <div>
+    <div class="external-panel-title">{title}</div>
+    <div class="external-panel-subtitle">{subtitle}</div>
+  </div>
+  {pill_html}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_last_saved_panel() -> None:
+    _render_panel_header(
+        "저장 결과",
+        "직전 저장 이벤트의 K2 분석과 인제스트 상태를 즉시 확인합니다.",
+    )
+    if "ext_last_saved" not in st.session_state:
+        st.markdown(
+            "<div class='external-panel-body'><div class='external-note-box'>아직 이 세션에서 저장한 이벤트가 없습니다. 저장 후 K2 분석 결과가 여기에 표시됩니다.</div></div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    last = st.session_state["ext_last_saved"]
+    with st.container():
+        st.success(
+            f"저장 완료 — `{last['filename']}` · {last['source']} · {last['size']:,} bytes"
+        )
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        metric_col1.metric("industry", last.get("industry") or "—")
+        metric_col2.metric("area", last.get("area") or "—")
+        metric_col3.metric("level", last.get("level") or "—")
+        metric_col4.metric("chunks", last.get("ingest_chunks", 0))
+
+        if last.get("summary"):
+            st.caption(f"요약: {last['summary']}")
+
+        tag_lines = []
+        for label, values in [
+            ("주제", last.get("topics", [])),
+            ("고유명사", last.get("entities", [])),
+            ("개념", last.get("concepts", [])),
+        ]:
+            if values:
+                tag_lines.append(f"**{label}:** " + " · ".join(f"`{value}`" for value in values))
+        for tag_line in tag_lines:
+            st.caption(tag_line)
+
+        version = last.get("k2_version", "")
+        fallback_label = "fallback" if last.get("k2_fallback", False) else "LLM"
+        st.caption(f"K2: {version} · {fallback_label} · {last.get('k2_ms', 0)} ms")
+
+        if last.get("ingest_ok"):
+            st.caption("documents/chunks/FTS + document_meta 반영 완료")
+        else:
+            st.warning(f"인제스트 실패(raw .md는 보존됨): {last.get('ingest_error') or '알 수 없음'}")
+
+
+def _render_storage_panel() -> None:
+    _render_panel_header(
+        "저장 위치",
+        "외부 응답은 source별 폴더에 원문 markdown으로 보존됩니다.",
+    )
+    st.markdown(
+        f"<div class='external-panel-body'><div class='external-path-box'>{EXTERNAL_DIR}</div></div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("폴더 열기", key="ext_open_folder", use_container_width=True):
+        import subprocess
+        subprocess.Popen(["open", str(EXTERNAL_DIR)])
+
+
+def _render_recent_events() -> None:
+    _render_panel_header(
+        "최근 박힌 이벤트",
+        "최근 저장된 외부 응답을 펼쳐서 미리보기와 원본으로 확인합니다.",
+    )
+    recent = _list_recent(n=10)
+    if not recent:
+        st.markdown(
+            "<div class='external-panel-body'><div class='external-note-box'>아직 박힌 이벤트가 없습니다.</div></div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    st.caption(f"총 {len(recent)}건 (최근순)")
+    for idx, item in enumerate(recent):
+        st.markdown(
+            f"""
+<div class="external-recent-row">
+  <div>
+    <div class="external-recent-title">{item['title']}</div>
+    <div class="external-recent-meta">{item['mtime'].strftime('%Y-%m-%d %H:%M')} · {item['size']:,} bytes</div>
+  </div>
+  <span class="external-pill">{item['source']}</span>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        with st.expander("미리보기 / 원본", expanded=False):
+            try:
+                full_text = item["path"].read_text(encoding="utf-8")
+                meta_block, body_block = "", full_text
+                if full_text.startswith("---\n"):
+                    parts = full_text[4:].split("\n---\n", 1)
+                    if len(parts) == 2:
+                        meta_block, body_block = parts[0], parts[1]
+
+                if meta_block:
+                    with st.expander("메타 frontmatter", expanded=False):
+                        st.code(meta_block, language="yaml")
+
+                tab_render, tab_raw = st.tabs(["미리보기", "원본"])
+                with tab_render:
+                    st.markdown(body_block.strip())
+                with tab_raw:
+                    st.code(body_block.strip(), language="markdown")
+
+                action_col, path_col = st.columns([1, 4])
+                with action_col:
+                    if st.button("폴더에서 열기", key=f"ext_open_{idx}", use_container_width=True):
+                        import subprocess
+                        subprocess.Popen(["open", "-R", str(item["path"])])
+                with path_col:
+                    st.caption(f"경로: `{item['path']}`")
+            except Exception as error:
+                st.caption(f"읽기 실패: {error}")
 
 
 # ─── 유틸 ────────────────────────────────────────────────────────────────────
@@ -201,91 +463,22 @@ def _bump_form() -> None:
     st.session_state["ext_reset_counter"] = st.session_state.get("ext_reset_counter", 0) + 1
 
 
-def render() -> None:
-    st.markdown("## 🌐 외부응답")
-    st.caption(
-        "GPT, Gemini, Claude 등 외부 LLM 응답을 *보이는 그대로* 박는 자리. "
-        "본문 변형 없이 보존. 분류·정제는 사후."
+def _render_capture_form() -> None:
+    _render_panel_header(
+        "새 이벤트 박기",
+        "이벤트명, 출처, 원본 질의, 답변 본문을 한 화면에서 입력합니다.",
+        "Primary",
     )
 
-    if not EXTERNAL_DIR.exists():
-        try:
-            EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            st.error(f"저장 자리 생성 실패: {e}")
-            return
-
-    # 저장 자리 안내 + 폴더 열기
-    c_path1, c_path2 = st.columns([4, 1])
-    with c_path1:
-        st.caption(f"📂 저장 위치: `{EXTERNAL_DIR}`")
-    with c_path2:
-        if st.button("📁 폴더 열기", key="ext_open_folder", use_container_width=True):
-            import subprocess
-            subprocess.Popen(["open", str(EXTERNAL_DIR)])
-
-    # 직전 저장 결과 (rerun 후에도 유지)
-    if "ext_last_saved" in st.session_state:
-        last = st.session_state["ext_last_saved"]
-        st.success(
-            f"✅ **저장 완료** — `{last['filename']}`  ·  "
-            f"{last['source']}  ·  {last['size']:,} bytes"
-        )
-
-        # K2 분석 + 인덱싱 결과
-        ver = last.get("k2_version", "")
-        is_fallback = last.get("k2_fallback", False)
-        badge = " 🟡 fallback" if is_fallback else " 🟢 LLM"
-
-        with st.expander(f"🔖 K2 분석 + 인덱싱 — {ver}{badge}", expanded=True):
-            cc1, cc2, cc3, cc4 = st.columns(4)
-            cc1.metric("industry", last.get("industry") or "—")
-            cc2.metric("area", last.get("area") or "—")
-            cc3.metric("level", last.get("level") or "—")
-            cc4.metric("chunks", last.get("ingest_chunks", 0))
-
-            if last.get("summary"):
-                st.caption(f"**요약:** {last['summary']}")
-
-            topics = last.get("topics", [])
-            entities = last.get("entities", [])
-            concepts = last.get("concepts", [])
-            if topics:
-                st.caption("**주제:** " + " · ".join(f"`{t}`" for t in topics))
-            if entities:
-                st.caption("**고유명사:** " + " · ".join(f"`{e}`" for e in entities))
-            if concepts:
-                st.caption("**개념:** " + " · ".join(f"`{c}`" for c in concepts))
-
-            reason = last.get("k2_reason", "")
-            if reason:
-                st.caption(f"💭 {reason}")
-
-            ms = last.get("k2_ms", 0)
-            st.caption(f"⏱ K2 소요: {ms} ms")
-
-            if last.get("ingest_ok"):
-                st.caption(
-                    "🟢 documents/chunks/FTS + document_meta 박힘 — "
-                    "그래프·인사이트 탭에서 보임"
-                )
-            else:
-                err = last.get("ingest_error") or "알 수 없음"
-                st.warning(f"⚠️ 인제스트 실패 (raw .md는 보존됨): {err}")
-
-    # ─── 새 이벤트 박기 ───────────────────────────────────────────────────
-    st.divider()
-    st.markdown("### 📥 새 이벤트 박기")
-
     keys = _form_keys()
-    c1, c2 = st.columns([3, 1])
-    with c1:
+    title_col, source_col = st.columns([3, 1])
+    with title_col:
         title = st.text_input(
             "이벤트명 *",
             placeholder="예: MES 핵심 개념 정리 v3",
             key=keys["title"],
         )
-    with c2:
+    with source_col:
         source = st.selectbox("출처", SOURCES, index=0, key=keys["source"])
 
     prompt = st.text_input(
@@ -296,20 +489,24 @@ def render() -> None:
 
     body = st.text_area(
         "답변 본문 * (markdown 그대로 붙여넣기)",
-        height=600,
+        height=520,
         placeholder="여기에 GPT/Gemini/Claude 답변을 그대로 붙여넣기...",
         key=keys["body"],
     )
 
+    st.markdown(
+        "<div class='external-note-box'>저장 시 raw markdown 생성 → K2 분석 → documents/chunks/FTS 반영 순서로 처리됩니다.</div>",
+        unsafe_allow_html=True,
+    )
+
     if st.button(
-        "💾 저장",
+        "저장 실행",
         type="primary",
         disabled=not (title and body),
         use_container_width=True,
         key="ext_save_btn",
     ):
         try:
-            # 1. raw .md 박기
             target = _save_event(
                 title=title.strip(),
                 source=source,
@@ -317,15 +514,13 @@ def render() -> None:
                 prompt=prompt.strip() if prompt else None,
             )
 
-            # 2. K2 분석 (deep 슬롯, 실패 시 규칙 fallback)
             k2_result = None
             from src.config import IRIS_LLM_DEEP
-            with st.spinner(f"🔍 K2 분석 중 ({IRIS_LLM_DEEP} — 5~60초 예상)..."):
+            with st.spinner(f"K2 분석 중 ({IRIS_LLM_DEEP} — 5~60초 예상)..."):
                 try:
                     from src import k2
                     k2_result = k2.analyze(title.strip(), body, timeout=60.0)
                 except Exception as e:
-                    # K2 자체 실패 — 규칙 fallback도 안 되는 경우
                     from src.classify import suggest_classification
                     rule = suggest_classification(title.strip(), body)
                     from src.k2 import K2Result
@@ -342,7 +537,6 @@ def render() -> None:
                         error=str(e),
                     )
 
-            # 3. raw_intake 헬퍼로 1건 인제스트 (K2 결과로 documents 박힘)
             ing = _ingest_one(
                 target,
                 industry=k2_result.industry,
@@ -350,7 +544,6 @@ def render() -> None:
                 level=k2_result.level,
             )
 
-            # 4. document_meta 박기 (인제스트 성공한 경우만)
             if ing.get("ok") and ing.get("doc_id"):
                 try:
                     from src import document_meta
@@ -368,10 +561,8 @@ def render() -> None:
                         fallback_used=k2_result.fallback_used,
                     )
                 except Exception as e:
-                    # document_meta 실패는 raw·documents 박기와 무관 — graceful
-                    st.warning(f"⚠️ document_meta 저장 실패: {e}")
+                    st.warning(f"document_meta 저장 실패: {e}")
 
-            # 5. 저장 결과를 session_state에 박기
             st.session_state["ext_last_saved"] = {
                 "filename": target.name,
                 "source": source,
@@ -392,59 +583,48 @@ def render() -> None:
                 "ingest_chunks": ing.get("chunks", 0),
                 "ingest_error": ing.get("error"),
             }
-            # 입력 필드 비움 + 화면 갱신
             _bump_form()
-            st.toast(f"✅ {target.name} 저장됨", icon="💾")
+            st.toast(f"{target.name} 저장됨")
             st.rerun()
         except Exception as e:
-            st.error(f"❌ 저장 실패: {e}")
+            st.error(f"저장 실패: {e}")
 
-    # ─── 최근 이벤트 ──────────────────────────────────────────────────────
-    st.divider()
-    st.markdown("### 📁 최근 박힌 이벤트")
+
+def render() -> None:
+    st.markdown(_CSS, unsafe_allow_html=True)
+    hub_pagebar(
+        "외부응답",
+        "External Capture",
+        "원문 보존을 우선하고, 분류·요약·인덱싱은 저장 후 자동 실행합니다.",
+        "Capture Ready",
+    )
+
+    if not EXTERNAL_DIR.exists():
+        try:
+            EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            st.error(f"저장 자리 생성 실패: {e}")
+            return
 
     recent = _list_recent(n=10)
-    if not recent:
-        st.caption("아직 박힌 이벤트가 없음.")
-        return
+    hub_kpi_grid([
+        ("Storage", "raw", "_external"),
+        ("Sources", _format_count(len(SOURCES)), "providers"),
+        ("K2", "auto", "after save"),
+        ("Recent", _format_count(len(recent)), "events"),
+    ])
 
-    st.caption(f"총 {len(recent)}건 (최근순). 펼치면 마크다운 렌더링으로 보여요.")
-    for idx, item in enumerate(recent):
-        with st.expander(
-            f"**{item['title']}**  ·  *{item['source']}*  ·  "
-            f"{item['mtime'].strftime('%Y-%m-%d %H:%M')}  ·  "
-            f"{item['size']:,} bytes",
-            expanded=False,
-        ):
-            try:
-                full_text = item["path"].read_text(encoding="utf-8")
-                # frontmatter 분리 (앞쪽 --- ... --- 블록)
-                meta_block, body_block = "", full_text
-                if full_text.startswith("---\n"):
-                    parts = full_text[4:].split("\n---\n", 1)
-                    if len(parts) == 2:
-                        meta_block, body_block = parts[0], parts[1]
+    left_column, right_column = st.columns([1.28, 0.72], gap="medium")
+    with left_column:
+        with st.container(border=True):
+            _render_capture_form()
 
-                # 메타 정보 (compact)
-                if meta_block:
-                    with st.expander("🔖 메타 (frontmatter)", expanded=False):
-                        st.code(meta_block, language="yaml")
+    with right_column:
+        with st.container(border=True):
+            _render_last_saved_panel()
 
-                # 본문 — 두 모드: 미리보기(렌더링) / 원본(raw)
-                tab_render, tab_raw = st.tabs(["✨ 미리보기", "📝 원본"])
-                with tab_render:
-                    st.markdown(body_block.strip())
-                with tab_raw:
-                    st.code(body_block.strip(), language="markdown")
+        with st.container(border=True):
+            _render_storage_panel()
 
-                # 액션
-                ca1, ca2 = st.columns([1, 4])
-                with ca1:
-                    if st.button("📁 폴더에서 열기", key=f"ext_open_{idx}",
-                                 use_container_width=True):
-                        import subprocess
-                        subprocess.Popen(["open", "-R", str(item["path"])])
-                with ca2:
-                    st.caption(f"경로: `{item['path']}`")
-            except Exception as e:
-                st.caption(f"읽기 실패: {e}")
+    with st.container(border=True):
+        _render_recent_events()

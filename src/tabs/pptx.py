@@ -22,6 +22,178 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.ui_kit import hub_pagebar, hub_section
+
+
+_PPTX_CSS = """
+<style>
+.flow-row {
+  display:grid;
+  gap:8px;
+  align-items:stretch;
+  margin:12px 0 10px 0;
+}
+.flow-row.pipeline {
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr);
+}
+.flow-row.engine {
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr);
+}
+.flow-card {
+  position:relative;
+  min-height:118px;
+  border:1px solid rgba(47,128,196,0.18);
+  border-radius:14px;
+  padding:14px 15px 13px 15px;
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:8px;
+  min-width:0;
+  overflow:hidden;
+}
+.flow-card::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:3px;
+  background:linear-gradient(90deg, #2f80c4, rgba(47,128,196,0.35));
+}
+.flow-card.active {
+  border-color:rgba(47,128,196,0.40);
+  background:linear-gradient(180deg, #f7fbff 0%, #eef7ff 100%);
+  box-shadow:0 10px 26px rgba(47,128,196,0.10);
+}
+.flow-card.empty {
+  border-color:rgba(152,162,179,0.22);
+  background:linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+.flow-card.empty::before { background:linear-gradient(90deg, #98a2b3, rgba(152,162,179,0.18)); }
+.flow-card h4 {
+  margin:0;
+  font-size:0.88rem;
+  line-height:1.25;
+  font-weight:780;
+  color:#172033;
+  letter-spacing:-0.01em;
+}
+.flow-card .stage-id {
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  padding:3px 7px;
+  border-radius:999px;
+  background:rgba(47,128,196,0.08);
+  color:#2f80c4;
+  font-size:0.66rem;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+}
+.flow-card.empty .stage-id { background:rgba(152,162,179,0.10); color:#667085; }
+.flow-card .big {
+  font-size:1.95rem;
+  font-weight:850;
+  line-height:1;
+  color:#101828;
+  letter-spacing:-0.045em;
+}
+.flow-card .unit {
+  font-size:0.78rem;
+  color:#667085;
+  margin-left:5px;
+  font-weight:750;
+  letter-spacing:-0.01em;
+}
+.flow-card .sub {
+  font-size:0.74rem;
+  line-height:1.45;
+  color:#667085;
+}
+.flow-arrow {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.25rem;
+  color:#98a2b3;
+  min-width:0;
+}
+.flow-console-note {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:6px 0 12px 0;
+  padding:9px 11px;
+  border:1px solid rgba(47,128,196,0.14);
+  border-radius:11px;
+  background:rgba(47,128,196,0.045);
+  color:#475467;
+  font-size:0.78rem;
+  line-height:1.45;
+}
+.flow-console-note strong { color:#172033; font-weight:800; }
+.hub-pagebar {
+  min-height:82px;
+  overflow:visible !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  padding-top:16px !important;
+  padding-bottom:16px !important;
+  border-color:rgba(47,128,196,0.18) !important;
+  background:linear-gradient(135deg, #ffffff 0%, #f7fbff 100%) !important;
+  box-shadow:0 10px 28px rgba(16,24,40,0.055);
+}
+.hub-pagebar-title {
+  font-size:1.32rem !important;
+  line-height:1.28 !important;
+  color:#101828 !important;
+}
+.hub-pagebar-desc {
+  line-height:1.5 !important;
+  overflow:visible !important;
+  white-space:normal !important;
+}
+.hub-pagebar-title-row {
+  align-items:center !important;
+  min-height:28px;
+}
+.hub-pill {
+  border:1px solid rgba(18,183,106,0.18);
+  box-shadow:0 4px 10px rgba(18,183,106,0.08);
+}
+div[data-testid="stButton"] > button {
+  min-height:36px;
+  border-radius:10px;
+  border-color:rgba(47,128,196,0.20);
+  box-shadow:0 3px 10px rgba(16,24,40,0.035);
+  font-weight:760;
+}
+div[data-testid="stButton"] > button:hover {
+  border-color:rgba(47,128,196,0.48);
+  background:rgba(47,128,196,0.045);
+}
+div[data-testid="stMetric"] {
+  padding:8px 10px;
+  border:1px solid rgba(47,128,196,0.12);
+  border-radius:12px;
+  background:#fff;
+}
+@media (max-width: 980px) {
+  .flow-row,
+  .flow-row.pipeline,
+  .flow-row.engine {
+    grid-template-columns:1fr;
+  }
+  .flow-arrow { display:none; }
+}
+</style>
+"""
+
 
 _SAMPLE_MD = """# IRIS 주간 보고
 ## 2026-06-20
@@ -155,14 +327,90 @@ def _sync_deck_meta_from_source(*, source_key: str, doc_title: str | None) -> No
         st.session_state["pptx_deck_subtitle"] = doc_title
 
 
-def render() -> None:
-    st.markdown("### 📊 PPT 생성 — V2.7.6.3")
-    st.caption(
-        "마크다운 → PPT 통합 탭. 엔진 2종 (📄 Marp / 🎨 디자인) + LLM 모델 선택. "
-        "입력 4 방식 — *직접 입력 / 파일 업로드 / archive / docs*. "
-        "(🎨 디자인 PPT 탭은 V2.7.6.3에서 본 탭에 통합됨)"
+def _source_mode_summary(source_mode: str) -> tuple[str, str, str]:
+    if source_mode.startswith("✍️"):
+        return "직접", "textarea", "직접 작성"
+    if source_mode.startswith("📂"):
+        return "파일", "upload", ".md 업로드"
+    if source_mode.startswith("📦"):
+        return "Archive", "content", "content.md"
+    if source_mode.startswith("📄"):
+        return "Docs", "system", "docs/system"
+    return "선택", "source", "소스 선택"
+
+
+def _engine_summary(engine: str) -> tuple[str, str, str]:
+    if engine.startswith("🎨"):
+        return "Design", "HTML", "LLM 설계"
+    return "Marp", "Fast", "단순·빠름"
+
+
+def _current_markdown_length(source_mode: str) -> int:
+    if source_mode.startswith("✍️"):
+        return len(st.session_state.get("pptx_md", _SAMPLE_MD))
+    return 0
+
+
+def _card(*, stage_id: str, title: str, big: str, unit: str = "", sub: str = "", active: bool = False, empty: bool = False) -> str:
+    card_class = "flow-card"
+    if active:
+        card_class += " active"
+    elif empty:
+        card_class += " empty"
+    big_html = f"<div class='big'>{big}<span class='unit'>{unit}</span></div>" if unit else f"<div class='big'>{big}</div>"
+    sub_html = f"<div class='sub'>{sub}</div>" if sub else ""
+    return (
+        f"<div class='{card_class}'>"
+        f"<div class='stage-id'>{stage_id}</div>"
+        f"<h4>{title}</h4>"
+        f"{big_html}{sub_html}"
+        f"</div>"
     )
 
+
+def _arrow() -> str:
+    return "<div class='flow-arrow'>→</div>"
+
+
+def _render_deck_flow(source_mode: str, engine: str) -> None:
+    source_big, source_unit, source_sub = _source_mode_summary(source_mode)
+    engine_big, engine_unit, engine_sub = _engine_summary(engine)
+    markdown_length = _current_markdown_length(source_mode)
+    markdown_big = f"{markdown_length:,}" if markdown_length else "0"
+    export_big = "PDF" if engine.startswith("🎨") else "PPTX"
+    cards = [
+        _card(stage_id="① 소스", title="입력 선택", big=source_big, unit=source_unit, sub=source_sub, active=True),
+        _arrow(),
+        _card(stage_id="② 원문", title="마크다운", big=markdown_big, unit="chars", sub="슬라이드 원본", empty=(markdown_length == 0)),
+        _arrow(),
+        _card(stage_id="③ 엔진", title="변환 방식", big=engine_big, unit=engine_unit, sub=engine_sub),
+        _arrow(),
+        _card(stage_id="④ 산출", title="다운로드", big=export_big, sub="exports 저장 선택"),
+    ]
+    st.markdown("<div class='flow-row pipeline'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
+
+
+def _render_source_caption(source_label: str, md_text: str) -> None:
+    if source_label:
+        source_text = f"소스: <strong>{source_label}</strong> · 본문 <strong>{len(md_text):,}</strong> chars"
+    else:
+        source_text = "소스 미선택 · 마크다운을 입력하거나 파일/archive/docs 자료를 선택하세요."
+    st.markdown(f"<div class='flow-console-note'>{source_text}</div>", unsafe_allow_html=True)
+
+
+def render() -> None:
+    st.markdown(_PPTX_CSS, unsafe_allow_html=True)
+    hub_pagebar(
+        "PPT",
+        "Deck Console",
+        "마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.",
+        "Export Ready",
+    )
+    current_source_mode = st.session_state.get("pptx_source_mode", "✍️ 직접 입력 (textarea)")
+    current_engine = st.session_state.get("pptx_engine", "📄 Marp (단순·빠름)")
+    _render_deck_flow(current_source_mode, current_engine)
+
+    hub_section("소스 선택")
     # ─── 입력 방식 선택 ──────────────────────────────────────────
     source_mode = st.radio(
         "마크다운 소스",
@@ -273,7 +521,8 @@ def render() -> None:
                 except Exception as e:
                     st.error(f"❌ 파일 읽기 실패: {e}")
 
-    st.divider()
+    hub_section("변환 설정")
+    _render_source_caption(source_label, md_text)
 
     # ─── 엔진 선택 (V2.7.6.3) ───────────────────────────────────
     engine = st.radio(
