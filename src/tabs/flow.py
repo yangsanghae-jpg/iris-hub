@@ -28,37 +28,208 @@ from src.config import (
     IRIS_KNOWLEDGE_WIKI,
 )
 from src.flow import FlowSnapshot, measure_flow
+from src.ui_kit import hub_pagebar, hub_section
 
 
 _CSS = """
 <style>
-.flow-row { display:flex; gap:8px; align-items:stretch; margin:18px 0 8px 0; }
-.flow-card {
-  flex:1; border:1px solid rgba(120,120,120,0.25); border-radius:8px;
-  padding:12px 14px; background:rgba(120,120,120,0.04);
-  display:flex; flex-direction:column; gap:6px; min-width:0;
+.flow-row {
+  display:grid;
+  gap:8px;
+  align-items:stretch;
+  margin:12px 0 10px 0;
 }
-.flow-card.alert { border-color:#f08585; background:rgba(240,133,133,0.08); }
-.flow-card.empty { opacity:0.55; }
-.flow-card.active { border-color:#5fa8ff; background:rgba(95,168,255,0.10); }
-.flow-card h4 { margin:0; font-size:0.95em; font-weight:600; }
-.flow-card .stage-id { font-size:0.7em; color:#888; letter-spacing:0.5px; }
-.flow-card .big { font-size:1.8em; font-weight:700; line-height:1.1; }
-.flow-card .unit { font-size:0.8em; color:#888; margin-left:4px; }
-.flow-card .sub { font-size:0.78em; color:#999; }
-.flow-card .sub b { color:#bbb; }
+.flow-row.queue {
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
+}
+.flow-row.pipeline {
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr);
+}
+.flow-card {
+  position:relative;
+  min-height:118px;
+  border:1px solid rgba(47,128,196,0.18);
+  border-radius:14px;
+  padding:14px 15px 13px 15px;
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:8px;
+  min-width:0;
+  overflow:hidden;
+}
+.flow-card::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:3px;
+  background:linear-gradient(90deg, #2f80c4, rgba(47,128,196,0.35));
+}
+.flow-card.alert {
+  border-color:rgba(240,68,56,0.34);
+  background:linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
+}
+.flow-card.alert::before { background:linear-gradient(90deg, #f04438, rgba(240,68,56,0.35)); }
+.flow-card.empty {
+  border-color:rgba(152,162,179,0.22);
+  background:linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+.flow-card.empty::before { background:linear-gradient(90deg, #98a2b3, rgba(152,162,179,0.18)); }
+.flow-card.active {
+  border-color:rgba(47,128,196,0.40);
+  background:linear-gradient(180deg, #f7fbff 0%, #eef7ff 100%);
+  box-shadow:0 10px 26px rgba(47,128,196,0.10);
+}
+.flow-card h4 {
+  margin:0;
+  font-size:0.88rem;
+  line-height:1.25;
+  font-weight:780;
+  color:#172033;
+  letter-spacing:-0.01em;
+}
+.flow-card .stage-id {
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  padding:3px 7px;
+  border-radius:999px;
+  background:rgba(47,128,196,0.08);
+  color:#2f80c4;
+  font-size:0.66rem;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+}
+.flow-card.empty .stage-id { background:rgba(152,162,179,0.10); color:#667085; }
+.flow-card.alert .stage-id { background:rgba(240,68,56,0.10); color:#d92d20; }
+.flow-card .big {
+  font-size:1.95rem;
+  font-weight:850;
+  line-height:1;
+  color:#101828;
+  letter-spacing:-0.045em;
+}
+.flow-card .unit {
+  font-size:0.78rem;
+  color:#667085;
+  margin-left:5px;
+  font-weight:750;
+  letter-spacing:-0.01em;
+}
+.flow-card .sub {
+  font-size:0.74rem;
+  line-height:1.45;
+  color:#667085;
+}
+.flow-card .sub b { color:#344054; font-weight:800; }
 .flow-arrow {
-  display:flex; align-items:center; justify-content:center;
-  font-size:1.5em; color:#aaa; min-width:24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.25rem;
+  color:#98a2b3;
+  min-width:0;
 }
 .flow-gap {
-  margin-top:14px; padding:10px 12px;
-  border-left:3px solid #5fa8ff; background:rgba(95,168,255,0.06);
-  border-radius:4px; font-size:0.85em;
+  margin-top:10px;
+  padding:11px 13px;
+  border:1px solid rgba(47,128,196,0.16);
+  border-left:4px solid #2f80c4;
+  background:linear-gradient(90deg, rgba(47,128,196,0.08), rgba(47,128,196,0.025));
+  border-radius:10px;
+  font-size:0.82rem;
+  color:#344054;
 }
-.flow-gap.warn { border-left-color:#ffb86b; background:rgba(255,184,107,0.08); }
-.flow-gap.alert { border-left-color:#f08585; background:rgba(240,133,133,0.08); }
-.flow-gap code { font-size:0.92em; }
+.flow-gap.warn {
+  border-color:rgba(247,144,9,0.24);
+  border-left-color:#f79009;
+  background:linear-gradient(90deg, rgba(247,144,9,0.10), rgba(247,144,9,0.025));
+}
+.flow-gap.alert {
+  border-color:rgba(240,68,56,0.24);
+  border-left-color:#f04438;
+  background:linear-gradient(90deg, rgba(240,68,56,0.10), rgba(240,68,56,0.025));
+}
+.flow-gap code { font-size:0.86rem; }
+.flow-console-note {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:6px 0 12px 0;
+  padding:9px 11px;
+  border:1px solid rgba(47,128,196,0.14);
+  border-radius:11px;
+  background:rgba(47,128,196,0.045);
+  color:#475467;
+  font-size:0.78rem;
+}
+.flow-console-note strong { color:#172033; font-weight:800; }
+.flow-stage-title {
+  margin:10px 0 6px 0;
+  font-size:0.78rem;
+  font-weight:850;
+  color:#2f80c4;
+  letter-spacing:0.02em;
+}
+.hub-pagebar {
+  min-height:82px;
+  overflow:visible !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  padding-top:16px !important;
+  padding-bottom:16px !important;
+  border-color:rgba(47,128,196,0.18) !important;
+  background:linear-gradient(135deg, #ffffff 0%, #f7fbff 100%) !important;
+  box-shadow:0 10px 28px rgba(16,24,40,0.055);
+}
+.hub-pagebar-title {
+  font-size:1.32rem !important;
+  line-height:1.28 !important;
+  color:#101828 !important;
+}
+.hub-pagebar-desc {
+  line-height:1.5 !important;
+  overflow:visible !important;
+}
+.hub-pagebar-title-row {
+  align-items:center !important;
+  min-height:28px;
+}
+.hub-pill {
+  border:1px solid rgba(18,183,106,0.18);
+  box-shadow:0 4px 10px rgba(18,183,106,0.08);
+}
+div[data-testid="stButton"] > button {
+  min-height:36px;
+  border-radius:10px;
+  border-color:rgba(47,128,196,0.20);
+  box-shadow:0 3px 10px rgba(16,24,40,0.035);
+  font-weight:760;
+}
+div[data-testid="stButton"] > button:hover {
+  border-color:rgba(47,128,196,0.48);
+  background:rgba(47,128,196,0.045);
+}
+div[data-testid="stMetric"] {
+  padding:8px 10px;
+  border:1px solid rgba(47,128,196,0.12);
+  border-radius:12px;
+  background:#fff;
+}
+@media (max-width: 980px) {
+  .flow-row,
+  .flow-row.queue,
+  .flow-row.pipeline {
+    grid-template-columns:1fr;
+  }
+  .flow-arrow { display:none; }
+}
 </style>
 """
 
@@ -118,7 +289,7 @@ def _render_queue_row() -> None:
         _card(stage_id="④ 영구보존", title="📦 archive", big=_fmt(snap.archived),
               unit="건", sub=sub_arch, empty=(snap.archived == 0)),
     ]
-    st.markdown("<div class='flow-row'>" + "".join(cards) + "</div>",
+    st.markdown("<div class='flow-row queue'>" + "".join(cards) + "</div>",
                 unsafe_allow_html=True)
 
     # 처리중 N건 있으면 좀비 정리 안내
@@ -181,7 +352,7 @@ def _render_stage_progress() -> None:
 def _render_actions() -> None:
     from src import queue as q
 
-    st.markdown("### 처리 액션")
+    hub_section("처리 액션")
 
     # K2 토글 + 야간 스케줄 체크박스
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -268,7 +439,7 @@ def _render_actions() -> None:
 def _render_sync() -> None:
     from src import obsidian_sync as osync
 
-    st.markdown("### Obsidian 동기화 (iris-mirror)")
+    hub_section("Obsidian 동기화")
     st.caption(
         "📚 정본 DB → 미러 단방향. **진입 자격**(K2 분석 + 매트릭스 키) 통과 자료만 박힘. "
         "자격 미달·DB 없는 좀비 .md는 자동 청소 (V2.6.3.6)."
@@ -358,13 +529,13 @@ def _render_flow_row(s: FlowSnapshot) -> None:
               big=_fmt(s.wiki.md_count), unit="md", sub=wiki_sub,
               empty=(s.wiki.md_count == 0)),
     ]
-    st.markdown("<div class='flow-row'>" + "".join(cards) + "</div>",
+    st.markdown("<div class='flow-row pipeline'>" + "".join(cards) + "</div>",
                 unsafe_allow_html=True)
 
 
 # ─── ⑤ 동기 점검 ──────────────────────────────────────────────────────
 def _render_gaps(s: FlowSnapshot) -> None:
-    st.markdown("### 동기 점검")
+    hub_section("동기 점검")
 
     # archive ↔ db.source — raw 인제스트만 비교 (ref_catalog 등은 archive 대상 아님)
     a_gap = s.archive_db_gap
@@ -444,10 +615,11 @@ def _render_paths(s: FlowSnapshot) -> None:
 
 def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
-    st.markdown("### 🔄 처리 콘솔 — 대기 → 처리중 → 완료")
-    st.caption(
-        "V2.6.3.7 · 대기 자료를 묶음·개별·선택으로 처리. "
-        "Obsidian 동기화도 여기서. 데이터 탭은 *상태 보고*만 표시."
+    hub_pagebar(
+        "흐름",
+        "Processing Console",
+        "대기 자료를 묶음·개별·선택으로 처리하고 Obsidian 미러 동기화를 실행합니다.",
+        "Queue Ready",
     )
 
     _render_queue_row()
@@ -455,10 +627,9 @@ def render() -> None:
     _render_actions()
     st.divider()
     _render_sync()
-    st.divider()
 
     s = measure_flow()
-    st.markdown("### 단계별 흐름")
+    hub_section("단계별 흐름")
     _render_flow_row(s)
     _render_gaps(s)
     _render_paths(s)

@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#2f80c4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f7fa"
+textColor = "#1f2937"
+borderColor = "#d8dce3"
+redColor = "#f08585"
+orangeColor = "#ffb86b"
+blueColor = "#5fa8ff"
+greenColor = "#7ed6a3"
+font = "sans-serif"
+headingFont = "sans-serif"
+baseRadius = "8px"
+showWidgetBorder = true

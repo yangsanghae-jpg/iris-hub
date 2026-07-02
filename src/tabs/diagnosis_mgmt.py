@@ -10,6 +10,7 @@ from src.config import DIAGNOSIS_TOOL_GITHUB
 from src.diagnosis_git import format_git_date
 from src.diagnosis_eval import evaluate_all
 from src.diagnosis_measurements import measure_diagnosis
+from src.ui_kit import hub_kpi_grid, hub_pagebar, hub_section
 
 _CSS = """
 <style>
@@ -35,10 +36,14 @@ def render() -> None:
     repo, evals = _cached_evaluate(tuple(it.key for it in items))
     snap = measure_diagnosis()
 
-    st.markdown("## 🔧 진단툴 · 데이터 마이그레이션")
+    hub_pagebar(
+        "진단툴",
+        "Migration Control",
+        f"{meta.get('version', '')} · git HEAD 기준으로 데이터 마이그레이션 진도를 자동 평가합니다.",
+        "Git Verified",
+    )
     st.caption(
-        f"정본: [{meta.get('github') or DIAGNOSIS_TOOL_GITHUB}]({meta.get('github') or DIAGNOSIS_TOOL_GITHUB}) · "
-        f"{meta.get('version', '')} · 상태 = **git HEAD** 자동 평가"
+        f"정본: [{meta.get('github') or DIAGNOSIS_TOOL_GITHUB}]({meta.get('github') or DIAGNOSIS_TOOL_GITHUB})"
     )
 
     _render_git_header(repo or snap.repo, snap)
@@ -57,7 +62,7 @@ def _cached_evaluate(_keys: tuple[str, ...]):
 
 
 def _render_git_header(repo, snap) -> None:
-    st.markdown("### 📍 Git 스냅샷")
+    hub_section("📍 Git 스냅샷")
     github = DIAGNOSIS_TOOL_GITHUB
 
     if repo is None:
@@ -101,16 +106,16 @@ def _render_summary(items, evals) -> None:
         st_val = evals[it.key].status
         counts[st_val] = counts.get(st_val, 0) + 1
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("⬜ 대기", counts["pending"])
-    c2.metric("✅ 성공", counts["success"])
-    c3.metric("❌ 실패", counts["failure"])
-    c4.metric("🔵 확인", counts["verified"])
-    c5.metric("🔒 선행 미충족", counts["blocked"])
+    hub_kpi_grid([
+        ("pending", str(counts["pending"]), "ready to enter"),
+        ("success", str(counts["success"]), "completed"),
+        ("failure", str(counts["failure"]), "needs work"),
+        ("blocked", str(counts["blocked"]), f"verified {counts['verified']}"),
+    ])
 
 
 def _render_items(items, evals) -> None:
-    st.markdown("### 📋 마이그레이션 항목")
+    hub_section("📋 마이그레이션 항목")
 
     phase_filter = st.selectbox(
         "Phase 필터",
@@ -150,7 +155,7 @@ def _render_row(it, ev) -> None:
 
 
 def _render_next(items, evals) -> None:
-    st.markdown("### 🎯 다음 작업")
+    hub_section("🎯 다음 작업")
     ready = [it for it in items if evals[it.key].status == "pending"]
     failed = [it for it in items if evals[it.key].status == "failure"]
     blocked = [it for it in items if evals[it.key].status == "blocked"]

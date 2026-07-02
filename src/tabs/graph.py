@@ -20,6 +20,14 @@ import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
 from src.config import IRIS_DB_PATH, IRIS_WIKI_PATH
+from src.ui_kit import (
+    hub_bar_rows,
+    hub_key_value_rows,
+    hub_kpi_grid,
+    hub_pagebar,
+    hub_panel,
+    hub_two_col,
+)
 
 WIKI_DIR = IRIS_WIKI_PATH
 WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
@@ -74,11 +82,26 @@ def _scan_wikilinks() -> dict[str, int]:
     return dict(by_target)
 
 
+def _fmt_count(value: int) -> str:
+    return f"{value:,}"
+
+
+def _safe_percent(numerator: int, denominator: int) -> float:
+    return numerator / denominator * 100 if denominator else 0.0
+
+
 def render() -> None:
     docs = _load_docs()
     if not docs:
         st.error("documents 없음. raw_intake.py 실행 후 새로고침.")
         return
+
+    hub_pagebar(
+        "그래프",
+        "Knowledge Graph",
+        "문서, 엔티티, 시스템 도메인의 연결 구조와 취약한 군집을 확인합니다.",
+        "Graph Ready",
+    )
 
     # ─── 컨트롤을 expander 안으로 (기본 접힘) ────────────────────────
     with st.expander("🕸️ 그래프 컨트롤 (V2.5.2 §3.C · V2.5.3 §3.10 v1)", expanded=False):
@@ -188,12 +211,32 @@ def render() -> None:
 
     # ─── 한 줄 요약 (4개 metric 대신) ───────────────────────────────
     matrix_clusters = len(by_industry_area) - (1 if "?/?" in by_industry_area else 0)
-    st.caption(
-        f"🕸️ **노드 {len(nodes)}** / 전체 {len(docs)} · "
-        f"엣지 {len(edges)} · "
-        f"matrix 클러스터 {matrix_clusters} · "
-        f"lane {len(by_lane)}종"
+    hub_kpi_grid([
+        ("Nodes", _fmt_count(len(nodes)), f"전체 {_fmt_count(len(docs))}"),
+        ("Edges", _fmt_count(len(edges)), "relationships"),
+        ("Clusters", _fmt_count(max(matrix_clusters, 0)), "matrix groups"),
+        ("Lanes", _fmt_count(len(by_lane)), "active lanes"),
+    ])
+
+    quality_panel = hub_panel(
+        "그래프 품질",
+        hub_bar_rows([
+            ("visible nodes", _safe_percent(len(nodes), len(docs))),
+            ("clustered groups", min(max(matrix_clusters, 0) * 8, 100)),
+            ("edge density", min(len(edges) * 3, 100)),
+        ]),
     )
+    filter_panel = hub_panel(
+        "필터 요약",
+        hub_key_value_rows([
+            ("Top N", str(top_n)),
+            ("Concept", "On" if include_concept else "Off"),
+            ("Isolated", "Hidden" if show_isolated else "Shown"),
+            ("Search", search or "—"),
+        ]),
+        subtitle="탐색 범위 조정",
+    )
+    hub_two_col(quality_panel, filter_panel)
 
     # ─── force-directed graph ────────────────────────────────────────
     if not nodes:

@@ -15,12 +15,12 @@ C 패턴 (챗 응답 저장):
 from __future__ import annotations
 
 import datetime as dt
-import sys
 from pathlib import Path
 
 import streamlit as st
 
 from src.config import IRIS_RAW_PATH
+from src.ui_kit import hub_kpi_grid, hub_pagebar, hub_section
 
 # V2.6.3.3: iris-knowledge로 경로 단일화. legacy IRIS_SYSTEM·sys.path hack 제거.
 RAW_DIR = IRIS_RAW_PATH
@@ -80,12 +80,30 @@ def _build_md(*, title: str, source: str, body: str,
     return "\n".join(lines)
 
 
+def _format_count(value: int) -> str:
+    return f"{value:,}"
+
+
+def _render_raw_snapshot(files_now: list[str]) -> None:
+    hub_kpi_grid([
+        ("raw files", _format_count(len(files_now)), "drop-zone queue"),
+        ("upload", "A", "drag & drop"),
+        ("folder", "B", "bulk ingest"),
+        ("paste", "C", "manual note"),
+    ])
+    with st.expander("현재 raw/ 파일 목록", expanded=False):
+        if not files_now:
+            st.caption("raw 폴더가 비어 있습니다.")
+            return
+        for filename in files_now:
+            st.code(filename)
+
+
 def _pick_folder_dialog(prompt: str = "폴더 선택", default: str = "") -> str | None:
     """macOS Finder 폴더 선택 다이얼로그. POSIX 경로 반환. 취소면 None.
 
     Streamlit은 서버 프로세스가 떠 있는 호스트에서 osascript 실행 — M2/M5 둘 다 macOS라 OK.
     """
-    import shlex
     import subprocess
 
     default_clause = f' default location "{default}"' if default else ""
@@ -360,10 +378,11 @@ def _render_folder_load() -> None:
 
 
 def render() -> None:
-    st.markdown("## 📥 입력")
-    st.caption(
-        "사람이 *직관적으로* 지식을 박는 자리. raw 폴더에 떨어지면 "
-        "자동으로 K1 인제스트 → documents · chunks · FTS · 그래프 갱신."
+    hub_pagebar(
+        "입력",
+        "Knowledge Intake",
+        "파일, 외부 폴더, 챗 응답을 raw → archive → queue 흐름으로 빠르게 적재합니다.",
+        "Intake Ready",
     )
 
     if not RAW_DIR.exists():
@@ -372,15 +391,11 @@ def render() -> None:
 
     # 사이드 정보
     files_now = sorted(p.name for p in RAW_DIR.iterdir() if p.is_file())
-    st.caption(f"📁 raw/ 현재 파일 {len(files_now)}개")
-    with st.expander("현재 raw/ 파일 목록", expanded=False):
-        for f in files_now:
-            st.code(f)
+    _render_raw_snapshot(files_now)
 
     # ─── (A) 파일 업로드 패턴 ─────────────────────────────────────────
-    st.divider()
-    st.markdown("### (A) 📂 파일 업로드 — drag & drop")
-    st.caption(".md / .txt / .pdf / .pptx / .docx 파일을 *raw 폴더에 직접 박기*. 여러 개 한 번에 가능.")
+    hub_section("A · 파일 업로드")
+    st.caption(".md / .txt / .pdf / .pptx / .docx 파일을 raw 폴더에 직접 박기. 여러 개 한 번에 가능.")
 
     uploaded = st.file_uploader(
         "파일 끌어다 놓기 또는 클릭해서 선택",
@@ -416,8 +431,7 @@ def render() -> None:
             st.info("💡 다음: `make build-faiss`로 시맨틱 인덱스 갱신 (별도 명령, 1~2분)")
 
     # ─── (B) 📁 폴더 로딩 — 외부 폴더 경로 일괄 인덱싱 ─────────────
-    st.divider()
-    st.markdown("### (B) 📁 폴더 로딩 — 외부 자료 일괄 인덱싱")
+    hub_section("B · 폴더 로딩")
     st.caption(
         "V2.6.3.10 지원 포맷: **.md · .txt · .pdf · .pptx · .docx**. "
         "원본은 3-archive로 카피 보존되고, content.md로 자동 변환됩니다. "
@@ -426,9 +440,8 @@ def render() -> None:
     _render_folder_load()
 
     # ─── (C) 텍스트 붙여넣기 패턴 — 챗 응답 저장 ─────────────────────
-    st.divider()
-    st.markdown("### (C) 📝 텍스트 붙여넣기 — 챗 응답·메모 저장")
-    st.caption("OpenWebUI 챗 답변, 회의 메모, 외부 자료를 *수동 복붙*해 raw로 박기.")
+    hub_section("C · 텍스트 붙여넣기")
+    st.caption("OpenWebUI 챗 답변, 회의 메모, 외부 자료를 수동 복붙해 raw로 박기.")
 
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -483,8 +496,7 @@ def render() -> None:
             st.code(log[-3000:])
 
     # ─── 하단 안내 ───────────────────────────────────────────────────
-    st.divider()
-    st.markdown("### 💡 다음 단계 (자동화 후보)")
+    hub_section("다음 단계")
     st.markdown("""
 - **(B) 위키 직접 편집** — `wiki/*.md` 인라인 에디터
 - **(D) 외부 에디터 watch** — VS Code에서 `wiki/`·`raw/` 편집 → 자동 인덱싱

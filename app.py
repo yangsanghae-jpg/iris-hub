@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import socket
 from collections.abc import Callable
+from pathlib import Path
 
 import streamlit as st
 
@@ -56,60 +57,89 @@ NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("obsidian", "📚 Obsidian", external.render_obsidian),
     ("settings", "⚙️ 설정", placeholders.render_settings),
 ]
+NAV_GROUPS: list[tuple[str, list[str]]] = [
+    ("Core", ["diagnosis", "intake", "external_capture", "flow"]),
+    ("Knowledge", ["inventory", "graph", "insights", "wiki"]),
+    ("Create", ["pptx", "presenton"]),
+    ("External", ["webui", "openclaw", "grafana", "obsidian"]),
+    ("System", ["settings"]),
+]
 NAV_LABELS = {key: label for key, label, _ in NAV_ITEMS}
 NAV_RENDERERS = {key: render for key, _, render in NAV_ITEMS}
 
 
 def _inject_css() -> None:
-    """헤더 축소 + 사이드바 내비 여백."""
-    st.markdown("""
-<style>
-/* 상단 여백 축소 */
-.block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
-
-/* iris-hub 제목 축소 */
-h1 { font-size: 1.4rem !important; margin: 0 !important; padding: 0 !important; }
-h1 + div[data-testid="stCaptionContainer"] { margin-bottom: 0.5rem !important; }
-
-/* 사이드바 메뉴 — 세로 목록, 좁은 화면에서도 전체 항목 접근 */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-    padding: 0.35rem 0.5rem !important;
-    font-size: 0.92rem !important;
-}
-section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
-    gap: 0.15rem !important;
-}
-</style>
-    """, unsafe_allow_html=True)
+    """Load app-wide shared UI CSS once at startup."""
+    css_path = Path(__file__).parent / "data" / "themes" / "hub_ui.css"
+    css = css_path.read_text(encoding="utf-8")
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
 def _sidebar_nav() -> str:
+    if "iris_hub_nav" not in st.session_state:
+        st.session_state.iris_hub_nav = "diagnosis"
+
     with st.sidebar:
-        st.markdown("### 📋 메뉴")
-        page = st.radio(
-            "메뉴",
-            options=[key for key, _, _ in NAV_ITEMS],
-            format_func=lambda key: NAV_LABELS[key],
-            label_visibility="collapsed",
-            key="iris_hub_nav",
+        st.markdown(
+            """
+<div class="hub-sidebar-brand">
+  <div class="hub-sidebar-title">IRIS HUB</div>
+  <div class="hub-sidebar-subtitle">Knowledge Ops</div>
+</div>
+""",
+            unsafe_allow_html=True,
         )
 
-        st.divider()
-        st.markdown("### 🟢 라이브 상태")
+        for group_name, page_keys in NAV_GROUPS:
+            st.markdown(
+                f'<div class="hub-sidebar-group">{group_name}</div>',
+                unsafe_allow_html=True,
+            )
+            for page_key in page_keys:
+                is_active = st.session_state.iris_hub_nav == page_key
+                if is_active:
+                    st.markdown('<div class="hub-nav-active">', unsafe_allow_html=True)
+                if st.button(
+                    NAV_LABELS[page_key],
+                    key=f"nav_{page_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state.iris_hub_nav = page_key
+                    st.rerun()
+                if is_active:
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+        status_rows = []
+        online_count = 0
         for label, port in [
             ("Grafana", 3030),
-            ("OpenWebUI", 3000),
+            ("WebUI", 3000),
             ("OpenClaw", 18789),
-            ("L2-gateway", 8011),
-            ("L4-RS-search", 8020),
-            ("K5 wiki :8081", 8081),
-            ("nomic-embed", 11434),
+            ("Gateway", 8011),
         ]:
             alive = _port_alive("127.0.0.1", port)
-            icon = "🟢" if alive else "🔴"
-            st.caption(f"{icon} {label}")
+            if alive:
+                online_count += 1
+            status = "Online" if alive else "Offline"
+            status_rows.append(
+                f'<div class="hub-status-row"><span>{label}</span><strong class="hub-status-ok">{status}</strong></div>'
+            )
 
-    return page
+        st.markdown(
+            f"""
+<div class="hub-sidebar-status">
+  <div class="hub-status-head">
+    <span class="hub-status-title">Status</span>
+    <span class="hub-status-ok">{online_count}/4</span>
+  </div>
+  {''.join(status_rows)}
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    return st.session_state.iris_hub_nav
 
 
 def main() -> None:
@@ -120,10 +150,6 @@ def main() -> None:
     )
     _inject_css()
     page = _sidebar_nav()
-
-    # 간소 헤더 (1행)
-    st.markdown("# 📊 iris-hub")
-    st.caption("V2.8.2 · M2 :8765 · K2 v4 (9산업 · 시스템 20 · 관리 14)")
 
     NAV_RENDERERS[page]()
 

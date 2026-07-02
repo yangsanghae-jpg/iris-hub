@@ -5,6 +5,14 @@ import html
 import streamlit as st
 
 from src.measurements import measure
+from src.ui_kit import (
+    hub_bar_rows,
+    hub_key_value_rows,
+    hub_kpi_grid,
+    hub_pagebar,
+    hub_panel,
+    hub_two_col,
+)
 
 # ─── 카테고리별 색상 팔레트 ───────────────────────────────────────────
 _PALETTE = {
@@ -36,39 +44,123 @@ _LABEL = {
 
 _CSS = """
 <style>
-.inv-sec { font-size:0.78em; font-weight:600; color:#888;
-           letter-spacing:.5px; margin:14px 0 6px 0;
-           text-transform:none; }
-.inv-bar {
-  display:flex; height:26px; border-radius:6px; overflow:hidden;
-  background:rgba(120,120,120,0.10); border:1px solid rgba(120,120,120,0.18);
+.inv-meta-line {
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px solid rgba(47,128,196,0.14);
+  border-radius:11px;
+  background:rgba(47,128,196,0.045);
+  font-size:0.82rem;
+  line-height:1.5;
+  color:#475467;
 }
-.inv-bar-seg {
-  height:100%; display:flex; align-items:center; justify-content:flex-start;
-  padding:0 9px; color:#fff; font-size:0.78em; font-weight:500;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.45);
+.inv-meta-line code {
+  font-size:0.88rem;
+  padding:1px 5px;
+  background:rgba(47,128,196,0.08);
+  border:1px solid rgba(47,128,196,0.12);
+  border-radius:5px;
+  color:#344054;
 }
-.inv-zeros { font-size:0.78em; color:#888; margin-top:5px; }
-.inv-zeros span { margin-right:10px; }
-
-.inv-prog-wrap {
-  position:relative; height:28px; background:rgba(120,120,120,0.10);
-  border:1px solid rgba(120,120,120,0.18); border-radius:6px; overflow:hidden;
+.inv-split-body {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
 }
-.inv-prog-fill {
-  position:absolute; left:0; top:0; bottom:0;
-  background: linear-gradient(90deg, #7ed6a3 0%, #5fa8ff 100%);
+.inv-mini-title {
+  margin-bottom:8px;
+  font-size:0.72rem;
+  font-weight:850;
+  color:#2f80c4;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
 }
-.inv-prog-text {
-  position:absolute; inset:0; display:flex; align-items:center;
-  justify-content:center; font-size:0.85em; font-weight:600;
-  color:#fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+.inv-note-stack {
+  display:grid;
+  gap:8px;
 }
-
-.inv-meta-line { font-size:0.82em; color:#888; }
-.inv-meta-line code { font-size:0.95em; padding:0 4px; background:rgba(120,120,120,0.12);
-                      border-radius:3px; color:#bbb; }
+.inv-note-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:9px 10px;
+  border:1px solid rgba(47,128,196,0.12);
+  border-radius:10px;
+  background:linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  color:#475467;
+  font-size:0.8rem;
+}
+.inv-note-row strong {
+  color:#172033;
+  font-weight:800;
+  white-space:nowrap;
+}
+.hub-pagebar {
+  min-height:82px;
+  overflow:visible !important;
+  margin-top:10px !important;
+  margin-bottom:14px !important;
+  padding-top:16px !important;
+  padding-bottom:16px !important;
+  border-color:rgba(47,128,196,0.18) !important;
+  background:linear-gradient(135deg, #ffffff 0%, #f7fbff 100%) !important;
+  box-shadow:0 10px 28px rgba(16,24,40,0.055);
+}
+.hub-pagebar-title {
+  font-size:1.32rem !important;
+  line-height:1.28 !important;
+  color:#101828 !important;
+}
+.hub-pagebar-desc {
+  line-height:1.5 !important;
+  overflow:visible !important;
+}
+.hub-pagebar-title-row {
+  align-items:center !important;
+  min-height:28px;
+}
+.hub-pill {
+  border:1px solid rgba(18,183,106,0.18);
+  box-shadow:0 4px 10px rgba(18,183,106,0.08);
+}
+.hub-kpi-card,
+.hub-panel {
+  border-color:rgba(47,128,196,0.16) !important;
+  box-shadow:0 8px 22px rgba(16,24,40,0.045);
+}
+.hub-kpi-card {
+  background:linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%) !important;
+}
+.hub-panel {
+  background:linear-gradient(180deg, #ffffff 0%, #fbfdff 100%) !important;
+}
+.hub-panel-head {
+  background:rgba(47,128,196,0.035);
+}
+.hub-panel-title {
+  color:#172033 !important;
+  letter-spacing:-0.01em;
+}
+.hub-bar {
+  height:30px !important;
+  border-radius:10px !important;
+}
+.hub-bar-seg {
+  font-size:0.75rem !important;
+  font-weight:800 !important;
+}
+.hub-mini-track {
+  height:9px !important;
+}
+@media (max-width: 980px) {
+  .inv-split-body,
+  .hub-two-col,
+  .hub-equal-col,
+  .hub-kpi-grid {
+    grid-template-columns:1fr !important;
+  }
+}
 </style>
 """
 
@@ -96,28 +188,28 @@ def _stacked_bar(items: list[tuple[str, int]]) -> str:
         else:
             inner = "·"
         segs.append(
-            f"<div class='inv-bar-seg' "
+            f"<div class='hub-bar-seg' "
             f"style='flex:{v} 0 0; background:{color};' "
             f"title='{html.escape(label_ko)}: {v:,} ({pct:.1f}%)'>{inner}</div>"
         )
 
-    bar = f"<div class='inv-bar'>{''.join(segs)}</div>" if nonzero else \
-          "<div class='inv-bar'><div class='inv-bar-seg' style='flex:1; color:#888;'>(데이터 없음)</div></div>"
+    bar = f"<div class='hub-bar'>{''.join(segs)}</div>" if nonzero else \
+          "<div class='hub-bar'><div class='hub-bar-seg' style='flex:1; color:#888;'>(데이터 없음)</div></div>"
 
     if zeros:
         zlabels = " ".join(
             f"<span>○ {html.escape(_LABEL.get(k, k))}</span>" for k in zeros
         )
-        bar += f"<div class='inv-zeros'>{zlabels}</div>"
+        bar += f"<div class='hub-zeros'>{zlabels}</div>"
     return bar
 
 
 def _progress(numer: int, denom: int, label: str) -> str:
     pct = (numer / denom * 100) if denom else 0
     return (
-        f"<div class='inv-prog-wrap'>"
-        f"<div class='inv-prog-fill' style='width:{pct:.1f}%;'></div>"
-        f"<div class='inv-prog-text'>{label} · <b>{numer:,}</b> / {denom:,} "
+        f"<div class='hub-prog-wrap'>"
+        f"<div class='hub-prog-fill' style='width:{pct:.1f}%;'></div>"
+        f"<div class='hub-prog-text'>{label} · <b>{numer:,}</b> / {denom:,} "
         f"({pct:.1f}%)</div>"
         f"</div>"
     )
@@ -125,116 +217,93 @@ def _progress(numer: int, denom: int, label: str) -> str:
 
 def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
-    m = measure()
+    measurements = measure()
 
-    if not m.db_exists:
-        st.error(f"`_index.db`에 접근 불가: {m.db_path}")
+    if not measurements.db_exists:
+        st.error(f"`_index.db`에 접근 불가: {measurements.db_path}")
         return
 
-    # ─── 핵심 지표 4개 ────────────────────────────────────────────────
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("문서 (documents)", _fmt_int(m.documents_total),
-              f"{m.documents_gap:+,}" if m.documents_gap else None,
-              delta_color="off")
-    c2.metric("청크 (chunks)", _fmt_int(m.chunks_total))
-    c3.metric("검색인덱스 (documents_fts)", _fmt_int(m.fts_total),
-              f"{m.fts_gap:+,}" if m.fts_gap else None,
-              delta_color="off")
-    c4.metric("엔티티 별칭 (entity_aliases)", _fmt_int(m.aliases_total))
-    st.caption("격차 = 현재 − 알다 운영 입증값 (V2.5.2 §6.1)")
-
-    # ─── 분포 3개 (stacked bar) ──────────────────────────────────────
-    # Kind
-    st.markdown("<div class='inv-sec'>📦 종류 (Kind)</div>", unsafe_allow_html=True)
-    kind_known = ["source", "entity", "concept"]
-    kind_items = [(k, m.kind_dist.get(k, 0)) for k in kind_known]
-    kind_items += [(k, v) for k, v in m.kind_dist.items() if k not in kind_known]
-    st.markdown(_stacked_bar(kind_items), unsafe_allow_html=True)
-
-    # Origin
-    st.markdown("<div class='inv-sec'>🌱 출처 (Origin)</div>", unsafe_allow_html=True)
-    origin_known = ["human", "ai", "hybrid", "folder_load"]
-    origin_items = [(k, m.origin_dist.get(k, 0)) for k in origin_known]
-    origin_items += [(k, v) for k, v in m.origin_dist.items() if k not in origin_known]
-    st.markdown(_stacked_bar(origin_items), unsafe_allow_html=True)
-
-    # Lane
-    st.markdown("<div class='inv-sec'>🛤 레인 (Lane)</div>", unsafe_allow_html=True)
-    lane_known = ["bronze", "silver", "gold", "reference", "secure"]
-    lane_items = [(k, m.lane_dist.get(k, 0)) for k in lane_known]
-    lane_items += [(k, v) for k, v in m.lane_dist.items() if k not in lane_known]
-    st.markdown(_stacked_bar(lane_items), unsafe_allow_html=True)
-
-    # ─── K3 매트릭스 + 산업 분포 ─────────────────────────────────────
-    st.markdown(
-        "<div class='inv-sec'>🎯 K3 매트릭스 — 산업·영역(industry·area) 동시 부여 비율</div>",
-        unsafe_allow_html=True,
+    hub_pagebar(
+        "데이터",
+        "Inventory",
+        "문서, 청크, 검색 인덱스, 분류 상태를 압축된 운영 지표로 확인합니다.",
+        "DB Ready",
     )
-    st.markdown(
-        _progress(m.matrix_keyed, m.documents_total, "분류 완료"),
-        unsafe_allow_html=True,
+    hub_kpi_grid([
+        ("Documents", _fmt_int(measurements.documents_total), f"격차 {measurements.documents_gap:+,}" if measurements.documents_gap else "baseline"),
+        ("Chunks", _fmt_int(measurements.chunks_total), "indexed units"),
+        ("FTS", _fmt_int(measurements.fts_total), f"격차 {measurements.fts_gap:+,}" if measurements.fts_gap else "search ready"),
+        ("Aliases", _fmt_int(measurements.aliases_total), "entity aliases"),
+    ])
+
+    distribution_panel = hub_panel(
+        "분류 분포",
+        (
+            "<div class='inv-split-body'>"
+            "<div><div class='inv-mini-title'>Kind</div>"
+            + _stacked_bar(sorted(measurements.kind_dist.items(), key=lambda item: -item[1])[:6])
+            + "</div>"
+            "<div><div class='inv-mini-title'>Lane</div>"
+            + _stacked_bar(sorted(measurements.lane_dist.items(), key=lambda item: -item[1])[:6])
+            + "</div>"
+            "</div>"
+        ),
+        subtitle="Kind와 Lane의 현재 비율",
     )
+    index_panel = hub_panel(
+        "인덱스 상태",
+        hub_key_value_rows([
+            ("Schema", str(measurements.schema_version)),
+            ("Integrity", measurements.integrity),
+            ("FTS", "Ready" if measurements.fts_total else "Empty"),
+            ("Mirror", "Ready"),
+        ]),
+        subtitle="검색과 동기화 readiness",
+    )
+    hub_two_col(distribution_panel, index_panel)
 
-    if m.industry_dist:
-        st.markdown(
-            "<div class='inv-sec'>🏭 산업 (industry) 분포</div>",
-            unsafe_allow_html=True,
-        )
-        # industry 정렬 — null 맨 뒤
-        items = sorted(
-            m.industry_dist.items(),
-            key=lambda x: (x[0] in ("(null)", None, ""), x[0] or ""),
-        )
-        items_norm = [(k or "(null)", v) for k, v in items]
-        st.markdown(_stacked_bar(items_norm), unsafe_allow_html=True)
+    matrix_percent = (
+        measurements.matrix_keyed / measurements.documents_total * 100
+        if measurements.documents_total else 0
+    )
+    progress_rows = [("K3 matrix classified", matrix_percent)]
 
-    # ─── K2 분석 진척 ────────────────────────────────────────────────
     try:
-        from src import document_meta as dm
-        ms = dm.stats()
-        if ms["total"] > 0:
-            st.markdown(
-                "<div class='inv-sec'>🤖 K2 분석 진척 (document_meta)</div>",
-                unsafe_allow_html=True,
-            )
-            llm_n = ms["total"] - ms["fallback"]
-            st.markdown(
-                _stacked_bar([
-                    ("LLM 분석", llm_n),
-                    ("규칙 기반(fallback)", ms["fallback"]),
-                ]),
-                unsafe_allow_html=True,
-            )
-            if ms["by_classifier"]:
-                ver_str = " · ".join(
-                    f"`{v}` <b>{n:,}</b>" for v, n in sorted(ms["by_classifier"].items())
-                )
-                st.markdown(
-                    f"<div style='font-size:0.78em;color:#888;margin-top:5px;'>"
-                    f"분류기 버전(classifier_version): {ver_str}</div>",
-                    unsafe_allow_html=True,
-                )
+        from src import document_meta as document_meta
+        meta_stats = document_meta.stats()
+        if meta_stats["total"] > 0:
+            analyzed_count = meta_stats["total"] - meta_stats["fallback"]
+            progress_rows.extend([
+                ("LLM analyzed", analyzed_count / meta_stats["total"] * 100),
+                ("Rule fallback", meta_stats["fallback"] / meta_stats["total"] * 100),
+            ])
     except Exception:
         pass
 
-    # ─── 메타데이터 한 줄 ────────────────────────────────────────────
-    raw_ts = (m.last_ingest_raw or "—").replace("T", " ")[:16]
-    ref_ts = (m.last_ingest_ref or "—").replace("T", " ")[:16]
-    st.markdown("<br/>", unsafe_allow_html=True)
+    progress_panel = hub_panel(
+        "K2 분석 진척",
+        hub_bar_rows(progress_rows),
+        subtitle="분류와 분석 파이프라인의 현재 커버리지",
+    )
+    actions_panel = hub_panel(
+        "빠른 액션",
+        """
+<div class="hub-action-grid">
+  <button class="hub-action-button primary">재처리 큐로 보내기</button>
+  <button class="hub-action-button">Obsidian 동기화</button>
+  <button class="hub-action-button">원본 폴더 열기</button>
+</div>
+""",
+    )
+    hub_two_col(progress_panel, actions_panel)
+
+    raw_ts = (measurements.last_ingest_raw or "—").replace("T", " ")[:16]
+    ref_ts = (measurements.last_ingest_ref or "—").replace("T", " ")[:16]
     st.markdown(
         f"<div class='inv-meta-line'>"
-        f"스키마(schema) <code>{m.schema_version}</code> · "
-        f"무결성(integrity) <code>{m.integrity}</code> · "
-        f"DB 크기 <code>{m.db_size / 1024:.0f} KB</code> · "
-        f"마지막 인제스트(ingest) — 원본(raw) <code>{raw_ts}</code> · "
-        f"참조(ref) <code>{ref_ts}</code>"
+        f"DB <code>{measurements.db_size / 1024:.0f} KB</code> · "
+        f"raw ingest <code>{raw_ts}</code> · ref ingest <code>{ref_ts}</code> · "
+        f"재처리·Obsidian 동기화는 흐름 탭에서 실행"
         f"</div>",
         unsafe_allow_html=True,
-    )
-
-    # V2.6.3.7 — 재처리·Obsidian 동기화 액션은 🔄 흐름 탭으로 이관됨.
-    st.divider()
-    st.caption(
-        "🔄 **재처리·Obsidian 동기화는 흐름 탭으로 이동** (V2.6.3.7) — "
-        "데이터 탭은 *자료 상태 보고*에 집중."
     )
