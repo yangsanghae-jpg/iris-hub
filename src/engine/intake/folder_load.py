@@ -207,7 +207,7 @@ def ingest_paths(paths: list[Path], *,
     # 분류기 (V2.6.3.8 정책: 입력 단계에서 K2 안 함, use_k2=False 권장)
     if use_k2:
         try:
-            from src import k2 as k2mod
+            from src.engine.process import k2 as k2mod
             from src import document_meta
             document_meta.ensure_schema()
         except Exception as e:
@@ -215,7 +215,7 @@ def ingest_paths(paths: list[Path], *,
             use_k2 = False
     if not use_k2:
         try:
-            from src.classify import suggest_classification
+            from src.engine.process.classify import suggest_classification
         except Exception as e:
             res.errors.append(("classify", f"import 실패: {e}"))
             return res

@@ -21,7 +21,7 @@ K2 분석을 3 단계로 쪼개 각 단계가 *짧은 프롬프트 + 좁은 스�
   - 부분 실패 안전 (한 단계 죽어도 나머지 보존)
 
 호환:
-  - K2Result는 src.k2와 호환 형태로 합쳐서 반환
+  - K2Result는 src.engine.process.k2와 호환 형태로 합쳐서 반환
   - document_meta upsert는 src.document_meta 통해
 """
 from __future__ import annotations
@@ -34,11 +34,11 @@ from typing import Any
 
 from src import llm
 from src.config import IRIS_LLM_DEEP, IRIS_LLM_FAST
-from src.k2 import (
+from src.engine.process.k2 import (
     K2Result, K2_SCHEMA_VERSION, _k2_version,
     AUTOMATION_LEVELS, SYSTEM_DOMAINS, MGMT_CATEGORIES,
 )
-from src.classify import (
+from src.engine.process.classify import (
     INDUSTRY_LABELS, AREA_LABELS, LEVEL_LABELS,
     suggest_classification,
 )

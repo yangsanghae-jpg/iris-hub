@@ -1,5 +1,5 @@
 """Tests for classify.py — 규칙 분류기 결정성·매칭 회귀."""
-from src.classify import (
+from src.engine.process.classify import (
     INDUSTRY_LABELS,
     AREA_LABELS,
     LEVEL_LABELS,

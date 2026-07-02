@@ -22,7 +22,7 @@ from typing import Any
 
 from src import llm
 from src.config import IRIS_LLM_DEEP
-from src.classify import (
+from src.engine.process.classify import (
     INDUSTRY_LABELS,
     AREA_LABELS,
     LEVEL_LABELS,

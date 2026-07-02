@@ -518,12 +518,12 @@ def _render_capture_form() -> None:
             from src.config import IRIS_LLM_DEEP
             with st.spinner(f"K2 분석 중 ({IRIS_LLM_DEEP} — 5~60초 예상)..."):
                 try:
-                    from src import k2
+                    from src.engine.process import k2
                     k2_result = k2.analyze(title.strip(), body, timeout=60.0)
                 except Exception as e:
-                    from src.classify import suggest_classification
+                    from src.engine.process.classify import suggest_classification
                     rule = suggest_classification(title.strip(), body)
-                    from src.k2 import K2Result
+                    from src.engine.process.k2 import K2Result
                     k2_result = K2Result(
                         industry=rule.get("industry"),
                         area=rule.get("area"),

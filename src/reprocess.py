@@ -101,7 +101,7 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
     # 분류기 — K2 우선, 실패 시 규칙
     if use_k2:
         try:
-            from src import k2 as k2mod
+            from src.engine.process import k2 as k2mod
             from src import document_meta
         except Exception as e:
             res.errors.append(("k2", f"K2 모듈 import 실패, 규칙 사용: {e}"))
@@ -109,7 +109,7 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
 
     if not use_k2:
         try:
-            from src.classify import suggest_classification
+            from src.engine.process.classify import suggest_classification
         except Exception as e:
             res.errors.append(("classify", f"import 실패: {e}"))
             return res

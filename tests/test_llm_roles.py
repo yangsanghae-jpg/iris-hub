@@ -52,7 +52,8 @@ def test_k2_version_embeds_deep_model(monkeypatch):
     """K2_VERSION 문자열에 deep 모델명이 박혀야 추적 가능."""
     monkeypatch.setenv("IRIS_LLM_DEEP", "qwen3.6:35b-a3b")
     import importlib
-    from src import config, k2
+    from src import config
+    from src.engine.process import k2
     importlib.reload(config)
     importlib.reload(k2)
     assert "qwen3.6:35b-a3b" in k2.K2_VERSION
@@ -63,7 +64,8 @@ def test_k2result_default_classifier_version_dynamic(monkeypatch):
     """K2Result()의 기본 classifier_version이 현재 deep 모델 반영."""
     monkeypatch.setenv("IRIS_LLM_DEEP", "qwen3:8b")
     import importlib
-    from src import config, k2
+    from src import config
+    from src.engine.process import k2
     importlib.reload(config)
     importlib.reload(k2)
     r = k2.K2Result()

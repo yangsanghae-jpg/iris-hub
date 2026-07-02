@@ -223,10 +223,10 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
     clear_stale_locks(stale_minutes=30, db_path=db_path)
 
     if use_k2:
-        from src import k2_pipeline as k2pl
+        from src.engine.process import k2_pipeline as k2pl
         from src import document_meta as dm
     else:
-        from src.classify import suggest_classification
+        from src.engine.process.classify import suggest_classification
 
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys=ON")
@@ -268,7 +268,7 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
                     else:
                         # fallback 규칙
                         rule = suggest_classification(title, body) if False else None
-                        from src.classify import suggest_classification as _sc
+                        from src.engine.process.classify import suggest_classification as _sc
                         rule = _sc(title, body)
                         classification = {
                             "industry": rule.get("industry"),
@@ -288,7 +288,7 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
                         conn.commit()
 
                     # 최종 K2Result 합쳐서 한 번에 upsert (호환)
-                    from src.k2 import K2Result, _k2_version
+                    from src.engine.process.k2 import K2Result, _k2_version
                     used_model = r_cls.model or r_sum.model or r_ext.model
                     classifier_version = _k2_version(used_model) if used_model else "rule-fallback"
                     any_fail = not (r_ext.ok and r_cls.ok and r_sum.ok)
