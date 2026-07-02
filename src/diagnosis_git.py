@@ -62,14 +62,8 @@ def remote_matches_canonical(remote_url: str, canonical: str = DIAGNOSIS_TOOL_GI
 
 def _default_clone_paths() -> list[Path]:
     """M5/M2 표준 clone 위치 — iris-local에서 실행해도 0Dev/1Dev 탐색."""
-    candidates = [
-        Path("/Users/iris/0Dev/diagnosis-tool"),
-        Path("/Users/iris/Documents/1Dev/diagnosis-tool"),
-    ]
-    sibling = (DEV_ROOT / "diagnosis-tool").resolve()
-    if sibling not in candidates:
-        candidates.insert(0, sibling)
-    return candidates
+    # DEV_ROOT가 hostname 기반(M5:/0Dev, M2:/Documents/1Dev)이라 이것만으로 양 머신 커버.
+    return [(DEV_ROOT / "diagnosis-tool").resolve()]
 
 
 def _candidate_roots() -> list[Path]:

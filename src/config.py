@@ -1,12 +1,18 @@
 """Paths and constants for iris-hub."""
 import os
+import socket
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEPS_YAML = REPO_ROOT / "data" / "phase_deps.yaml"
 DIAGNOSIS_MIGRATION_YAML = REPO_ROOT / "data" / "diagnosis_migration.yaml"
 
-DEV_ROOT = REPO_ROOT.parent  # iris-hub의 부모 (M2: /1Dev, M5: /0Dev)
+# ─── 머신 인식 (2026-07-02 정책) ─────────────────────────────────────────────
+# 운영 경로는 hostname으로 결정한다. M5는 ~/Documents(iCloud 미러)를 절대 참조하지 않는다.
+# 배포본은 ~/iris-local/iris-hub에서 돌아 REPO_ROOT.parent가 무의미하므로 hostname 사용.
+_IS_M5 = socket.gethostname().startswith("irisM5")
+MACHINE_BASE = Path("/Users/iris/0Dev") if _IS_M5 else Path("/Users/iris/Documents/1Dev")
+DEV_ROOT = MACHINE_BASE  # 개발 워크스페이스 루트 (M5: /0Dev, M2: /Documents/1Dev)
 
 # diagnosis-tool Git 정본 (평가·표시 기준 URL)
 DIAGNOSIS_TOOL_GITHUB = os.getenv(
@@ -21,14 +27,8 @@ DIAGNOSIS_TOOL_GITHUB = os.getenv(
 #   M5: /Users/iris/0Dev/iris-knowledge
 # env IRIS_KNOWLEDGE_ROOT 로 override 가능.
 def _default_knowledge_root() -> Path:
-    """머신별 기본값 — M2(1Dev) 우선, 없으면 M5(0Dev 홈)."""
-    for candidate in (
-        Path("/Users/iris/Documents/1Dev/iris-knowledge"),
-        Path("/Users/iris/0Dev/iris-knowledge"),
-    ):
-        if candidate.exists():
-            return candidate
-    return Path("/Users/iris/Documents/1Dev/iris-knowledge")
+    """머신별 데이터 루트 — hostname 기반. M5는 ~/0Dev, iCloud 미러 미참조."""
+    return MACHINE_BASE / "iris-knowledge"
 
 
 IRIS_KNOWLEDGE_ROOT = Path(
@@ -68,10 +68,7 @@ IRIS_WIKI_PATH = (
     IRIS_KNOWLEDGE_WIKI if IRIS_KNOWLEDGE_WIKI.exists() and any(IRIS_KNOWLEDGE_WIKI.iterdir())
     else IRIS_SYSTEM_WIKI
 )
-IRIS_MIRROR_PATH = (
-    IRIS_KNOWLEDGE_MIRROR if IRIS_KNOWLEDGE_MIRROR.exists() else
-    Path.home() / "Documents" / "LearningMaster" / "iris-mirror"
-)
+IRIS_MIRROR_PATH = IRIS_KNOWLEDGE_MIRROR  # 볼트 내부(2-processed/mirror). ~/Documents 폴백 제거.
 
 # 알다 격차 비교 기준 (V2.5.2 §6.1)
 ALDA_BASELINE = {
@@ -84,12 +81,9 @@ ALDA_BASELINE = {
 HUB_PORT = 8765
 HUB_HOST = "127.0.0.1"
 
-# M5 작업 산출물 (Desktop 대신 Documents 하위)
+# 작업 산출물 (presenton/deck/pptx). M5는 ~/0Dev/work, ~/Documents 미참조.
 IRIS_HUB_WORK_DIR = Path(
-    os.getenv(
-        "IRIS_HUB_WORK_DIR",
-        str(Path.home() / "Documents" / "0Dev" / "work" / "iris-hub"),
-    )
+    os.getenv("IRIS_HUB_WORK_DIR", str(MACHINE_BASE / "work" / "iris-hub"))
 )
 
 

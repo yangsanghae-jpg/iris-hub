@@ -27,10 +27,9 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from src.ingest.origin_rules import IngestSource, origin_for
 
-REPO_ROOT = Path("/Users/iris/Documents/0Dev")
-IRIS_ROOT = REPO_ROOT / "iris-system"
-RAW_DIR = IRIS_ROOT / "knowledge" / "raw"
-DB_PATH = IRIS_ROOT / "knowledge" / "_index.db"
+# 경로 config 단일화 (2026-07-02) — ~/Documents 미참조, hub 볼트와 일치.
+from src.config import IRIS_DB_PATH as DB_PATH, IRIS_RAW_PATH as RAW_DIR
+IRIS_ROOT = Path("/Users/iris/iris-system")  # 스키마 등 참조용(홈, 머신 독립)
 
 LANE = "bronze"
 KIND = "source"

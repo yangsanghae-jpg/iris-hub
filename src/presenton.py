@@ -7,7 +7,7 @@ iris-hub가 HTTP 호출로 PPT 생성.
   1. Docker Presenton (기본 http://localhost:5001 — macOS AirPlay :5000 회피)
   2. iris-hub 🦅 탭에서 프롬프트 입력
   3. POST /api/v1/ppt/presentation/generate (JSON, cookie 세션)
-  4. 결과를 Documents/0Dev/work/iris-hub/presenton/ 에 저장
+  4. 결과를 IRIS_HUB_WORK_DIR/presenton/ 에 저장 (M5: ~/0Dev/work/iris-hub/…)
 
 설정:
   PRESENTON_URL, PRESENTON_AUTH_USERNAME/PASSWORD

@@ -17,9 +17,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path("/Users/iris/Documents/0Dev")
-SOURCE_ROOT = REPO_ROOT / "diagnosis-tool" / "server" / "data"
-IRIS_ROOT = REPO_ROOT / "iris-system"
+# 머신 인식 (2026-07-02) — ~/Documents 미참조. M5:/0Dev, M2:/Documents/1Dev.
+import socket as _socket
+_DEV_BASE = (Path("/Users/iris/0Dev") if _socket.gethostname().startswith("irisM5")
+             else Path("/Users/iris/Documents/1Dev"))
+SOURCE_ROOT = _DEV_BASE / "diagnosis-tool" / "server" / "data"
+IRIS_ROOT = Path("/Users/iris/iris-system")  # 홈(머신 독립)
 DB_PATH = IRIS_ROOT / "knowledge" / "_index.db"
 SCHEMA_PATH = IRIS_ROOT / "apps" / "ingest" / "schema.sql"
 
