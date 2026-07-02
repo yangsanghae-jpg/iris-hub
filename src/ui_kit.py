@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from html import escape
-from typing import Literal, Sequence
+from typing import Literal, Sequence, Union
 
 import streamlit as st
 
 
 SectionLevel = Literal["page", "sub"]
 KpiRow = tuple[str, str, str]
-BarRow = tuple[str, int | float]
+BarRow = tuple[str, Union[int, float]]
 KeyValueRow = tuple[str, str]
 
 
