@@ -123,7 +123,7 @@ def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
         rep.fts_mismatch = d_count - f_count
         if rep.fts_mismatch != 0 and auto_fix:
             try:
-                from src.ingest.fts_sync import rebuild_all
+                from src.engine.intake.fts_sync import rebuild_all
                 rebuild_all(db_path)
                 rep.auto_fixed += abs(rep.fts_mismatch)
                 rep.notes.append(

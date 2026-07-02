@@ -360,10 +360,10 @@ def _ingest_one(path: Path, *, industry: str | None, area: str | None,
     반환: {"ok": bool, "doc_id": str | None, "chunks": int, "error": str | None}
     """
     try:
-        from src.ingest.raw_intake import (
+        from src.engine.intake.raw_intake import (
             doc_id_for, parse_frontmatter, split_chunks, upsert_raw_doc,
         )
-        from src.ingest.fts_sync import rebuild_all
+        from src.engine.intake.fts_sync import rebuild_all
     except Exception as e:
         return {"ok": False, "doc_id": None, "chunks": 0,
                 "error": f"raw_intake import 실패: {e}"}

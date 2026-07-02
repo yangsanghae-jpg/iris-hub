@@ -25,7 +25,7 @@ except ImportError:
     # 스크립트 직접 실행 시
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from src.ingest.origin_rules import IngestSource, origin_for
+    from src.engine.intake.origin_rules import IngestSource, origin_for
 
 # 경로 config 단일화 (2026-07-02) — ~/Documents 미참조, hub 볼트와 일치.
 from src.config import IRIS_DB_PATH as DB_PATH, IRIS_RAW_PATH as RAW_DIR
@@ -111,7 +111,7 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 def upsert_raw_doc(conn: sqlite3.Connection, doc_id: str, path: Path, title: str, chunks: list[str]) -> None:
     # V2.6 Phase 2.1: K1 게이트 — secure lane 진입 차단
-    from src.ingest.secure_gate import assert_not_secure
+    from src.engine.secure.secure_gate import assert_not_secure
     assert_not_secure(LANE, "K1", doc_id=doc_id)
 
     conn.execute(
@@ -175,7 +175,7 @@ def main() -> int:
     try:
         from .fts_sync import rebuild_all
     except ImportError:
-        from src.ingest.fts_sync import rebuild_all
+        from src.engine.intake.fts_sync import rebuild_all
     counts = rebuild_all(conn)
     conn.commit()
     conn.close()

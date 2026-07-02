@@ -86,10 +86,10 @@ def reprocess(scope: str = "all", *, only_null: bool = False,
     res = ReprocessResult()
 
     try:
-        from src.ingest.raw_intake import (
+        from src.engine.intake.raw_intake import (
             doc_id_for, parse_frontmatter, split_chunks, upsert_raw_doc,
         )
-        from src.ingest.fts_sync import rebuild_all
+        from src.engine.intake.fts_sync import rebuild_all
     except Exception as e:
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res

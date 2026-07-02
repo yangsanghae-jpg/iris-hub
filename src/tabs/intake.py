@@ -197,7 +197,7 @@ def _run_raw_intake() -> tuple[bool, str]:
     from contextlib import redirect_stdout, redirect_stderr
 
     try:
-        from src.ingest import raw_intake
+        from src.engine.intake import raw_intake
     except Exception as e:
         return False, f"import 실패: {e}"
 
@@ -339,7 +339,7 @@ def _pick_folder_dialog(prompt: str = "폴더 선택", default: str = "") -> str
 def _render_folder_load() -> None:
     """(B) 폴더 로딩 섹션 — 스캔 + 트리 선택 + 인제스트 + 결과 저장."""
     from collections import defaultdict
-    from src import folder_load
+    from src.engine.intake import folder_load
 
     # ── 다이얼로그 결과를 위젯에 prepop (위젯 인스턴스 *전*에) ─────────
     # 위젯 키(fl_folder/fl_dest)와 다이얼로그 결과 키를 분리해야 위젯 인스턴스 후 잠김 회피.

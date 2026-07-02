@@ -78,7 +78,7 @@ def flatten_json(obj, prefix: str = "", out: list[str] | None = None) -> list[st
 def upsert_doc(conn, doc_id, path, industry, area, level, title, body):
     # V2.6 Phase 2.1/2.2: K1/K3 게이트 — secure lane 진입 차단
     # (LANE='reference' 모듈 상수라 정상 호출엔 영향 없음. 의도적 secure는 secure_intake.py 사용)
-    from src.ingest.secure_gate import assert_not_secure
+    from src.engine.secure.secure_gate import assert_not_secure
     assert_not_secure(LANE, "K1", doc_id=doc_id)
 
     conn.execute(
@@ -522,7 +522,7 @@ def rebuild_fts(conn):
     try:
         from .fts_sync import rebuild_all
     except ImportError:
-        from src.ingest.fts_sync import rebuild_all
+        from src.engine.intake.fts_sync import rebuild_all
     return rebuild_all(conn)
 
 

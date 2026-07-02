@@ -196,10 +196,10 @@ def ingest_paths(paths: list[Path], *,
         return res
 
     try:
-        from src.ingest.raw_intake import (
+        from src.engine.intake.raw_intake import (
             doc_id_for, parse_frontmatter, split_chunks,
         )
-        from src.ingest.fts_sync import rebuild_all
+        from src.engine.intake.fts_sync import rebuild_all
     except Exception as e:
         res.errors.append(("import", f"{type(e).__name__}: {e}"))
         return res
@@ -221,7 +221,7 @@ def ingest_paths(paths: list[Path], *,
             return res
 
     # V2.6.3.10: 지원 포맷 = converter.SUPPORTED_SUFFIXES (.md/.txt/.pdf/.pptx/.docx)
-    from src import converter
+    from src.engine.intake import converter
     SUPPORTED_SUFFIXES = converter.SUPPORTED_SUFFIXES
 
     # work_dir 생성
@@ -338,7 +338,7 @@ def ingest_paths(paths: list[Path], *,
                 content_target.write_text(body, encoding="utf-8")
 
                 # ④ DB UPSERT — path는 *archive 경로*로 박음 (진실원 분리)
-                from src.ingest.raw_intake import upsert_raw_doc
+                from src.engine.intake.raw_intake import upsert_raw_doc
                 upsert_raw_doc(conn, doc_id, original_target, title, chunks)
                 # lane / origin 갱신 (raw_intake 기본값 override)
                 conn.execute(

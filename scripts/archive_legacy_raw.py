@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.config import IRIS_KNOWLEDGE_ARCHIVE
-from src.ingest.raw_intake import doc_id_for
+from src.engine.intake.raw_intake import doc_id_for
 
 
 LEGACY_RAW_DEFAULT = Path("/Users/iris/Documents/0Dev/iris-system/knowledge/raw")
