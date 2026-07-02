@@ -7,7 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pypdf import PdfReader, PdfWriter
 
-from src.deck.schema import Deck, PATTERN_TEMPLATES
+from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent

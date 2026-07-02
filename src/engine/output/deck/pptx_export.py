@@ -4,7 +4,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from src.deck.schema import Deck
+from src.engine.output.deck.schema import Deck
 
 
 def render_deck_to_pptx(deck: Deck, out_path: Path | None = None) -> Path:
@@ -12,7 +12,7 @@ def render_deck_to_pptx(deck: Deck, out_path: Path | None = None) -> Path:
     from pptx.util import Inches
     from playwright.sync_api import sync_playwright
 
-    from src.deck.renderer import render_slide_html
+    from src.engine.output.deck.renderer import render_slide_html
 
     if out_path is None:
         out_path = Path(tempfile.mkdtemp(prefix="iris_pptx_")) / "deck.pptx"

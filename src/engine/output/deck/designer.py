@@ -12,7 +12,7 @@ import json
 import re
 
 from src import llm
-from src.deck.schema import Deck, PATTERN_TEMPLATES, Slide
+from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES, Slide
 
 
 class DesignError(Exception):

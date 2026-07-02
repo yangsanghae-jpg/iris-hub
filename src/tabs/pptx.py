@@ -690,12 +690,12 @@ def _generate_marp(md_text: str, picked_model: str | None,
                    theme_name: str, paginate: bool,
                    use_llm_restructure: bool, save_to_disk: bool,
                    gen_pdf: bool) -> None:
-    from src import exporter
+    from src.engine.output import exporter
 
     # V2.7.5.2 — LLM 재구조화 (옵션)
     effective_md = md_text
     if use_llm_restructure:
-        from src import exporter_llm
+        from src.engine.output import exporter_llm
         try:
             with st.spinner("🤖 LLM 재구조화 중… (~30~120s, 모델 따라 다름)"):
                 rr = exporter_llm.restructure_markdown(md_text, model=picked_model)
@@ -784,7 +784,7 @@ def _generate_design(md_text: str, picked_model: str | None,
         pre_expanded = False
 
         if use_2stage and len(md_text) >= 2000:
-            from src.deck import expander
+            from src.engine.output.deck import expander
             try:
                 with st.spinner(
                     "① LLM 입력 확장 중… (30~180초, 모델·입력 크기 따라)"
@@ -811,7 +811,7 @@ def _generate_design(md_text: str, picked_model: str | None,
         with st.spinner(
             f"② LLM 슬라이드 설계 중… (30~300초, model: {model_label})"
         ):
-            from src.deck import designer
+            from src.engine.output.deck import designer
             deck = designer.design_deck(
                 effective_md, meta,
                 model=picked_model, timeout=600,
@@ -843,11 +843,11 @@ def _generate_design(md_text: str, picked_model: str | None,
             f"③ {fmt_label} 렌더 중… (슬라이드당 ~2초, 총 {len(deck.slides)*2}~{len(deck.slides)*4}초)"
         ):
             if "PDF" in output_format:
-                from src.deck.renderer import render_deck_to_pdf
+                from src.engine.output.deck.renderer import render_deck_to_pdf
                 out_path = render_deck_to_pdf(deck)
                 ext, mime = "pdf", "application/pdf"
             else:
-                from src.deck.pptx_export import render_deck_to_pptx
+                from src.engine.output.deck.pptx_export import render_deck_to_pptx
                 out_path = render_deck_to_pptx(deck)
                 ext = "pptx"
                 mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"

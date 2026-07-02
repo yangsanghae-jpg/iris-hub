@@ -59,7 +59,7 @@ def render() -> None:
     )
 
     _init_ollama_model_state()
-    from src import presenton
+    from src.engine.output import presenton
 
     models = chat_capable_models()
     if not models:
