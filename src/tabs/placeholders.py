@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.config import IRIS_WIKI_PATH, IRIS_DATA_ROOT
+from src.config import IRIS_DATA_ROOT
 from src.ui_kit import hub_equal_col, hub_kpi_grid, hub_pagebar, hub_panel, hub_two_col
 
 
@@ -27,14 +27,6 @@ def _status_pill(label: str, host: str, port: int) -> tuple[str, bool]:
     alive = _port_alive(host, port)
     icon = "🟢" if alive else "🔴"
     return f"{icon} {label} :{port}", alive
-
-
-def _link_button_row(items: list[tuple[str, str, str]]) -> None:
-    """items = [(emoji_label, url, help_text)]"""
-    cols = st.columns(len(items))
-    for col, (label, url, helptxt) in zip(cols, items):
-        with col:
-            st.link_button(label, url, help=helptxt, use_container_width=True)
 
 
 def _format_file_size(size_in_bytes: int) -> str:
@@ -198,58 +190,6 @@ def render_observability_section() -> None:
             "1차 적용 범위: placeholder 느낌을 제거하고 pagebar, KPI, 관측 상태, 바로가기, telemetry 로그 요약을 compact console로 운영화합니다. iframe 임베드나 상세 로그 tail/검색은 2차에서 처리합니다."
         ),
         unsafe_allow_html=True,
-    )
-
-
-# ─── 탭 5: 위키 ──────────────────────────────────────────────────────────
-
-
-def render_wiki() -> None:
-    st.markdown("## 📚 위키")
-    st.caption("K6 Curate 가동 후 lint·broken·orphan·duplicate·승격 흐름 본격 표시.")
-
-    st.markdown("### 🔌 K5 wiki server 상태")
-    wiki_alive = _port_alive("127.0.0.1", 8081)
-    if wiki_alive:
-        st.success("🟢 wiki server :8081 가동 중")
-        st.markdown("**바로가기**")
-        _link_button_row([
-            ("📚 /wiki/lint", "http://127.0.0.1:8081/wiki/lint", "broken/orphan/duplicate"),
-            ("📖 /wiki/history", "http://127.0.0.1:8081/wiki/history", "ingest 이력"),
-            ("📘 OpenAPI docs", "http://127.0.0.1:8081/docs", "FastAPI Swagger"),
-        ])
-    else:
-        st.warning("🔴 wiki server :8081 미가동")
-        with st.expander("가동 방법"):
-            st.code(
-                "cd ~/iris-system && \\\n"
-                "WIKI_MODEL=qwen3.5:4b \\\n"
-                "  ~/iris-local/venv/iris-system/bin/uvicorn apps.wiki.server:app \\\n"
-                "  --host 127.0.0.1 --port 8081",
-                language="bash",
-            )
-
-    st.divider()
-    st.markdown("### 📦 wiki/ 디렉터리 측정")
-
-    wiki_dir = IRIS_WIKI_PATH
-    if not wiki_dir.exists():
-        st.error(f"wiki/ 디렉터리 부재: {wiki_dir}")
-        return
-
-    md_files = list(wiki_dir.rglob("*.md"))
-    c1, c2, c3 = st.columns(3)
-    c1.metric("wiki/ .md 총수", len(md_files))
-    c2.metric("areas/concepts/industries", len(list(wiki_dir.glob("*/*.md"))))
-    c3.metric("디렉터리", len([p for p in wiki_dir.iterdir() if p.is_dir()]))
-
-    with st.expander("📁 디렉터리별 .md 개수"):
-        for sub in sorted([p for p in wiki_dir.iterdir() if p.is_dir()]):
-            n = len(list(sub.rglob("*.md")))
-            st.write(f"- `{sub.name}/` — **{n}** files")
-
-    st.caption(
-        "활성 트리거: K6 Curate가 raw → wiki/*.md 자동 생성 시작 (qwen3.5:4b 또는 그 이상)"
     )
 
 
