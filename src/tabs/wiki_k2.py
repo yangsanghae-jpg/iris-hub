@@ -221,10 +221,13 @@ div[data-testid="column"] button[kind="secondary"] {
 
 # ─── 데이터 로드 ──────────────────────────────────────────────────────
 def _all_docs() -> list[dict]:
-    if not DB_PATH.exists():
+    # 신 스키마(store). 구 컬럼(path/fetched_at/lane/k2_at)은 별칭으로 하위 뷰 보존.
+    # (개념 중심 검색 위키 전면 재구축은 WIKI_REBUILD/S5.)
+    from src.store import vault as store_vault
+    from src.store.db import get_conn
+    if not store_vault.db_stats().db_exists:
         return []
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     try:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(document_meta)")}
         meta_extra = (
@@ -236,14 +239,15 @@ def _all_docs() -> list[dict]:
             " '' AS blurb_system, '' AS blurb_mgmt"
         )
         sql = f"""
-          SELECT d.doc_id, d.title, d.path, d.industry, d.area, d.level,
-                 d.fetched_at, d.lane,
+          SELECT d.doc_id, d.title, d.original_path AS path, d.industry, d.area, d.level,
+                 d.ingested_at AS fetched_at, d.status AS lane,
                  m.summary, m.topics_json, m.confidence, m.fallback_used,
-                 m.classifier_version, m.k2_at
+                 m.classifier_version, m.k2_done_at AS k2_at
                  {meta_extra}
             FROM documents d
             LEFT JOIN document_meta m ON d.doc_id = m.doc_id
-           ORDER BY d.fetched_at DESC
+           WHERE d.status = 'active'
+           ORDER BY d.ingested_at DESC
         """
         return [dict(r) for r in conn.execute(sql).fetchall()]
     finally:

@@ -4,7 +4,7 @@ from __future__ import annotations
 import html
 import streamlit as st
 
-from src.measurements import measure
+from src.store import vault as store_vault
 from src.ui_kit import (
     hub_bar_rows,
     hub_key_value_rows,
@@ -217,69 +217,62 @@ def _progress(numer: int, denom: int, label: str) -> str:
 
 def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
-    measurements = measure()
+    s = store_vault.db_stats()
 
-    if not measurements.db_exists:
-        st.error(f"`_index.db`에 접근 불가: {measurements.db_path}")
+    if not s.db_exists:
+        st.error("볼트 DB가 아직 없습니다. `python -m scripts.init_vault` 로 초기화하세요.")
         return
+
+    dist = store_vault.doc_distribution()
 
     hub_pagebar(
         "데이터",
         "Inventory",
         "문서, 청크, 검색 인덱스, 분류 상태를 압축된 운영 지표로 확인합니다.",
-        "DB Ready",
+        "DB Ready" if s.documents else "빈 볼트",
     )
     hub_kpi_grid([
-        ("Documents", _fmt_int(measurements.documents_total), f"격차 {measurements.documents_gap:+,}" if measurements.documents_gap else "baseline"),
-        ("Chunks", _fmt_int(measurements.chunks_total), "indexed units"),
-        ("FTS", _fmt_int(measurements.fts_total), f"격차 {measurements.fts_gap:+,}" if measurements.fts_gap else "search ready"),
-        ("Aliases", _fmt_int(measurements.aliases_total), "entity aliases"),
+        ("Documents", _fmt_int(s.documents), "active + quarantine"),
+        ("Chunks", _fmt_int(s.chunks), "indexed units"),
+        ("FTS", _fmt_int(s.fts), "search ready" if s.fts else "empty"),
+        ("Concepts", _fmt_int(s.concepts), f"{_fmt_int(s.aliases)} aliases"),
     ])
 
     distribution_panel = hub_panel(
         "분류 분포",
         (
             "<div class='inv-split-body'>"
-            "<div><div class='inv-mini-title'>Kind</div>"
-            + _stacked_bar(sorted(measurements.kind_dist.items(), key=lambda item: -item[1])[:6])
+            "<div><div class='inv-mini-title'>Channel</div>"
+            + _stacked_bar(sorted(dist.by_channel.items(), key=lambda item: -item[1])[:6])
             + "</div>"
-            "<div><div class='inv-mini-title'>Lane</div>"
-            + _stacked_bar(sorted(measurements.lane_dist.items(), key=lambda item: -item[1])[:6])
+            "<div><div class='inv-mini-title'>Status</div>"
+            + _stacked_bar(sorted(dist.by_status.items(), key=lambda item: -item[1])[:6])
             + "</div>"
             "</div>"
         ),
-        subtitle="Kind와 Lane의 현재 비율",
+        subtitle="채널과 큐레이션 상태의 현재 비율",
     )
     index_panel = hub_panel(
         "인덱스 상태",
         hub_key_value_rows([
-            ("Schema", str(measurements.schema_version)),
-            ("Integrity", measurements.integrity),
-            ("FTS", "Ready" if measurements.fts_total else "Empty"),
-            ("Mirror", "Ready"),
+            ("Schema", str(s.schema_version)),
+            ("Integrity", s.integrity),
+            ("FTS", "Ready" if s.fts else "Empty"),
+            ("Concepts", "Ready" if s.concepts else "Empty"),
         ]),
-        subtitle="검색과 동기화 readiness",
+        subtitle="검색과 지식저장소 readiness",
     )
     hub_two_col(distribution_panel, index_panel)
 
-    matrix_percent = (
-        measurements.matrix_keyed / measurements.documents_total * 100
-        if measurements.documents_total else 0
-    )
-    progress_rows = [("K3 matrix classified", matrix_percent)]
+    def _pct(n: int) -> float:
+        return n / s.documents * 100 if s.documents else 0
 
-    try:
-        from src import document_meta as document_meta
-        meta_stats = document_meta.stats()
-        if meta_stats["total"] > 0:
-            analyzed_count = meta_stats["total"] - meta_stats["fallback"]
-            progress_rows.extend([
-                ("LLM analyzed", analyzed_count / meta_stats["total"] * 100),
-                ("Rule fallback", meta_stats["fallback"] / meta_stats["total"] * 100),
-            ])
-    except Exception:
-        pass
-
+    progress_rows = [
+        ("① extract", _pct(s.extract_done)),
+        ("② classify", _pct(s.classify_done)),
+        ("③ summarize", _pct(s.summarize_done)),
+        ("K2 완주", _pct(s.k2_done)),
+    ]
     progress_panel = hub_panel(
         "K2 분석 진척",
         hub_bar_rows(progress_rows),
@@ -297,12 +290,10 @@ def render() -> None:
     )
     hub_two_col(progress_panel, actions_panel)
 
-    raw_ts = (measurements.last_ingest_raw or "—").replace("T", " ")[:16]
-    ref_ts = (measurements.last_ingest_ref or "—").replace("T", " ")[:16]
     st.markdown(
         f"<div class='inv-meta-line'>"
-        f"DB <code>{measurements.db_size / 1024:.0f} KB</code> · "
-        f"raw ingest <code>{raw_ts}</code> · ref ingest <code>{ref_ts}</code> · "
+        f"DB <code>{s.db_size_mb:.1f} MB</code> · "
+        f"분류 완료 <code>{_fmt_int(s.classified)}</code> · "
         f"재처리·Obsidian 동기화는 흐름 탭에서 실행"
         f"</div>",
         unsafe_allow_html=True,

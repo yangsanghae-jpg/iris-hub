@@ -9,7 +9,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.config import IRIS_DB_PATH, IRIS_WIKI_PATH, IRIS_SYSTEM_LEGACY
+from src.config import IRIS_DB_PATH, IRIS_WIKI_PATH, IRIS_DATA_ROOT
 from src.ui_kit import hub_equal_col, hub_kpi_grid, hub_pagebar, hub_panel, hub_two_col
 
 
@@ -140,7 +140,7 @@ def render_insights() -> None:
     services = _service_status_rows()
     telemetry_root = Path(os.environ.get(
         "IRIS_TELEMETRY_ROOT",
-        str(IRIS_SYSTEM_LEGACY / "storage" / "telemetry"),
+        str(IRIS_DATA_ROOT / ".telemetry"),
     ))
     logs = sorted(telemetry_root.glob("iris_k5_telemetry.*.log")) if telemetry_root.exists() else []
     latest_log_line_count = _count_lines(logs[-1]) if logs else 0

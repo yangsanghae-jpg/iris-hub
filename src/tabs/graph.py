@@ -49,18 +49,22 @@ COLOR_BY_LANE = {
 
 
 def _load_docs() -> list[dict]:
-    if not IRIS_DB_PATH.exists():
+    # 신 스키마(store). status→lane, channel→kind 별칭으로 하위 뷰 로직 보존.
+    # (개념 중심 그래프 전면 재설계는 GRAPH_V3/S6.)
+    from src.store import vault as store_vault
+    from src.store.db import get_conn
+    if not store_vault.db_stats().db_exists:
         return []
-    conn = sqlite3.connect(IRIS_DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     try:
         rows = conn.execute("""
-            SELECT d.doc_id, d.title, d.lane, d.kind, d.industry, d.area, d.level,
+            SELECT d.doc_id, d.title, d.status AS lane, d.channel AS kind,
+                   d.industry, d.area, d.level,
                    COUNT(c.chunk_id) AS chunk_count
               FROM documents d
               LEFT JOIN chunks c ON c.doc_id = d.doc_id
              GROUP BY d.doc_id
-             ORDER BY d.lane, d.industry, d.doc_id
+             ORDER BY d.channel, d.industry, d.doc_id
         """).fetchall()
         return [dict(r) for r in rows]
     finally:

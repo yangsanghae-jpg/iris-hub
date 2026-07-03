@@ -24,7 +24,6 @@ from .config import (
     IRIS_KNOWLEDGE_STAGING,
     IRIS_KNOWLEDGE_WIKI,
 )
-from .measurements import measure
 
 
 @dataclass
@@ -126,45 +125,22 @@ def _measure_archive() -> ArchiveStage:
 
 
 def _measure_db() -> DBStage:
-    import sqlite3
-    m = measure()
+    # 신 스키마(store.vault). 구 kind='source' 개념 소멸 → source_docs=documents,
+    # eligible=classified(industry+area). (흐름 탭 재설계는 DATA_MONITORING/S3.)
+    from src.store import vault as store_vault
+    m = store_vault.db_stats()
     s = DBStage(exists=m.db_exists)
     if not m.db_exists:
         return s
-    s.documents = m.documents_total
-    s.source_docs = m.kind_dist.get("source", 0)
-    s.chunks = m.chunks_total
-    s.fts = m.fts_total
-    s.db_size_mb = round(m.db_size / (1024 * 1024), 1)
-
-    # V2.6.3.6 — mirror 진입 자격 통과 카운트 (K2 분석 + 매트릭스 키)
-    try:
-        with sqlite3.connect(str(m.db_path)) as c:
-            row = c.execute(
-                "SELECT COUNT(*) FROM documents d "
-                "JOIN document_meta meta ON d.doc_id = meta.doc_id "
-                "WHERE meta.classifier_version IS NOT NULL "
-                "  AND d.industry IS NOT NULL AND d.area IS NOT NULL "
-                "  AND d.kind = 'source'"
-            ).fetchone()
-            s.eligible = row[0] if row else 0
-
-            # V2.7.0 — K2 단계별 진척 카운트
-            try:
-                s.extract_done = c.execute(
-                    "SELECT COUNT(*) FROM document_meta WHERE extract_at IS NOT NULL"
-                ).fetchone()[0]
-                s.classify_done = c.execute(
-                    "SELECT COUNT(*) FROM document_meta WHERE classify_at IS NOT NULL"
-                ).fetchone()[0]
-                s.summarize_done = c.execute(
-                    "SELECT COUNT(*) FROM document_meta WHERE summarize_at IS NOT NULL"
-                ).fetchone()[0]
-            except sqlite3.OperationalError:
-                # 마이그레이션 v006 안 박힌 DB
-                pass
-    except sqlite3.Error:
-        s.eligible = 0
+    s.documents = m.documents
+    s.source_docs = m.documents
+    s.chunks = m.chunks
+    s.fts = m.fts
+    s.db_size_mb = m.db_size_mb
+    s.eligible = m.classified
+    s.extract_done = m.extract_done
+    s.classify_done = m.classify_done
+    s.summarize_done = m.summarize_done
     return s
 
 

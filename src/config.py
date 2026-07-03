@@ -48,26 +48,9 @@ IRIS_KNOWLEDGE_RAW       = IRIS_KNOWLEDGE_INBOX / "intake"
 IRIS_KNOWLEDGE_EXTERNAL  = IRIS_KNOWLEDGE_INBOX / "external"
 IRIS_KNOWLEDGE_STAGING   = IRIS_KNOWLEDGE_INBOX / "folder-staging"
 
-# ─── legacy 경로 (V2.6.3.4까지 fallback 유지) ───────────────────────────────
-# iris-system은 /Users/iris/iris-system (홈) 본체. 심볼릭들로 어디서든 접근 가능.
-IRIS_SYSTEM_LEGACY = Path("/Users/iris/iris-system")
-IRIS_SYSTEM_DB     = IRIS_SYSTEM_LEGACY / "knowledge" / "_index.db"
-IRIS_SYSTEM_RAW    = IRIS_SYSTEM_LEGACY / "knowledge" / "raw"
-IRIS_SYSTEM_WIKI   = IRIS_SYSTEM_LEGACY / "knowledge" / "wiki"
-
-# ─── 활성 경로 (자동 분기 — 새 위치 있으면 새 위치, 없으면 legacy) ──────────
-IRIS_DB_PATH = (
-    IRIS_KNOWLEDGE_DB_NEW if IRIS_KNOWLEDGE_DB_NEW.exists() else IRIS_SYSTEM_DB
-)
-IRIS_RAW_PATH = (
-    IRIS_KNOWLEDGE_RAW if IRIS_KNOWLEDGE_RAW.exists() and any(IRIS_KNOWLEDGE_RAW.iterdir())
-    else IRIS_SYSTEM_RAW
-)
-IRIS_WIKI_PATH = (
-    IRIS_KNOWLEDGE_WIKI if IRIS_KNOWLEDGE_WIKI.exists() and any(IRIS_KNOWLEDGE_WIKI.iterdir())
-    else IRIS_SYSTEM_WIKI
-)
-IRIS_MIRROR_PATH = IRIS_KNOWLEDGE_MIRROR  # 볼트 내부(2-processed/mirror). ~/Documents 폴백 제거.
+# ─── 활성 경로: S2 컷오버로 신 볼트(iris-data)로 재지정. IRIS_SYSTEM_* 폴백 전면 제거.
+#     실제 상수(IRIS_DB_PATH·IRIS_WIKI_PATH·IRIS_RAW_PATH·IRIS_MIRROR_PATH)는
+#     아래 iris-data 데이터 루트 블록에서 IRIS_VAULT_DB 계열에 바인딩한다.
 
 # ─── iris-data 단일 데이터 루트 (S1 / HUB_REARCHITECTURE §2) ─────────────────
 # 재구축 저장소. STORE_SCHEMA_DESIGN §1·§5. repo 밖, git 아님.
@@ -95,6 +78,12 @@ IRIS_WIKI_STORE      = IRIS_KNOWLEDGE_STORE / "wiki"  # Gold md (Obsidian vault)
 
 # concepts.yaml 시드 정본 (repo 내 — init_vault 가 IRIS_CONCEPTS_YAML 로 배포)
 CONCEPTS_SEED_YAML   = REPO_ROOT / "data" / "concepts.seed.yaml"
+
+# ─── 활성 경로 (S2 컷오버 — 신 볼트 단일 진실원, 폴백 없음) ───────────────────
+IRIS_DB_PATH     = IRIS_VAULT_DB      # 구 iris-knowledge/iris-system DB 대체
+IRIS_WIKI_PATH   = IRIS_WIKI_STORE    # 위키 전면 재구축(S5) 전까지 신 위키 스토어
+IRIS_RAW_PATH    = IRIS_ORIGINALS     # 원본 보존 루트
+IRIS_MIRROR_PATH = IRIS_EXTRACTED     # 추출 md
 
 # 알다 격차 비교 기준 (V2.5.2 §6.1)
 ALDA_BASELINE = {

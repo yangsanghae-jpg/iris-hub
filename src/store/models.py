@@ -60,6 +60,25 @@ class DistStats:
     by_status: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class DBStats:
+    """데이터·흐름 탭 — 볼트 규모·K2 단계 진척 (신 스키마)."""
+    db_exists: bool = False
+    schema_version: str = "-"
+    integrity: str = "?"
+    db_size_mb: float = 0.0
+    documents: int = 0
+    chunks: int = 0
+    fts: int = 0
+    classified: int = 0        # industry+area 둘 다 NOT NULL
+    extract_done: int = 0
+    classify_done: int = 0
+    summarize_done: int = 0
+    k2_done: int = 0
+    concepts: int = 0
+    aliases: int = 0
+
+
 # ─── ③ 지식 행 ────────────────────────────────────────────────────────────
 @dataclass
 class ConceptRow:

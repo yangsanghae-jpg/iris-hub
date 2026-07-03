@@ -9,8 +9,10 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
+from src import config
+
 from .db import get_conn
-from .models import ChunkRow, DistStats, DocHit, DocRow, QueueStats
+from .models import ChunkRow, DBStats, DistStats, DocHit, DocRow, QueueStats
 
 
 def _now() -> str:
@@ -184,6 +186,47 @@ def doc_distribution(conn: sqlite3.Connection | None = None) -> DistStats:
             by_industry=_counts(c, "industry"),
             by_status=_counts(c, "status"),
         )
+
+
+def db_stats(conn: sqlite3.Connection | None = None) -> DBStats:
+    """볼트 규모·K2 단계 진척 (데이터·흐름 탭). 빈 볼트면 0."""
+    s = DBStats()
+    try:
+        real = config.IRIS_VAULT_DB.resolve(strict=True)
+        s.db_exists = real.is_file()
+        s.db_size_mb = round(real.stat().st_size / (1024 * 1024), 1)
+    except (FileNotFoundError, OSError):
+        return s
+    with _conn(conn) as c:
+        s.integrity = (c.execute("PRAGMA integrity_check").fetchone() or ["?"])[0]
+        row = c.execute("SELECT value FROM meta_kv WHERE key='schema_version'").fetchone()
+        s.schema_version = row[0] if row else "-"
+        one = lambda q: c.execute(q).fetchone()[0]
+        s.documents = one("SELECT COUNT(*) FROM documents")
+        s.chunks = one("SELECT COUNT(*) FROM chunks")
+        s.fts = one("SELECT COUNT(*) FROM documents_fts")
+        s.classified = one("SELECT COUNT(*) FROM documents WHERE industry IS NOT NULL AND area IS NOT NULL")
+        s.extract_done = one("SELECT COUNT(*) FROM document_meta WHERE extract_at IS NOT NULL")
+        s.classify_done = one("SELECT COUNT(*) FROM document_meta WHERE classify_at IS NOT NULL")
+        s.summarize_done = one("SELECT COUNT(*) FROM document_meta WHERE summarize_at IS NOT NULL")
+        s.k2_done = one("SELECT COUNT(*) FROM document_meta WHERE k2_done_at IS NOT NULL")
+        s.concepts = one("SELECT COUNT(*) FROM concepts")
+        s.aliases = one("SELECT COUNT(*) FROM concept_aliases")
+    return s
+
+
+def list_documents(
+    limit: int = 100, status: str = "active", conn: sqlite3.Connection | None = None
+) -> list[DocRow]:
+    """문서 목록 (위키·데이터 탭). 최신 ingest 순."""
+    with _conn(conn) as c:
+        rows = c.execute(
+            "SELECT doc_id, channel, source, original_path, title, trust, status, "
+            "industry, area, level, ingested_at FROM documents "
+            "WHERE status=? ORDER BY ingested_at DESC LIMIT ?",
+            (status, limit),
+        ).fetchall()
+    return [DocRow(**{k: r[k] for k in r.keys()}) for r in rows]
 
 
 def get_document(doc_id: str, conn: sqlite3.Connection | None = None) -> DocRow | None:
