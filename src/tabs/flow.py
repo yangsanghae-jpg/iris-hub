@@ -613,23 +613,38 @@ def _render_paths(s: FlowSnapshot) -> None:
         )
 
 
+def _render_safety_audit() -> None:
+    """안전망 점검 — 좀비 락·고아·FTS 불일치 자동 정정 (액션)."""
+    sn_col1, sn_col2 = st.columns([1, 3])
+    with sn_col1:
+        if st.button("🛡 안전망 점검", use_container_width=True, key="flow_audit",
+                     help="좀비 락·고아 chunks/meta·FTS 불일치 자동 정정"):
+            from src import health
+            rep = health.audit(auto_fix=True)
+            if rep.ok:
+                st.success("✅ 무결성 OK — 좀비 없음")
+            else:
+                st.warning(f"🛡 {rep.auto_fixed}건 정정 — " + " · ".join(rep.notes[:5]))
+    with sn_col2:
+        st.caption(
+            "🛡 안전망 — 좀비 락·고아 chunks/meta·FTS 불일치를 *자동 정정*. "
+            "묶음 처리 시작 전에도 좀비 락만은 자동 해제."
+        )
+
+
 def render() -> None:
+    # S3-R3: 흐름 = 얇은 실행 콘솔(명령만). 현황·진척·파이프라인 관측은 데이터 탭으로 이관.
+    #        관측 렌더러(_render_queue_row·_render_stage_progress·_render_flow_row·
+    #        _render_gaps·_render_paths)는 더 이상 호출 안 함(후속 정리 대상).
     st.markdown(_CSS, unsafe_allow_html=True)
     hub_pagebar(
         "흐름",
         "Processing Console",
-        "대기 자료를 묶음·개별·선택으로 처리하고 Obsidian 미러 동기화를 실행합니다.",
+        "대기 자료를 묶음·개별·선택으로 처리하고 Obsidian 미러 동기화를 실행합니다. 현황·진척은 데이터 탭에서 봅니다.",
         "Queue Ready",
     )
 
-    _render_queue_row()
-    _render_stage_progress()
     _render_actions()
+    _render_safety_audit()
     st.divider()
     _render_sync()
-
-    s = measure_flow()
-    hub_section("단계별 흐름")
-    _render_flow_row(s)
-    _render_gaps(s)
-    _render_paths(s)

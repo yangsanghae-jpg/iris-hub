@@ -238,6 +238,15 @@ def render() -> None:
         ("Concepts", _fmt_int(s.concepts), f"{_fmt_int(s.aliases)} aliases"),
     ])
 
+    # S3-R3: 흐름에서 이관된 처리 큐 현황 관측 (명령은 흐름, 관측은 데이터).
+    q = store_vault.queue_snapshot()
+    hub_kpi_grid([
+        ("대기", _fmt_int(q.pending), "K2 미분석"),
+        ("처리중", _fmt_int(q.processing), "in progress"),
+        ("완료", _fmt_int(q.done), "K2 done"),
+        ("실패", _fmt_int(q.failed), "fail_count>0"),
+    ])
+
     distribution_panel = hub_panel(
         "분류 분포",
         (
