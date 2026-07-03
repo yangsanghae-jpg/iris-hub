@@ -109,13 +109,78 @@ def add_relation(
 
 
 def recompute_degree(conn: sqlite3.Connection | None = None) -> None:
-    """concept_docs 집계 → concepts.degree 캐시 재계산."""
+    """concept_docs 집계 → concepts.degree 캐시 재계산 (active 문서만, S4 §5)."""
     with _conn(conn) as c:
         c.execute(
             """UPDATE concepts SET degree = (
-                 SELECT COUNT(*) FROM concept_docs cd WHERE cd.concept_id = concepts.concept_id
+                 SELECT COUNT(*) FROM concept_docs cd
+                   JOIN documents d ON d.doc_id = cd.doc_id AND d.status = 'active'
+                  WHERE cd.concept_id = concepts.concept_id
                )"""
         )
+
+
+def recompute_cooccurrence(
+    min_docs: int = 3, conn: sqlite3.Connection | None = None
+) -> int:
+    """같은 active 문서 min_docs건 이상에서 공출현한 개념쌍 → concept_relations(cooccur). Returns 쌍 수."""
+    with _conn(conn) as c:
+        rows = c.execute(
+            """SELECT a.concept_id AS src, b.concept_id AS dst, COUNT(*) AS n
+                 FROM concept_docs a
+                 JOIN concept_docs b
+                   ON a.doc_id = b.doc_id AND a.concept_id < b.concept_id
+                 JOIN documents d ON d.doc_id = a.doc_id AND d.status = 'active'
+                GROUP BY a.concept_id, b.concept_id
+               HAVING n >= ?""",
+            (min_docs,),
+        ).fetchall()
+        for r in rows:
+            c.execute(
+                """INSERT INTO concept_relations(src_id, dst_id, kind, weight)
+                   VALUES (?,?,'cooccur',?)
+                   ON CONFLICT(src_id, dst_id, kind) DO UPDATE SET weight=excluded.weight""",
+                (r["src"], r["dst"], r["n"]),
+            )
+    return len(rows)
+
+
+# ─── 후보 큐 (미매칭 개념, S4 §4) ─────────────────────────────────────────
+def add_candidate(
+    raw_norm: str, sample: str, doc_id: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """정규화 실패 개념을 후보로 누적 (doc_count++). 사람 승인 대기."""
+    now = _now()
+    with _conn(conn) as c:
+        c.execute(
+            """INSERT INTO concept_candidates(raw_norm, sample, doc_count, first_seen, last_seen)
+               VALUES (?,?,1,?,?)
+               ON CONFLICT(raw_norm) DO UPDATE SET
+                 doc_count = concept_candidates.doc_count + 1,
+                 last_seen = excluded.last_seen,
+                 sample    = COALESCE(concept_candidates.sample, excluded.sample)""",
+            (raw_norm, sample, now, now),
+        )
+
+
+def list_candidates(
+    n: int = 50, conn: sqlite3.Connection | None = None
+) -> list[dict]:
+    """개념 후보 (데이터 탭) — doc_count 순."""
+    with _conn(conn) as c:
+        rows = c.execute(
+            "SELECT raw_norm, sample, doc_count, first_seen, last_seen "
+            "FROM concept_candidates ORDER BY doc_count DESC, last_seen DESC LIMIT ?",
+            (n,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def dismiss_candidate(raw_norm: str, conn: sqlite3.Connection | None = None) -> None:
+    """후보 기각 (사람 판단)."""
+    with _conn(conn) as c:
+        c.execute("DELETE FROM concept_candidates WHERE raw_norm=?", (raw_norm,))
 
 
 # ─── 읽기 ──────────────────────────────────────────────────────────────────

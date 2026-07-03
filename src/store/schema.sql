@@ -100,5 +100,14 @@ CREATE TABLE IF NOT EXISTS concept_relations (
   PRIMARY KEY (src_id, dst_id, kind)
 );
 
+-- 개념 후보 (정규화 실패분 — 사람 승인 대기, S4 §4)
+CREATE TABLE IF NOT EXISTS concept_candidates (
+  raw_norm   TEXT PRIMARY KEY,          -- 폴백 정규화 키
+  sample     TEXT,                      -- 원문 표기 예
+  doc_count  INTEGER DEFAULT 0,         -- 등장 문서 수 (우선순위)
+  first_seen TEXT, last_seen TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_count ON concept_candidates(doc_count DESC);
+
 -- 시스템 메타
 CREATE TABLE IF NOT EXISTS meta_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);

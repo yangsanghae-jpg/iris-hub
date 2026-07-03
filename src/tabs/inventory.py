@@ -308,6 +308,25 @@ def render() -> None:
         unsafe_allow_html=True,
     )
 
+    # S4: 개념 후보 — 정규화 미매칭 개념의 사람 승인 표면 (concepts.yaml 등록/기각).
+    from src.store import knowledge as store_knowledge
+    cands = store_knowledge.list_candidates(n=15)
+    st.divider()
+    st.subheader("🧩 개념 후보")
+    if cands:
+        st.caption("정규화 미매칭 개념 — doc_count 순. 사전(concepts.yaml) 등록 or 기각 대상.")
+        st.dataframe(
+            {
+                "후보": [c["sample"] or c["raw_norm"] for c in cands],
+                "문서수": [c["doc_count"] for c in cands],
+                "최근": [(c["last_seen"] or "")[:10] for c in cands],
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.caption("개념 후보 없음 — 미매칭 개념이 쌓이면 여기서 사전 등록/기각합니다.")
+
     # S3-R2: 인사이트 탭 흡수 — 관측 백엔드 상태·telemetry·Grafana 링크를 데이터 탭 하위로.
     st.divider()
     st.subheader("🔭 관측")

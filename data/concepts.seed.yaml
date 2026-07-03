@@ -71,3 +71,21 @@ concepts:
       - {alias: digital twin, lang: en}
       - {alias: 디지털 트윈, lang: ko}
       - {alias: 数字孪生, lang: zh}
+
+# 정규화에서 거부할 과도하게 일반적인 단어 (S4 §1·§2). 개념화 안 함.
+stopwords:
+  - 시스템
+  - 관리
+  - 데이터
+  - 방법
+  - 정보
+  - 기술
+  - 분석
+  - 운영
+  - 프로세스
+  - 지표
+  - system
+  - management
+  - data
+  - process
+  - method
