@@ -630,3 +630,54 @@ section[data-testid="stSidebar"] .hub-nav-active button[kind="primary"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── S5 UX 보정: 메인 영역 버튼 통일 (사이드바는 위 규칙이 우선) ── */
+[data-testid="stMain"] div[data-testid="stButton"] > button {
+  width: 100% !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  min-height: 34px !important;
+  padding: 6px 12px !important;
+  border: 1px solid var(--hub-border) !important;
+  border-radius: var(--hub-radius) !important;
+  background: var(--hub-panel) !important;
+  color: var(--hub-ink) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.03) !important;
+}
+[data-testid="stMain"] div[data-testid="stButton"] > button:hover {
+  border-color: var(--hub-accent) !important;
+  background: rgba(47,128,196,0.05) !important;
+}
+
+/* ── 위키 개념 페이지 컴포넌트 ── */
+.hub-concept-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:2px 0 10px; }
+.hub-concept-title { font-size:20px; font-weight:800; color:var(--hub-ink); letter-spacing:-0.02em; }
+.hub-breadcrumb { font-size:11px; color:var(--hub-muted-2); letter-spacing:0.04em; margin-bottom:2px; }
+.hub-chip { display:inline-block; background:var(--hub-panel-soft); border:1px solid var(--hub-border);
+  border-radius:999px; padding:2px 10px; margin:2px 3px 2px 0; font-size:12px; color:var(--hub-ink); }
+.hub-chip small { color:var(--hub-muted-2); margin-left:4px; }
+.hub-def { font-size:13.5px; line-height:1.6; color:var(--hub-ink);
+  padding:10px 12px; background:var(--hub-panel-soft); border:1px solid var(--hub-border-soft); border-radius:8px; }
+.hub-doc-row { display:flex; align-items:center; gap:8px; padding:7px 10px; margin:4px 0;
+  border:1px solid var(--hub-border-soft); border-radius:8px; background:var(--hub-panel); font-size:13px; }
+.hub-doc-row .t { font-weight:650; color:var(--hub-ink); }
+.hub-doc-row .m { color:var(--hub-muted-2); font-size:11px; margin-left:auto; white-space:nowrap; }
+.hub-badge { font-size:11px; font-weight:700; padding:1px 7px; border-radius:6px; white-space:nowrap; }
+.hub-badge.doc { background:#E6F1FB; color:#0C447C; }
+.hub-badge.chat { background:#E1F5EE; color:#0F6E56; }
+.hub-badge.web { background:#FEF3E2; color:#B25E09; }
+.hub-badge.verified { background:#E1F5EE; color:#0F6E56; }
+.hub-badge.candidate { background:#EEF1F5; color:#667085; }
+.hub-badge.warn { background:#FEF3E2; color:#B25E09; }
+.hub-degbar { height:4px; border-radius:3px; background:var(--hub-border-soft); margin:-2px 0 8px; overflow:hidden; }
+.hub-degbar > span { display:block; height:100%; background:linear-gradient(90deg,var(--hub-accent),#8bc0ea); }
+.hub-candbox { border:1px dashed var(--hub-border); border-radius:8px; padding:8px 10px;
+  color:var(--hub-muted); font-size:12px; background:var(--hub-panel-soft); }
+
+/* ── 반응형: 좁은 폭에서 KPI 2열로 (짤림 완화) ── */
+@media (max-width: 1050px) {
+  .hub-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .hub-two-col, .hub-equal-col { grid-template-columns: 1fr; }
+}

@@ -11,6 +11,7 @@ from src.ui_kit import (
     hub_kpi_grid,
     hub_pagebar,
     hub_panel,
+    hub_section,
     hub_two_col,
 )
 
@@ -311,8 +312,7 @@ def render() -> None:
     # S4: 개념 후보 — 정규화 미매칭 개념의 사람 승인 표면 (concepts.yaml 등록/기각).
     from src.store import knowledge as store_knowledge
     cands = store_knowledge.list_candidates(n=15)
-    st.divider()
-    st.subheader("🧩 개념 후보")
+    hub_section("🧩 개념 후보")
     if cands:
         st.caption("정규화 미매칭 개념 — doc_count 순. 사전(concepts.yaml) 등록 or 기각 대상.")
         st.dataframe(
@@ -328,8 +328,7 @@ def render() -> None:
         st.caption("개념 후보 없음 — 미매칭 개념이 쌓이면 여기서 사전 등록/기각합니다.")
 
     # S3-R2: 인사이트 탭 흡수 — 관측 백엔드 상태·telemetry·Grafana 링크를 데이터 탭 하위로.
-    st.divider()
-    st.subheader("🔭 관측")
+    hub_section("🔭 관측")
     st.caption("Grafana 중심 관측 백엔드 상태와 K5 telemetry 현황 (구 인사이트 탭 통합).")
     from src.tabs import placeholders
     placeholders.render_observability_section()

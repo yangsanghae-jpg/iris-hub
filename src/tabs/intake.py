@@ -745,8 +745,7 @@ def render() -> None:
     )
 
     # S3-R2: 외부응답 탭 흡수 — 웹검색·외부 LLM 응답 캡처를 입력 탭 하위 섹션으로.
-    st.divider()
-    st.subheader("🌐 외부 응답 캡처")
+    hub_section("🌐 외부 응답 캡처")
     st.caption("웹검색·외부 LLM 응답을 원문 보존으로 적재 (구 외부응답 탭 통합).")
     from src.tabs import external_capture
     external_capture.render_section()
