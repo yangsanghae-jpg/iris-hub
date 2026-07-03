@@ -135,7 +135,8 @@ def _render_observe_note(text: str) -> str:
 # ─── 탭 4: 인사이트 ──────────────────────────────────────────────────────
 
 
-def render_insights() -> None:
+def render_observability_section() -> None:
+    """관측 백엔드 상태·telemetry — 데이터 탭이 섹션으로 흡수 (S3-R2, 구 인사이트 탭)."""
     services = _service_status_rows()
     telemetry_root = Path(os.environ.get(
         "IRIS_TELEMETRY_ROOT",
@@ -146,12 +147,6 @@ def render_insights() -> None:
     latest_log_caption = logs[-1].name if logs else "waiting for first append"
 
     service_status_by_name = {str(service["name"]): bool(service["alive"]) for service in services}
-    hub_pagebar(
-        "인사이트",
-        "Insights Console",
-        "Grafana 중심의 관측 백엔드 상태와 K5 telemetry 활성 흐름을 한 화면에서 확인합니다.",
-        "Observe Ready",
-    )
     hub_kpi_grid([
         ("Grafana", "Online" if service_status_by_name.get("Grafana") else "Offline", ":3030 · dashboard hub"),
         ("Prometheus", "Online" if service_status_by_name.get("Prometheus") else "Offline", ":9090 · metrics source"),

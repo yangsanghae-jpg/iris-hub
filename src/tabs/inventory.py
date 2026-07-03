@@ -298,3 +298,10 @@ def render() -> None:
         f"</div>",
         unsafe_allow_html=True,
     )
+
+    # S3-R2: 인사이트 탭 흡수 — 관측 백엔드 상태·telemetry·Grafana 링크를 데이터 탭 하위로.
+    st.divider()
+    st.subheader("🔭 관측")
+    st.caption("Grafana 중심 관측 백엔드 상태와 K5 telemetry 현황 (구 인사이트 탭 통합).")
+    from src.tabs import placeholders
+    placeholders.render_observability_section()

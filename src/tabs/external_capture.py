@@ -598,7 +598,12 @@ def render() -> None:
         "원문 보존을 우선하고, 분류·요약·인덱싱은 저장 후 자동 실행합니다.",
         "Capture Ready",
     )
+    render_section()
 
+
+def render_section() -> None:
+    """외부 응답 캡처 본문 — 입력 탭이 섹션으로 흡수 (S3-R2)."""
+    st.markdown(_CSS, unsafe_allow_html=True)
     if not EXTERNAL_DIR.exists():
         try:
             EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
