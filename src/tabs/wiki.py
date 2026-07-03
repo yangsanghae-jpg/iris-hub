@@ -157,7 +157,12 @@ def render() -> None:
     with main:
         if q.strip():
             _render_results(q.strip())
-        elif st.session_state.get("wiki_concept"):
-            _render_concept_page(st.session_state["wiki_concept"])
         else:
-            st.info("← 좌측 개념을 선택하거나 상단에서 검색하세요.")
+            cid = st.session_state.get("wiki_concept")
+            if not cid:
+                tops = knowledge.top_concepts(n=1)   # 첫 진입: 상위 개념 페이지 기본 표시
+                cid = tops[0].concept_id if tops else None
+            if cid:
+                _render_concept_page(cid)
+            else:
+                st.info("개념이 아직 없습니다 — 개념추출(재수집) 후 채워집니다.")
