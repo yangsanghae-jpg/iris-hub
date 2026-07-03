@@ -23,7 +23,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.tabs import diagnosis_mgmt, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, presenton as presenton_tab, wiki_k2
+from src.tabs import diagnosis_mgmt, external, external_capture, flow, graph, intake, inventory, placeholders, pptx, wiki_k2
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -50,19 +50,14 @@ NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("insights", "📊 인사이트", placeholders.render_insights),
     ("wiki", "📚 위키", _render_wiki),
     ("pptx", "📊 PPT", pptx.render),
-    ("presenton", "🦅 Presenton", presenton_tab.render),
     ("webui", "💬 WebUI", external.render_openwebui),
     ("openclaw", "🦅 OpenClaw", external.render_openclaw),
-    ("grafana", "🌐 Grafana", external.render_grafana),
-    ("obsidian", "📚 Obsidian", external.render_obsidian),
-    ("settings", "⚙️ 설정", placeholders.render_settings),
 ]
 NAV_GROUPS: list[tuple[str, list[str]]] = [
     ("Core", ["diagnosis", "intake", "external_capture", "flow"]),
     ("Knowledge", ["inventory", "graph", "insights", "wiki"]),
-    ("Create", ["pptx", "presenton"]),
-    ("External", ["webui", "openclaw", "grafana", "obsidian"]),
-    ("System", ["settings"]),
+    ("Create", ["pptx"]),
+    ("External", ["webui", "openclaw"]),
 ]
 NAV_LABELS = {key: label for key, label, _ in NAV_ITEMS}
 NAV_RENDERERS = {key: render for key, _, render in NAV_ITEMS}

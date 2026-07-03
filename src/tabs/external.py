@@ -173,40 +173,4 @@ def render_openclaw() -> None:
 # ─── L5 관측 ────────────────────────────────────────────────────────────
 
 
-def render_grafana() -> None:
-    _iframe_or_help(
-        url="http://127.0.0.1:3030",
-        host="127.0.0.1", port=3030, name="L5-observability (Grafana)",
-        hint="cd ~/Documents/0Dev/iris-stack && \\\n"
-             "docker compose -f docker-compose.observability.yml \\\n"
-             "               -f docker-compose.observability.mac.yml up -d",
-    )
-    st.caption(
-        "V2.5.1 §11.6: 관측은 Grafana 한 곳 정책. "
-        "iris-v25-k5 패널은 K5 telemetry append 후 자동 점등."
-    )
-
-
-# ─── L3 메모리 운영 (V2.6.2.2 폐기) ────────────────────────────────────
-# render_memory_admin 제거 — OpenClaw 페르소나 관리 의의 소멸로 운영 진입점 폐기.
-# iris-stack의 memory-admin 컨테이너 자체는 별도 사이클에서 정리.
-
-
-# ─── Obsidian (외부) ───────────────────────────────────────────────────
-
-
-def render_obsidian() -> None:
-    st.info(
-        "🔵 **Obsidian (알다 외부 시스템)** — iframe 불가 (데스크톱 앱)"
-    )
-    st.markdown(
-        "- 정본 위치: `~/Documents/LearningMaster` (알다 V1.0 운영)\n"
-        "- **V2.5.2 §3.B 거부 결정**: Obsidian은 K6 편집 UI 후보일 뿐, IRIS truth는 SQLite\n"
-        "- 본 탭은 *참고용 진입*. 알다 시스템 자체는 알다에서 운영."
-    )
-    st.link_button(
-        "📚 LearningMaster Vault 열기",
-        "obsidian://open?vault=LearningMaster",
-        use_container_width=False,
-        help="Obsidian 데스크톱 앱 설치 + 'LearningMaster' Vault 존재 시",
-    )
+# S3-R1: render_grafana·render_obsidian 폐기 (Grafana 관측 링크는 데이터 탭으로, R2).
