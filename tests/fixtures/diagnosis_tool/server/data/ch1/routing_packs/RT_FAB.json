@@ -1,0 +1,8 @@
+{
+  "routing_code": "RT_FAB",
+  "routing_label_ko": "파운드리",
+  "routing_label_zh": "代工",
+  "flow_style": "fab_line",
+  "control_unit": "lot",
+  "priority_axes": ["yield"]
+}

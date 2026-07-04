@@ -23,7 +23,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.tabs import diagnosis_mgmt, external, flow, graph, intake, inventory, pptx, wiki
+from src.tabs import diagnosis_mgmt, diagnosis_pack, external, flow, graph, intake, inventory, pptx, wiki
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -36,6 +36,7 @@ def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
 
 NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("diagnosis", "🔧 진단툴", diagnosis_mgmt.render),
+    ("diagnosis_pack", "🛠 진단툴 관리", diagnosis_pack.render),
     ("intake", "📥 입력", intake.render),
     ("flow", "🔄 흐름", flow.render),
     ("inventory", "📦 데이터", inventory.render),
@@ -46,7 +47,7 @@ NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("openclaw", "🦅 OpenClaw", external.render_openclaw),
 ]
 NAV_GROUPS: list[tuple[str, list[str]]] = [
-    ("Core", ["diagnosis", "intake", "flow"]),
+    ("Core", ["diagnosis", "diagnosis_pack", "intake", "flow"]),
     ("Knowledge", ["inventory", "graph", "wiki"]),
     ("Create", ["pptx"]),
     ("External", ["webui", "openclaw"]),

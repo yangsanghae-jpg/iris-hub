@@ -12,8 +12,9 @@ from pathlib import Path
 
 from src import config
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SCHEMA_SQL = Path(__file__).with_name("schema.sql")
+_DX_MIGRATION_SQL = Path(__file__).with_name("dx_schema.sql")
 
 
 def _ensure_db_location() -> Path:
@@ -48,6 +49,15 @@ def _current_version(conn: sqlite3.Connection) -> int | None:
     return int(row["value"]) if row else None
 
 
+def _migrate_to_v2(conn: sqlite3.Connection) -> None:
+    """v1 → v2: dx_* 스키마 추가."""
+    conn.executescript(_DX_MIGRATION_SQL.read_text(encoding="utf-8"))
+    conn.execute(
+        "INSERT OR REPLACE INTO meta_kv(key, value) VALUES('schema_version', ?)",
+        ("2",),
+    )
+
+
 def ensure_schema(conn: sqlite3.Connection | None = None) -> int:
     """schema.sql 적용 + SCHEMA_VERSION 기록. 없으면 생성(빈 볼트). 멱등.
 
@@ -56,15 +66,16 @@ def ensure_schema(conn: sqlite3.Connection | None = None) -> int:
     own = conn is None
     conn = conn or get_conn()
     try:
-        conn.executescript(_SCHEMA_SQL.read_text(encoding="utf-8"))
         have = _current_version(conn)
         if have is None:
+            conn.executescript(_SCHEMA_SQL.read_text(encoding="utf-8"))
             conn.execute(
                 "INSERT OR REPLACE INTO meta_kv(key, value) VALUES('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
+        elif have == 1 and SCHEMA_VERSION >= 2:
+            _migrate_to_v2(conn)
         elif have != SCHEMA_VERSION:
-            # 마이그레이션 정책 없음(재출발). 불일치는 명시 실패로 드러낸다.
             raise RuntimeError(
                 f"schema_version 불일치: DB={have}, code={SCHEMA_VERSION}. "
                 "재출발 정책 — 볼트를 재초기화하거나 코드 버전을 맞추라."
