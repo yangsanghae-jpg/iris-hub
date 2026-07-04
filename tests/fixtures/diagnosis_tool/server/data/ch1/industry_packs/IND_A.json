@@ -1,0 +1,40 @@
+{
+  "industry_code": "A",
+  "industry_label_ko": "프로젝트형 제조",
+  "industry_label_zh": "项目型制造",
+  "message_theme": "delivery",
+  "priority_axes": ["delivery", "quality"],
+  "routing_code": "RT_PROJECT",
+  "flow_style": "project_driven",
+  "control_unit": "project",
+  "default_profile": {
+    "routing_code": "RT_PROJECT",
+    "mvp": [
+      {"code": "MVP_PROGRESS_MON", "weight": 0.9},
+      {"code": "MVP_SUPPLY_SYNC", "weight": 0.6}
+    ],
+    "modules": [
+      {"code": "MOD_PLAN", "weight": 0.7}
+    ],
+    "direction": [],
+    "kpi": []
+  },
+  "sub_industries": {
+    "aerospace_equipment": {
+      "label_ko": "항공·우주 장비",
+      "label_zh": "航空航天设备",
+      "routing_code": "RT_PROJECT",
+      "mvp": [
+        {"code": "MVP_PROGRESS_MON", "weight": 0.85}
+      ]
+    },
+    "medical_imaging_equipment": {
+      "label_ko": "의료 영상 장비",
+      "label_zh": "医疗影像设备",
+      "routing_code": "RT_PROJECT",
+      "mvp": [
+        {"code": "MVP_PROGRESS_MON", "weight": 0.8}
+      ]
+    }
+  }
+}

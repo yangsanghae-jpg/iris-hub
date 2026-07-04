@@ -1,0 +1,19 @@
+{
+  "industry_code": "B",
+  "industry_label_ko": "반도체",
+  "industry_label_zh": "半导体",
+  "message_theme": "yield",
+  "priority_axes": ["yield", "cycle"],
+  "routing_code": "RT_FAB",
+  "default_profile": {
+    "routing_code": "RT_FAB",
+    "mvp": [{"code": "MVP_YIELD", "weight": 0.95}]
+  },
+  "sub_industries": {
+    "logic_foundry": {
+      "label_ko": "로직 파운드리",
+      "label_zh": "逻辑代工",
+      "mvp": [{"code": "MVP_YIELD", "weight": 0.9}]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "routing_code": "RT_PROJECT",
+  "routing_label_ko": "프로젝트형",
+  "routing_label_zh": "项目型",
+  "flow_style": "project_driven",
+  "control_unit": "project",
+  "priority_axes": ["delivery"],
+  "overlay": {"block": "mvp", "code": "MVP_PROGRESS_MON", "boost": 0.05},
+  "adjustments": [
+    {"block": "modules", "code": "MOD_PLAN", "weight": 0.1}
+  ]
+}

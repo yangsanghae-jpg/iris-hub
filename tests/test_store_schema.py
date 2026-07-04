@@ -7,6 +7,7 @@ EXPECTED_TABLES = {
     "document_meta", "embeddings",
     "concepts", "concept_aliases", "concept_docs", "concept_relations",
     "meta_kv",
+    "dx_industry", "dx_sub_industry", "dx_import",
 }
 
 
