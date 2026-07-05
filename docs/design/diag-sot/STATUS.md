@@ -14,7 +14,7 @@
 | **P1-b** | registry+Q2/3/4 dx화 | ✅ PASS | legacy 9팩 숨김 acid-test 9/9 byte-0, Q4 flat 보존, dangling 0 |
 | **P2 Discovery** | 고정라벨·resolver 인벤토리 | ✅ 확정 | 5결정(D1~D5): dx_fixed_label·ko필수=active·server기본 P3이연·shell ko·Ch2 _zh 본문 P3 |
 | **P2 catalog** | fixed-label 카탈로그 라운드트립 | ✅ PASS | dedup-keep-last+blank-strip 정규화, G1~G4 통과, active 256 ko_missing 0 |
-| **P2 flip** | resolver/shell ko-flip | ▶ **진행중(인가됨)** | DEFAULT_LANG=ko·chain[lang,ko]·index.html ko + 빈-라벨 스모크 |
+| **P2 flip** | resolver/shell ko-flip | 🟡 **CONDITIONAL PASS** | flip 정확·무접촉 OK. 수정1: domain_card_suffix ko→""(Ch2 렌더 행위변경 방지)+스모크 규칙 |
 | P3 | ③ 보고콘텐츠 세분화(system→module→sub_override)+엔진 부분개편 | ⏳ 대기 | Ch2 _zh·lang_ko·server lang 기본 여기서 |
 | P4 | 잔여 이관·legacy 격리·lineage 완성 | ⏳ 대기 | |
 
