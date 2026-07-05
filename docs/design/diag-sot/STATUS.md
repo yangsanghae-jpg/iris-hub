@@ -15,8 +15,13 @@
 | **P2 Discovery** | 고정라벨·resolver 인벤토리 | ✅ 확정 | 5결정(D1~D5): dx_fixed_label·ko필수=active·server기본 P3이연·shell ko·Ch2 _zh 본문 P3 |
 | **P2 catalog** | fixed-label 카탈로그 라운드트립 | ✅ PASS | dedup-keep-last+blank-strip 정규화, G1~G4 통과, active 256 ko_missing 0 |
 | **P2 flip** | resolver/shell ko-flip | ✅ **PASS/완료** | ko 기본+chain[lang,ko]+shell. domain_card_suffix 복원 확인, 게이트16/16, golden12/12 |
-| **P3** | ③ 보고콘텐츠 세분화(system→module→sub_override)+엔진 부분개편 | ▶ **DISCOVERY 지시** | new-shape=dev전용/prod무노출. Ch2 _zh·lang_ko·server lang 기본 회수 |
+| **P3(분할)** | ③ 보고콘텐츠 세분화 | ▶ **분할 확정** | Discovery 완료→P3 too big→분할. canonical key=A01+alias(P1 issue 해소), lang_ko 보존, prod 무노출=env flag. tier/DB/server flip 이연 |
+| └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override (기존 캐스케이드) | ▶ **schema draft 지시** | 사장 확정: 안전 먼저. 엔진 최소변경, 기존 델타 byte-0 |
+| └ P3b | Ch2 system→module→sub_override + 엔진 개편 | ⏳ 대기 | 가장 위험, P3a 후 |
 | P4 | 잔여 이관·legacy 격리·lineage 완성 | ⏳ 대기 | |
+
+## ⚠️ workflow 이슈
+M2 환경에서 git 명령 제약 → discovery draft는 Gatekeeper가 1Dev clone에서 대행 커밋(`6fc6a56`). P3a부터 실제 코드 변경 → **M2 git 복구 필요**(아니면 Gatekeeper 대행 지속).
 
 ## 확립된 불변 규율
 
