@@ -42,6 +42,11 @@
 - **M2:** P4-core 착수 — P4-1 inventory → P4-2 loader refs → P4-3 `DIAG_SOT_MANIFEST.json`(live=로더) → P4-4 `DIAG_SOT_LINEAGE.json`(field-group 전팩 + P1~P3 core row-level). **archive/삭제/loader편집/generator실행 금지.**
 - **Gatekeeper:** P4-core 제출 시 MANIFEST live=로더 표본 grep 검증 + LINEAGE 완비 확인 → DIAG-SOT 데이터 기반 완성 → 관리탭 UI 단계.
 
+## 보류·백로그 (P4 이후 결정)
+
+- **런타임 팩 구조 전환(스키마 v4)** = **보류.** authoring(dx)은 재설계됨·런타임은 byte-0 유지가 현 방향. 전환 시 엔진 결합도: Ch2 🔴(~5,500줄+DB mode, 별건) / Ch1 🟠(~1,570줄) / Q4 flat·Q3 🟢(~450줄, 선별전환 가성비 최고). 필요 시 "챕터별 전환 비용·순서표(v4 로드맵)" 작성.
+- **A1/A2 재설계** = **향후 고려 가능성**(사장 플래그, 2026-07-06). P3는 A1/A2 *콘텐츠*를 system→module→sub_override로 세분화. A1(리포트)/A2(제안) 자체의 구조·UX 재설계는 별도 검토 대상 — P4 마무리 후 판단.
+
 ## ⚠️ workflow 메모
 
 M2 환경 git이 간헐적으로 막힘(DNS). 미커밋 산출물은 **Gatekeeper가 1Dev clone(`~/Documents/1Dev/diagnosis-tool`)에서 대행 커밋·push**. 검증은 **read-only git + 미커밋물 선(先)커밋 보존** 원칙(P3b에서 checkout 유실 사고 재발방지).
