@@ -81,17 +81,26 @@ def upsert_industry(
     conn: sqlite3.Connection,
     code: str,
     *,
+    slug: str | None = None,
     message_theme: str | None = None,
     priority_axes: list[str] | None = None,
+    characteristics: list[str] | None = None,
     ord: int | None = None,
 ) -> None:
     conn.execute(
-        "INSERT INTO dx_industry(code, message_theme, priority_axes_json, ord) "
-        "VALUES (?, ?, ?, ?) "
+        "INSERT INTO dx_industry(code, slug, message_theme, priority_axes_json, characteristics_json, ord) "
+        "VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(code) DO UPDATE SET "
+        "slug=excluded.slug, "
         "message_theme=excluded.message_theme, "
-        "priority_axes_json=excluded.priority_axes_json, ord=excluded.ord",
-        (code, message_theme, json.dumps(priority_axes or [], ensure_ascii=False), ord),
+        "priority_axes_json=excluded.priority_axes_json, "
+        "characteristics_json=excluded.characteristics_json, ord=excluded.ord",
+        (
+            code, slug, message_theme,
+            json.dumps(priority_axes or [], ensure_ascii=False),
+            json.dumps(characteristics or [], ensure_ascii=False),
+            ord,
+        ),
     )
 
 
@@ -442,7 +451,8 @@ def count_rows(conn: sqlite3.Connection | None = None) -> dict[str, int]:
         counts = {}
         for table in (
             "dx_industry", "dx_sub_industry", "dx_sub_bridge", "dx_profile",
-            "dx_profile_item", "dx_routing_pack", "dx_code", "dx_question_metric",
+            "dx_profile_item", "dx_routing_pack", "dx_routing_effect",
+            "dx_code", "dx_question_metric", "dx_label",
         ):
             row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
             counts[table] = int(row["n"])

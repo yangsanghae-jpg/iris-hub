@@ -56,13 +56,17 @@ def _build_industry_pack(conn: sqlite3.Connection, industry_code: str) -> dict[s
     if not ind:
         return {}
 
+    keys = ind.keys()
     labels = _labels_for(conn, "industry", industry_code)
     pack: dict[str, Any] = {
-        "industry_code": industry_code,
+        "industry_code": f"IND_{industry_code}",
         "industry_label_ko": labels.get("ko"),
         "industry_label_zh": labels.get("zh"),
-        "message_theme": ind["message_theme"],
+        "industry_message_theme": ind["message_theme"],
         "priority_axes": json.loads(ind["priority_axes_json"] or "[]"),
+        "characteristics": json.loads(
+            (ind["characteristics_json"] if "characteristics_json" in keys else None) or "[]"
+        ),
     }
 
     default = conn.execute(
@@ -70,44 +74,53 @@ def _build_industry_pack(conn: sqlite3.Connection, industry_code: str) -> dict[s
         (industry_code,),
     ).fetchone()
     if default:
-        default_body: dict[str, Any] = {
-            "routing_code": default["routing_code"],
-            "flow_style": default["flow_style"],
-            "control_unit": default["control_unit"],
-        }
+        default_body: dict[str, Any] = {}
+        if default["routing_code"]:
+            default_body["routing"] = default["routing_code"]
+        if default["flow_style"]:
+            default_body["flow_style"] = default["flow_style"]
+        if default["control_unit"]:
+            default_body["control_unit"] = default["control_unit"]
         for block in BLOCKS:
             items = _profile_items_as_list(conn, default["id"], block)
             if items:
                 default_body[block] = items
         pack["default_profile"] = default_body
-        for key in ("routing_code", "flow_style", "control_unit"):
-            if default[key]:
-                pack[key] = default[key]
 
-    subs: dict[str, Any] = {}
-    sub_rows = dx.list_sub_industries(conn, industry_code)
-    for sub in sub_rows:
-        sub_labels = _labels_for(conn, "sub_industry", sub["canon_code"])
-        sub_body: dict[str, Any] = {
+    # 엔진은 분류(sub_industries)와 가중치(sub_profiles)를 별도 키로 읽는다.
+    sub_taxonomy: list[dict[str, Any]] = []
+    sub_profiles: dict[str, Any] = {}
+    for sub in dx.list_sub_industries(conn, industry_code):
+        canon = sub["canon_code"]
+        sub_labels = _labels_for(conn, "sub_industry", canon)
+        sub_taxonomy.append({
+            "code": canon,
             "label_ko": sub_labels.get("ko"),
             "label_zh": sub_labels.get("zh"),
-        }
+        })
         profile = conn.execute(
             "SELECT * FROM dx_profile WHERE industry_code=? AND scope=?",
-            (industry_code, sub["canon_code"]),
+            (industry_code, canon),
         ).fetchone()
         if profile:
-            sub_body["routing_code"] = profile["routing_code"]
-            sub_body["flow_style"] = profile["flow_style"]
-            sub_body["control_unit"] = profile["control_unit"]
+            pbody: dict[str, Any] = {}
+            if profile["routing_code"]:
+                pbody["primary_routing"] = profile["routing_code"]
+            if profile["flow_style"]:
+                pbody["flow_style"] = profile["flow_style"]
+            if profile["control_unit"]:
+                pbody["control_unit"] = profile["control_unit"]
             for block in BLOCKS:
                 items = _profile_items_as_list(conn, profile["id"], block)
                 if items:
-                    sub_body[block] = items
-        subs[sub["canon_code"]] = sub_body
+                    pbody[block] = items
+            if pbody:
+                sub_profiles[canon] = pbody
 
-    if subs:
-        pack["sub_industries"] = subs
+    if sub_taxonomy:
+        pack["sub_industries"] = sub_taxonomy
+    if sub_profiles:
+        pack["sub_profiles"] = sub_profiles
     return pack
 
 
@@ -184,7 +197,8 @@ def export_ch1(conn: sqlite3.Connection | None = None) -> ExportResult:
             code = ind["code"]
             pack = _build_industry_pack(conn, code)
             if pack:
-                rel = f"server/data/ch1/industry_packs/IND_{code}.json"
+                slug = ind["slug"] if ("slug" in ind.keys() and ind["slug"]) else f"IND_{code}"
+                rel = f"server/data/ch1/industry_packs/{slug}.json"
                 text = json.dumps(pack, ensure_ascii=False, indent=2) + "\n"
                 result.files[rel] = text
                 result.paths.append(rel)

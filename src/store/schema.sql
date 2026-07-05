@@ -126,8 +126,10 @@ CREATE TABLE IF NOT EXISTS dx_import (
 
 CREATE TABLE IF NOT EXISTS dx_industry (
   code TEXT PRIMARY KEY,
+  slug TEXT,
   message_theme TEXT,
   priority_axes_json TEXT,
+  characteristics_json TEXT,
   ord INTEGER
 );
 
