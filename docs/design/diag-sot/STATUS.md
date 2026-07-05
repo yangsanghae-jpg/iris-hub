@@ -17,7 +17,7 @@
 | **P2 flip** | resolver/shell ko-flip | ✅ **PASS/완료** | ko 기본+chain[lang,ko]+shell. domain_card_suffix 복원 확인, 게이트16/16, golden12/12 |
 | **P3(분할)** | ③ 보고콘텐츠 세분화 | ▶ **분할 확정** | Discovery 완료→P3 too big→분할. canonical key=A01+alias(P1 issue 해소), lang_ko 보존, prod 무노출=env flag. tier/DB/server flip 이연 |
 | └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override | ✅ **PASS/완료** | dx-only byte-0(base 비움+mutation test 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존. alias map으로 P1 issue 관리 |
-| └ **P3b** | Ch2 system→module→sub_override + 엔진 개편 | ▶ **schema draft 지시** | 요구3 본안. Ch2 분산 주의, 내부 단계화 예상. tier/DB/server flip 이연 |
+| └ **P3b** | Ch2 system→module→sub_override + 엔진 개편 | 🟡 **dx-side PASS / compose 재작업** | systems_catalog byte-0·module_id 결정론·SUB_* 0 ✅. compose.py는 (Gatekeeper 실수로 유실+flag-off system_code leak) 재적용+수정 |
 | P4 | 잔여 이관·legacy 격리·lineage 완성 | ⏳ 대기 | |
 
 ## ⚠️ workflow 이슈
