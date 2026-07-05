@@ -17,8 +17,8 @@
 | **P2 flip** | resolver/shell ko-flip | ✅ **PASS/완료** | ko 기본+chain[lang,ko]+shell. domain_card_suffix 복원 확인, 게이트16/16, golden12/12 |
 | **P3(분할)** | ③ 보고콘텐츠 세분화 | ▶ **분할 확정** | Discovery 완료→P3 too big→분할. canonical key=A01+alias(P1 issue 해소), lang_ko 보존, prod 무노출=env flag. tier/DB/server flip 이연 |
 | └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override | ✅ **PASS/완료** | dx-only byte-0(base 비움+mutation test 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존. alias map으로 P1 issue 관리 |
-| └ **P3b** | Ch2 system→module→sub_override + 엔진 개편 | 🟡 **dx-side PASS / compose 재작업** | systems_catalog byte-0·module_id 결정론·SUB_* 0 ✅. compose.py는 (Gatekeeper 실수로 유실+flag-off system_code leak) 재적용+수정 |
-| P4 | 잔여 이관·legacy 격리·lineage 완성 | ⏳ 대기 | |
+| └ **P3b** | Ch2 system→module + Card1 dev consumer | ✅ **PASS/완료** | dx byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(P3b==baseline 12/12). flag-on 노출 커버리지는 dev 후속. P3b-6(Ch2전체/DB/tier) 이연 |
+| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage 뷰 | ▶ **다음(plan-first)** | P3 core 완료 → 마지막 정리 단계 |
 
 ## ⚠️ workflow 이슈
 M2 환경에서 git 명령 제약 → discovery draft는 Gatekeeper가 1Dev clone에서 대행 커밋(`6fc6a56`). P3a부터 실제 코드 변경 → **M2 git 복구 필요**(아니면 Gatekeeper 대행 지속).
