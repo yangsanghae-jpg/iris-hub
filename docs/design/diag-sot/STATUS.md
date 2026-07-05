@@ -16,8 +16,8 @@
 | **P2 catalog** | fixed-label 카탈로그 라운드트립 | ✅ PASS | dedup-keep-last+blank-strip 정규화, G1~G4 통과, active 256 ko_missing 0 |
 | **P2 flip** | resolver/shell ko-flip | ✅ **PASS/완료** | ko 기본+chain[lang,ko]+shell. domain_card_suffix 복원 확인, 게이트16/16, golden12/12 |
 | **P3(분할)** | ③ 보고콘텐츠 세분화 | ▶ **분할 확정** | Discovery 완료→P3 too big→분할. canonical key=A01+alias(P1 issue 해소), lang_ko 보존, prod 무노출=env flag. tier/DB/server flip 이연 |
-| └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override (기존 캐스케이드) | ▶ **schema draft 지시** | 사장 확정: 안전 먼저. 엔진 최소변경, 기존 델타 byte-0 |
-| └ P3b | Ch2 system→module→sub_override + 엔진 개편 | ⏳ 대기 | 가장 위험, P3a 후 |
+| └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override | ✅ **PASS/완료** | dx-only byte-0(base 비움+mutation test 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존. alias map으로 P1 issue 관리 |
+| └ **P3b** | Ch2 system→module→sub_override + 엔진 개편 | ▶ **schema draft 지시** | 요구3 본안. Ch2 분산 주의, 내부 단계화 예상. tier/DB/server flip 이연 |
 | P4 | 잔여 이관·legacy 격리·lineage 완성 | ⏳ 대기 | |
 
 ## ⚠️ workflow 이슈
