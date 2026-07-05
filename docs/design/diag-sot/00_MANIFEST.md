@@ -63,7 +63,7 @@
 | **P0** | [`P0_SPEC.md`](./P0_SPEC.md) · [결과](./reports/P0_RESULT_REPORT.md) | 기반·게이트 건강검진·결정표 | 없음 | ✅ **PASS** (Gatekeeper 독립검증 2026-07-05) |
 | **P1** | [`P1_SPEC.md`](./P1_SPEC.md) · [P1](./WORK_ORDER_P1.md)·[P1B](./WORK_ORDER_P1B.md) | ①척추 + ②Q매트릭스 SoT화(legacy-shape) | diff 0 | ✅ **완료**(P1-a·P1-b 모두 acid-test dx-only 재조립 byte0 PASS) |
 | **P2** | [`P2_SPEC.md`](./P2_SPEC.md) · [지시](./WORK_ORDER_P2.md) | 고정라벨 언어팩 + resolver ko기본 | 의도된 diff만 | **지시 발행** · P2-0 DISCOVERY draft 대기 |
-| **P3** | [`P3_SPEC.md`](./P3_SPEC.md) | ③보고콘텐츠 세분화 + 엔진 부분개편 | new-shape(dev) | 골격 확정 · 정밀스키마 **P2 통과 후 확정** |
+| **P3** | [`P3_SPEC.md`](./P3_SPEC.md) · [지시](./WORK_ORDER_P3.md) | ③보고콘텐츠 세분화 + 엔진 부분개편 | new-shape(dev) | **DISCOVERY 지시 발행** · P3_DISCOVERY_DRAFT 대기 |
 | **P4** | [`P4_SPEC.md`](./P4_SPEC.md) | 잔여 이관·legacy 격리·lineage 완성 | 정리 | 골격 확정 · 정밀 **P3 통과 후 확정** |
 
 > **정밀스키마 지연의 이유:** P2~P4의 정확 스키마는 선행 단계 산출(registry·sync 계약)에 의존한다. 그 상세를 지금 지어내면 근거 없는 스펙이 된다. 따라서 **골격·불변·게이트·금지사항은 지금 확정**하고, **정확 필드/경로는 선행 게이트 통과 시 Gatekeeper가 해당 문서에 추가**한다. Executor는 그 확정 전 해당 단계 착수 금지 — 이것이 improvisation 방지 장치다.
