@@ -61,7 +61,7 @@
 | 단계 | 문서 | 목적 | 출력변화 | 상태 |
 |------|------|------|----------|------|
 | **P0** | [`P0_SPEC.md`](./P0_SPEC.md) · [결과](./reports/P0_RESULT_REPORT.md) | 기반·게이트 건강검진·결정표 | 없음 | ✅ **PASS** (Gatekeeper 독립검증 2026-07-05) |
-| **P1** | [`P1_SPEC.md`](./P1_SPEC.md) · [지시](./WORK_ORDER_P1.md) | ①척추 + ②Q매트릭스 SoT화(legacy-shape) | diff 0 | **진행 지시 발행** (P1-a: Q1·Q5 / P1-b: registry+Q2/3/4) |
+| **P1** | [`P1_SPEC.md`](./P1_SPEC.md) · [P1지시](./WORK_ORDER_P1.md) · [P1B지시](./WORK_ORDER_P1B.md) | ①척추 + ②Q매트릭스 SoT화(legacy-shape) | diff 0 | **P1-a ✅ PASS**(acid-test: dx-only 재조립 byte0) · **P1-b 지시 발행** |
 | **P2** | [`P2_SPEC.md`](./P2_SPEC.md) | 고정라벨 언어팩 + resolver ko기본 | 의도된 diff만 | 골격 확정 · 정밀스키마 **P1 통과 후 Gatekeeper 확정** |
 | **P3** | [`P3_SPEC.md`](./P3_SPEC.md) | ③보고콘텐츠 세분화 + 엔진 부분개편 | new-shape(dev) | 골격 확정 · 정밀스키마 **P2 통과 후 확정** |
 | **P4** | [`P4_SPEC.md`](./P4_SPEC.md) | 잔여 이관·legacy 격리·lineage 완성 | 정리 | 골격 확정 · 정밀 **P3 통과 후 확정** |
