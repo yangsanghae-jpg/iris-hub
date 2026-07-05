@@ -165,3 +165,34 @@ def git_show_file(repo: DiagnosisRepo, rel_path: str) -> bytes | None:
     if out.returncode != 0:
         return None
     return out.stdout
+
+
+def git_commit_files(
+    repo: DiagnosisRepo,
+    rel_paths: list[str],
+    message: str,
+) -> str | None:
+    """Stage rel_paths and commit. Returns new HEAD sha or None on failure."""
+    if not rel_paths:
+        return None
+    add = subprocess.run(
+        ["git", "add", "--", *rel_paths],
+        cwd=repo.root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if add.returncode != 0:
+        return None
+    commit = subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=repo.root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if commit.returncode != 0:
+        return None
+    return _git(["rev-parse", "HEAD"], repo.root)

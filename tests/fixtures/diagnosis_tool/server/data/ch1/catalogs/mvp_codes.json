@@ -1,0 +1,25 @@
+{
+  "codes": [
+    {
+      "code": "MVP_PROGRESS_MON",
+      "status": "active",
+      "label_ko": "진도 모니터링",
+      "label_zh": "进度监控",
+      "label_en": "Progress Monitoring"
+    },
+    {
+      "code": "MVP_SUPPLY_SYNC",
+      "status": "active",
+      "label_ko": "공급 협업",
+      "label_zh": "供应协同",
+      "label_en": "Supply Sync"
+    },
+    {
+      "code": "MVP_YIELD",
+      "status": "active",
+      "label_ko": "수율 관리",
+      "label_zh": "良率管理",
+      "label_en": "Yield Management"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "subindustry_overrides": {
+    "logic_foundry": {"mgmt_weight": 0.75}
+  }
+}
