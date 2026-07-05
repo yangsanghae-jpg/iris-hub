@@ -11,7 +11,9 @@
 
 ## 1. 목적
 
-①척추(registry)와 ②Q2/Q3/Q4 매트릭스를 iris-hub `dx_*` 정본으로 옮기고, sync가 **현재 팩과 byte 동일**하게 역생성함을 증명한다. Q5는 P2/P4(구조 상이). 콘텐츠(③)는 손대지 않는다.
+①척추(registry)와 ② Q 매트릭스를 iris-hub `dx_*` 정본으로 옮기고, sync가 **현재 팩과 byte 동일**하게 역생성함을 증명한다. 콘텐츠(③)는 손대지 않는다.
+
+> **스코프 확정([`WORK_ORDER_P1.md`](./WORK_ORDER_P1.md) §D):** 게이트가 이미 diff 0 증명한 **Q1 taxonomy·Q5 recommendation을 P1-a**(우선)로 편입, **P1-b**에서 ① registry + Q2/Q3/Q4 확장. Q5 groups는 무손실 이관만(재설계 아님).
 
 ## 2. 대상 팩 (P1 스코프 — 고정)
 
