@@ -18,7 +18,7 @@
 | **P3(분할)** | ③ 보고콘텐츠 세분화 | ▶ **분할 확정** | Discovery 완료→P3 too big→분할. canonical key=A01+alias(P1 issue 해소), lang_ko 보존, prod 무노출=env flag. tier/DB/server flip 이연 |
 | └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override | ✅ **PASS/완료** | dx-only byte-0(base 비움+mutation test 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존. alias map으로 P1 issue 관리 |
 | └ **P3b** | Ch2 system→module + Card1 dev consumer | ✅ **PASS/완료** | dx byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(P3b==baseline 12/12). flag-on 노출 커버리지는 dev 후속. P3b-6(Ch2전체/DB/tier) 이연 |
-| └ **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | ▶ **진단-first 지시** | 배관 완성했으나 리포트에 미표시 → 실제앱 flag-on 진단→배선·정렬·데모. **이게 P3 실질 완료** |
+| └ **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | 🔴 **FAIL→수정** | renderer 정상(유지)이나 compose가 domain_cards에 부착, client는 blocks에서 렌더→미표시. compose를 blocks 표현에 부착 수정 |
 | **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage 뷰 | ⏳ P3b-5 후 | 마지막 정리 |
 
 ## ⚠️ workflow 이슈
