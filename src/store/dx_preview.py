@@ -28,21 +28,29 @@ repo = Path(sys.argv[1])
 industry = sys.argv[2]
 sub = sys.argv[3]
 routing = sys.argv[4]
+lang = sys.argv[5] if len(sys.argv) > 5 else "zh"
 
 sys.path.insert(0, str(repo / "server"))
 try:
     from assemble.ch1_mgmt.engine import compose_ch1_four_blocks
-except ImportError as exc:
-    print(json.dumps({"error": f"import failed: {exc}"}))
+except Exception as exc:
+    print(json.dumps({"ok": False, "error": f"import failed: {exc}"}))
     sys.exit(1)
 
+# 엔진 실제 시그니처: compose_ch1_four_blocks(ctx, step3, knowledge, lang).
+# 팩/라우팅은 엔진이 데이터 디렉토리에서 직접 로드하므로 step3/knowledge 는 비워도 된다.
+ctx = {"industry_code": industry}
+if sub and sub not in ("", "-", "—"):
+    ctx["sub_industry"] = sub
+if routing and routing not in ("", "-", "—"):
+    ctx["routing_type"] = routing
+
 try:
-    result = compose_ch1_four_blocks(
-        industry_code=industry,
-        sub_industry_code=sub,
-        routing_code=routing,
-    )
-    print(json.dumps({"ok": True, "blocks": result}, ensure_ascii=False))
+    result = compose_ch1_four_blocks(ctx, {}, {}, lang=lang)
+    if result is None:
+        print(json.dumps({"ok": False, "error": f"compose None (산업 팩 로드 실패: {industry})"}))
+    else:
+        print(json.dumps({"ok": True, "blocks": result}, ensure_ascii=False))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 '''
@@ -53,6 +61,7 @@ def preview_ch1_compose(
     sub_industry_code: str,
     routing_code: str,
     *,
+    lang: str = "zh",
     repo_root: Path | None = None,
 ) -> PreviewResult:
     repo = resolve_diagnosis_repo()
@@ -70,7 +79,7 @@ def preview_ch1_compose(
     proc = subprocess.run(
         [
             sys.executable, "-c", _PREVIEW_SCRIPT,
-            str(root), industry_code, sub_industry_code, routing_code,
+            str(root), industry_code, sub_industry_code or "", routing_code or "", lang,
         ],
         capture_output=True,
         text=True,
