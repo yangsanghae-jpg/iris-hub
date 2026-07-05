@@ -40,9 +40,10 @@ def apply_rebuild(
     if repo is None:
         return ApplyResult(ok=False, error="diagnosis-tool clone 없음", validation=validation)
 
-    export = dx_export.export_ch1(conn)
+    # overlay 모드: 원본(clone) 위에 관리 필드만 덮어써 변경 파일만 생성 → diff 최소화
+    export = dx_export.export_ch1(conn, base_root=repo.root)
     if not export.files:
-        return ApplyResult(ok=False, error="리빌드 파일 없음 — 먼저 임포트하세요", validation=validation)
+        return ApplyResult(ok=True, files=[], error="변경 없음 — 리빌드할 차이 없음", validation=validation)
 
     dx_export.write_files(repo.root, export.files)
     commit_sha = git_commit_files(repo, export.paths, message)

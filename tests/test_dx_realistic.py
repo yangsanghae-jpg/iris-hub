@@ -116,6 +116,32 @@ def test_realistic_roundtrip_and_bugs(vault_root):
     assert er.files == er2.files
 
 
+def test_overlay_minimal_diff(vault_root):
+    """overlay 모드: 무편집이면 0 파일, 1곳 편집이면 해당 파일만 변경(diff 최소화)."""
+    _build_v15_like(vault_root)
+    dx_import.import_from_path(vault_root / "server" / "data")
+
+    # 무편집 → 원본과 완전 동일 → 변경 파일 없음
+    er0 = dx_export.export_ch1(base_root=vault_root)
+    assert er0.files == {}
+
+    # weight 1곳 편집 → IND_A 파일만 변경
+    conn = db.get_conn()
+    try:
+        conn.execute(
+            "UPDATE dx_profile_item SET weight=0.123 WHERE code='MVP_PROGRESS_MON' AND block='mvp'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    er1 = dx_export.export_ch1(base_root=vault_root)
+    assert set(er1.files) == {"server/data/ch1/industry_packs/IND_A_project_special.json"}
+    assert "0.123" in er1.files["server/data/ch1/industry_packs/IND_A_project_special.json"]
+    # 부수 필드는 보존(원본 키 이름 유지)
+    assert "mvp_functions" in er1.files["server/data/ch1/industry_packs/IND_A_project_special.json"]
+
+
 def test_realistic_q5_mgmt_gap(vault_root):
     data_root = _build_v15_like(vault_root)
     dx_import.import_from_path(data_root)
