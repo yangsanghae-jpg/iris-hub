@@ -21,12 +21,10 @@
 
 ## 3. 실행 절차 (Executor)
 
-**T0-1. 브랜치 (이름·기점 고정, 변경 금지)**
-- **iris-hub `feat/diag-sot`** = Gatekeeper가 **선생성·설계문서 푸시 완료** (Executor는 이 브랜치를 pull). 재생성 금지.
-- **diagnosis-tool `feat/diag-sot-sync`** = Executor가 생성:
-```
-git -C <diagnosis-tool> switch -c feat/diag-sot-sync   # from v1.5
-```
+**T0-1. 접근·브랜치 (이름·기점 고정, 변경 금지)**
+- M2는 로컬 접근 불가 → **diagnosis-tool을 git clone** 후 작업.
+- **diagnosis-tool `feat/diag-sot-sync`** = Gatekeeper가 **선생성·푸시**(설계 스펙 미러 `docs/diag-sot/` 포함). Executor는 clone 후 **이 브랜치로 pull**. 재생성/이름변경 금지.
+- iris-hub는 설계 정본 보관소(Gatekeeper 관리) — Executor 접근 불필요.
 
 **T0-2. 현 팩 checksum 베이스라인**
 - 대상: `server/data/**/*.json` + `client/data/**/*.json` 전부.
@@ -51,7 +49,7 @@ bash scripts/run_data_poc.sh
 - `data/src/` 하위 실재 팩·언어·커버리지 목록화 → `_baseline/data_src_inventory.md`.
 - **이동·삭제·재구성 금지.** 목록화만.
 
-**T0-6. 결정표 초안 작성** → `DECISIONS.md` (본 폴더): 아래 §5 양식대로 **전 팩 분류**. 빈칸 없이.
+**T0-6. 결정표 초안 작성** → `docs/diag-sot/DECISIONS.md` (diagnosis-tool 동일 브랜치): 아래 §5 양식대로 **전 팩 분류**. 빈칸 없이.
 
 **T0-7. 증거 묶음 제출** — 브랜치명, checksums, poc health 로그, 골든 목록, data_src 인벤토리, DECISIONS 초안.
 

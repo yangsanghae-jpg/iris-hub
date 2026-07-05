@@ -27,10 +27,13 @@
 
 ---
 
-## 2. 브랜치 (고정 — 변경 금지)
+## 2. 접근·브랜치 (고정 — 변경 금지)
 
-- **iris-hub `feat/diag-sot`** = Gatekeeper가 이미 생성·푸시함(설계 문서 포함). **pull 해서 기준으로 사용.** 재생성/이름변경 금지.
-- **diagnosis-tool `feat/diag-sot-sync`** = `v1.5`에서 **네가 생성.** 모든 P0 산출물은 이 브랜치에.
+- **M2는 로컬 `/Users/iris/0Dev`를 볼 수 없다.** 모든 작업은 **git으로 clone/pull** 해서 수행한다.
+- **작업 repo = diagnosis-tool** (`git@github.com:yangsanghae-jpg/diagnosis-tool.git`).
+  - 브랜치 **`feat/diag-sot-sync`** = Gatekeeper가 **선생성·푸시함.** 이 브랜치에 **설계 스펙 미러(`docs/diag-sot/`)** 와 게이트 머신(`scripts/data_poc/`)이 함께 있다. **clone 후 이 브랜치로 pull.** 재생성/이름변경 금지.
+  - **모든 읽기(스펙)·쓰기(산출·DECISIONS·보고서)는 이 repo·이 브랜치에서** 한다.
+- iris-hub는 설계 정본 보관소(Gatekeeper 관리). **M2는 접근 불필요.**
 
 ---
 
@@ -57,14 +60,14 @@
 - 모든 산출물을 **diagnosis-tool `feat/diag-sot-sync`** 에 커밋 후 **origin에 push**.
 - 커밋 메시지: 접두 `[DIAG-SOT][P0]` + 항목 태그. 예:
   `[DIAG-SOT][P0] T0-3 gate health check — poc diff 0 (PASS)`
-- `DECISIONS.md`는 iris-hub `feat/diag-sot`에 커밋(설계 폴더 내) 하거나, 접근 불가 시 diagnosis-tool 브랜치에 두고 보고서에 경로 명시.
-- **push 완료 후** 보고서에 커밋 해시·브랜치·원격 경로 기재 → Gatekeeper가 pull 하여 점검.
+- `DECISIONS.md`는 **`docs/diag-sot/DECISIONS.md`** (diagnosis-tool 동일 브랜치)에 작성.
+- **push 완료 후** 보고서에 커밋 해시·브랜치·원격 경로 기재 → Gatekeeper가 diagnosis-tool을 pull 하여 점검.
 
 ---
 
 ## 5. 결과 보고서 (필수 — 없으면 미완료 처리)
 
-- **위치:** `docs/design/diag-sot/reports/P0_RESULT_REPORT.md` (iris-hub `feat/diag-sot`) — 접근 불가 시 diagnosis-tool 브랜치에 쓰고 경로 통지.
+- **위치:** `docs/diag-sot/reports/P0_RESULT_REPORT.md` (diagnosis-tool `feat/diag-sot-sync`).
 - **필수 항목:**
   1. **작업 요약** + §3 상태표(각 T0-x PASS/FAIL + 증거경로)
   2. **게이트 결과:** `run_data_poc.sh` diff 0 재현 여부 (P0 Exit 게이트 §7 대조)
