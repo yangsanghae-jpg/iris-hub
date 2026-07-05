@@ -19,7 +19,7 @@
 | └ **P3a** | Ch3(scope)+Ch6(ROI) sub_override | ✅ **PASS/완료** | dx-only byte-0(base 비움+mutation test 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존. alias map으로 P1 issue 관리 |
 | └ **P3b** | Ch2 system→module + Card1 dev consumer | ✅ **PASS/완료** | dx byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(P3b==baseline 12/12). flag-on 노출 커버리지는 dev 후속. P3b-6(Ch2전체/DB/tier) 이연 |
 | └ **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | ✅ **PASS** | blocks.exec에 cap+p3b 부착 수정→**실제 렌더 HTML에 세부산업 특화 keywords/points 표시**(Gatekeeper node 렌더 확인). flag-off 12/12 무변경. **요구3 실현** |
-| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage 뷰 | ▶ **다음(plan-first)** | P3 완료 → DIAG-SOT 마무리(추적성 완성) |
+| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage | ▶ **plan draft 지시** | DIAG-SOT 마무리. 추적성 lineage 완성=제1동인. 이후 iris-hub 관리탭 UI |
 
 ## ⚠️ workflow 이슈
 M2 환경에서 git 명령 제약 → discovery draft는 Gatekeeper가 1Dev clone에서 대행 커밋(`6fc6a56`). P3a부터 실제 코드 변경 → **M2 git 복구 필요**(아니면 Gatekeeper 대행 지속).
