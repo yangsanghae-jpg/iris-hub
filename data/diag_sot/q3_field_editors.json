@@ -1,0 +1,27 @@
+{
+  "option_sets": {
+    "site_scope_grades": ["S1", "S2", "S3", "S4", "S5"],
+    "scale_profile_codes": [
+      "P1_PROJECT_COMPLEXITY",
+      "P2_CAPITAL_FAB",
+      "P3_LABOR_ASSEMBLY",
+      "P4_AUTOMATED_LINE",
+      "P5_CONTINUOUS_PROCESS",
+      "P6_BATCH_PROCESS",
+      "P7_REGULATED_BATCH",
+      "P8_DEMAND_NETWORK",
+      "P9_PRECISION_JOBSHOP",
+      "P10_TEST_INTENSIVE"
+    ]
+  },
+  "fields": {
+    "weights.site_scope": { "type": "number", "min": 0, "max": 100, "step": 1 },
+    "weights.production_scale": { "type": "number", "min": 0, "max": 100, "step": 1 },
+    "weights.equipment_scale": { "type": "number", "min": 0, "max": 100, "step": 1 },
+    "weights.workforce_scale": { "type": "number", "min": 0, "max": 100, "step": 1 },
+    "override.site_scope_hint": { "type": "select", "options_ref": "site_scope_grades" },
+    "override.recommended_site_scope_hint": { "type": "select", "options_ref": "site_scope_grades" },
+    "override.default_site_scope_hint": { "type": "select", "options_ref": "site_scope_grades" },
+    "scale_profile": { "type": "select", "options_ref": "scale_profile_codes" }
+  }
+}

@@ -87,8 +87,23 @@ _CSS = """
 .sot-badge-spine { background:rgba(47,128,196,0.12); color:#175cd3; }
 .sot-badge-wait { background:rgba(247,144,9,0.14); color:#b54708; }
 .sot-reflect-banner {
-  padding:12px 14px; border-radius:10px; margin:10px 0 14px;
+  padding:8px 12px; border-radius:10px; margin:0;
   border:1px solid rgba(47,128,196,0.16);
+  font-size:0.78rem; line-height:1.35;
+}
+.sot-reflect-banner strong { font-size:0.82rem; }
+.sot-field-row {
+  display:grid; grid-template-columns:minmax(0,1.6fr) minmax(140px,0.7fr) minmax(0,1fr);
+  gap:10px; align-items:center; padding:7px 10px; margin:2px 0;
+  border-bottom:1px solid rgba(47,128,196,0.08); font-size:0.8rem;
+}
+.sot-field-row:last-child { border-bottom:none; }
+.sot-field-label { color:#344054; line-height:1.35; }
+.sot-field-label small { color:#667085; font-weight:400; }
+.sot-field-reflect { color:#667085; font-size:0.74rem; }
+.sot-field-grid {
+  border:1px solid rgba(47,128,196,0.14); border-radius:10px;
+  background:#fff; margin:8px 0 12px; overflow:hidden;
 }
 .sot-reflect-synced { background:rgba(18,183,106,0.08); border-color:rgba(18,183,106,0.25); color:#027a48; }
 .sot-reflect-pending { background:rgba(247,144,9,0.1); border-color:rgba(247,144,9,0.28); color:#b54708; }
@@ -252,6 +267,58 @@ def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selec
     return clicked
 
 
+def _render_action_bar(
+    pack: dict,
+    dx_idx: dx_index.DxIndex,
+    *,
+    session_dirty: bool,
+    repo: Any,
+    manifest_pid: str,
+    primary_dx: str,
+    pending: dict[str, Any],
+) -> None:
+    """반영 배너(축소) + 되돌리기·검증·저장 버튼 동일 행."""
+    banner_html, can_save = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
+    c_banner, c_undo, c_val, c_save = st.columns([2.3, 0.62, 0.62, 0.62])
+    with c_banner:
+        _render_html(banner_html)
+    with c_undo:
+        if st.button("되돌리기", type="secondary", use_container_width=True, key="sot_undo"):
+            st.session_state.pop("sot_pending_edits", None)
+            st.rerun()
+    with c_val:
+        if st.button("검증", type="secondary", use_container_width=True, key="sot_validate"):
+            qm = dx_editor.load_q_matrix(repo.root)
+            qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
+            issues = dx_editor.validate_q3_edits(qm, primary_dx, dx_idx.sub_codes)
+            if not issues:
+                st.success("검증 통과")
+            else:
+                for iss in issues:
+                    fn = st.warning if iss.level == "warn" else st.error
+                    fn(iss.message)
+    with c_save:
+        if st.button(
+            "저장·반영",
+            type="primary",
+            use_container_width=True,
+            disabled=not can_save,
+            key="sot_save",
+        ):
+            qm = dx_editor.load_q_matrix(repo.root)
+            qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
+            result = dx_editor.save_q_pack_and_rebuild(repo, qm, manifest_pid)
+            if result.ok:
+                st.session_state.pop("sot_pending_edits", None)
+                st.cache_data.clear()
+                st.success(result.message)
+                st.rerun()
+            else:
+                st.error(result.message)
+                for iss in result.issues:
+                    st.warning(iss.message)
+
+
 def _reflect_banner(
     pack: dict,
     dx_idx: dx_index.DxIndex,
@@ -325,15 +392,6 @@ def _cell_display_value(val: Any, *, locked: bool = False) -> str:
     return str(val)
 
 
-def _value_column_config(grid_rows: list[dict[str, Any]]) -> Any:
-    """혼합 타입(정수 가중치·문자 등급) — 문자열 편집 + 타입별 힌트."""
-    return st.column_config.TextColumn(
-        "값",
-        width="medium",
-        help="더블클릭 또는 셀 선택 후 입력",
-    )
-
-
 def _grid_df(grid_rows: list[dict[str, Any]], *, dev: bool) -> pd.DataFrame:
     records = []
     for r in grid_rows:
@@ -354,27 +412,82 @@ def _grid_df(grid_rows: list[dict[str, Any]], *, dev: bool) -> pd.DataFrame:
     return df
 
 
-def _apply_grid_edits(
+def _render_q3_field_rows(
     grid_rows: list[dict[str, Any]],
-    edited: pd.DataFrame,
+    *,
+    block_key: str,
     pending: dict[str, Any],
 ) -> dict[str, Any]:
-    orig_map = {r["_row_key"]: r["value"] for r in grid_rows}
-    for i, erow in edited.iterrows():
-        if i >= len(grid_rows):
-            break
-        row = grid_rows[i]
+    """행별 위젯 — 코드형은 select, 가중치는 number."""
+    hdr = st.columns([2.2, 1, 1.2])
+    with hdr[0]:
+        st.markdown("**항목**")
+    with hdr[1]:
+        st.markdown("**값**")
+    with hdr[2]:
+        st.markdown("**어디에 반영**")
+
+    for row in grid_rows:
         if not row.get("editable", True):
             continue
-        key = str(row["_row_key"])
-        new_val = erow["값"]
-        if str(new_val).startswith("🔒 "):
-            new_val = str(new_val)[2:]
-        old_val = orig_map.get(key)
-        if str(new_val) != str(old_val):
-            pending[key] = _coerce_value(old_val, new_val)
-        elif key in pending:
-            del pending[key]
+        rk = str(row["_row_key"])
+        fp = str(row.get("field_path") or "")
+        spec = dx_index.q3_field_editor_spec(fp)
+        orig = row["value"]
+        current = pending.get(rk, orig)
+        meaning = row["meaning"]
+        hint = row.get("hint") or ""
+        label_line = f"{meaning} — {hint}" if hint else meaning
+        reflect = str(row.get("reflects") or "—")
+
+        col_label, col_val, col_ref = st.columns([2.2, 1, 1.2])
+        with col_label:
+            st.caption(label_line)
+        with col_val:
+            widget_key = f"sot_f_{block_key}_{rk}"
+            if spec.get("type") == "select":
+                options = dx_index.q3_field_select_options(str(spec.get("options_ref") or ""))
+                if not options:
+                    options = [str(current)]
+                cur_s = str(current)
+                idx = options.index(cur_s) if cur_s in options else 0
+                new_val = st.selectbox(
+                    "값",
+                    options,
+                    index=idx,
+                    key=widget_key,
+                    label_visibility="collapsed",
+                )
+            elif spec.get("type") == "number":
+                try:
+                    num = int(current)
+                except (TypeError, ValueError):
+                    num = 0
+                new_val = st.number_input(
+                    "값",
+                    min_value=int(spec.get("min", 0)),
+                    max_value=int(spec.get("max", 100)),
+                    step=int(spec.get("step", 1)),
+                    value=num,
+                    key=widget_key,
+                    label_visibility="collapsed",
+                )
+            else:
+                new_val = st.text_input(
+                    "값",
+                    value=str(current),
+                    key=widget_key,
+                    label_visibility="collapsed",
+                )
+
+            coerced = _coerce_value(orig, new_val)
+            if coerced != orig:
+                pending[rk] = coerced
+            elif rk in pending:
+                del pending[rk]
+        with col_ref:
+            st.caption(reflect)
+
     return pending
 
 
@@ -386,38 +499,13 @@ def _render_q3_grid_block(
     pending: dict[str, Any],
     readonly: bool = False,
 ) -> dict[str, Any]:
-    for row in grid_rows:
-        rk = row["_row_key"]
-        if rk in pending:
-            row["value"] = pending[rk]
-
-    df = _grid_df(grid_rows, dev=dev)
-    show_cols = ["항목", "값", "어디에 반영"]
-    if dev:
-        show_cols.extend(["_key", "_field_path"])
-
     if readonly:
+        df = _grid_df(grid_rows, dev=dev)
+        show_cols = ["항목", "값", "어디에 반영"]
         st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
         return pending
 
-    disabled_cols = ["항목", "어디에 반영"]
-    if dev:
-        disabled_cols.extend(["_key", "_field_path"])
-
-    edited = st.data_editor(
-        df[show_cols],
-        use_container_width=True,
-        hide_index=True,
-        disabled=disabled_cols,
-        num_rows="fixed",
-        column_config={
-            "항목": st.column_config.TextColumn("항목", width="large"),
-            "값": _value_column_config(grid_rows),
-            "어디에 반영": st.column_config.TextColumn("어디에 반영", width="medium"),
-        },
-        key=f"sot_grid_{block_key}",
-    )
-    return _apply_grid_edits(grid_rows, edited, pending)
+    return _render_q3_field_rows(grid_rows, block_key=block_key, pending=pending)
 
 
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
@@ -567,44 +655,21 @@ def render() -> None:
     _render_html(f'<p class="sot-pack-title">{escape(title)}</p>')
     _render_html(f'<p class="sot-pack-desc">{escape(desc)}</p>')
 
-    banner_html, can_edit = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
-    _render_html(banner_html)
-
     mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
     if mode == "editable":
+        _render_action_bar(
+            pack,
+            dx_idx,
+            session_dirty=session_dirty,
+            repo=repo,
+            manifest_pid=manifest_pid,
+            primary_dx=primary_dx,
+            pending=pending,
+        )
         _render_q3_editor(pack, dx_idx)
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("되돌리기", type="secondary"):
-                st.session_state.pop("sot_pending_edits", None)
-                st.rerun()
-        with c2:
-            if st.button("검증", type="secondary"):
-                qm = dx_editor.load_q_matrix(repo.root)
-                qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
-                issues = dx_editor.validate_q3_edits(qm, primary_dx, dx_idx.sub_codes)
-                if not issues:
-                    st.success("검증 통과")
-                else:
-                    for iss in issues:
-                        fn = st.warning if iss.level == "warn" else st.error
-                        fn(iss.message)
-        with c3:
-            if st.button("저장하고 리포트에 반영", type="primary", disabled=not can_edit):
-                qm = dx_editor.load_q_matrix(repo.root)
-                qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
-                result = dx_editor.save_q_pack_and_rebuild(repo, qm, manifest_pid)
-                if result.ok:
-                    st.session_state.pop("sot_pending_edits", None)
-                    st.cache_data.clear()
-                    st.success(result.message)
-                    st.rerun()
-                else:
-                    st.error(result.message)
-                    for iss in result.issues:
-                        st.warning(iss.message)
     else:
+        banner_html, _ = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
+        _render_html(banner_html)
         _render_readonly_pack(pack, dx_idx, lineage)
 
     dx_idx.close()

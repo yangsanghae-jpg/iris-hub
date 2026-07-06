@@ -99,6 +99,22 @@ def q3_field_glossary() -> dict[str, dict[str, str]]:
     return _load_hub_json("q3_field_glossary.json")
 
 
+def q3_field_editors() -> dict[str, Any]:
+    return _load_hub_json("q3_field_editors.json")
+
+
+def q3_field_editor_spec(field_path: str) -> dict[str, Any]:
+    fields = q3_field_editors().get("fields") or {}
+    spec = fields.get(field_path)
+    return spec if isinstance(spec, dict) else {"type": "text"}
+
+
+def q3_field_select_options(options_ref: str) -> list[str]:
+    sets = q3_field_editors().get("option_sets") or {}
+    opts = sets.get(options_ref)
+    return list(opts) if isinstance(opts, list) else []
+
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
