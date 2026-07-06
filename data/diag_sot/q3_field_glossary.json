@@ -1,0 +1,42 @@
+{
+  "weights.site_scope": {
+    "label_ko": "사이트 규모 가중치",
+    "hint_ko": "0~100 정수, 네 축 합 100 권장",
+    "reflects_ko": "Q3 규모 점수 · site_scope 축"
+  },
+  "weights.production_scale": {
+    "label_ko": "생산 규모 가중치",
+    "hint_ko": "0~100 정수",
+    "reflects_ko": "Q3 규모 점수 · production_scale 축"
+  },
+  "weights.equipment_scale": {
+    "label_ko": "설비 규모 가중치",
+    "hint_ko": "0~100 정수",
+    "reflects_ko": "Q3 규모 점수 · equipment_scale 축"
+  },
+  "weights.workforce_scale": {
+    "label_ko": "인력 규모 가중치",
+    "hint_ko": "0~100 정수",
+    "reflects_ko": "Q3 규모 점수 · workforce_scale 축"
+  },
+  "override.site_scope_hint": {
+    "label_ko": "권장 사이트 등급 힌트",
+    "hint_ko": "S1~S5 등급",
+    "reflects_ko": "Q3 UI 사이트 등급 안내"
+  },
+  "override.recommended_site_scope_hint": {
+    "label_ko": "권장 사이트 등급(표시)",
+    "hint_ko": "S1~S5 등급",
+    "reflects_ko": "Q3 리포트 권장 등급"
+  },
+  "override.default_site_scope_hint": {
+    "label_ko": "기본 사이트 등급",
+    "hint_ko": "S1~S5 등급",
+    "reflects_ko": "Q3 기본 선택 힌트"
+  },
+  "scale_profile": {
+    "label_ko": "규모 프로필 유형",
+    "hint_ko": "P1_PROJECT_COMPLEXITY 등 프로필 코드",
+    "reflects_ko": "Q3 프로필 분류"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "q1_industry_product_taxonomy": {
+    "title_ko": "Q1 산업·제품 분류",
+    "desc_ko": "세부산업별 제품 성격과 분류 체계"
+  },
+  "q2_routing_product_nature": {
+    "title_ko": "Q2 라우팅·제품 성격",
+    "desc_ko": "세부산업별 생산 라우팅과 제품 성격 매트릭스"
+  },
+  "q3_scale_profile": {
+    "title_ko": "Q3 규모 프로필",
+    "desc_ko": "세부산업별 규모 진단 가중치와 권장 성숙도"
+  },
+  "q4_automation_profile": {
+    "title_ko": "Q4 자동화 프로필",
+    "desc_ko": "세부산업별 자동화·디지털 성숙도 가중치"
+  },
+  "q5_recommendation_by_subindustry": {
+    "title_ko": "Q5 세부산업별 권장",
+    "desc_ko": "세부산업별 솔루션·모듈 권장 매트릭스"
+  },
+  "q5_axes": {
+    "title_ko": "Q5 축 정의",
+    "desc_ko": "Q5 권장 축·그룹 메타데이터"
+  },
+  "step2_route_diagram": {
+    "title_ko": "Q2 라우트 다이어그램",
+    "desc_ko": "Step2 라우팅 시각화 보조 데이터"
+  },
+  "step3_residual": {
+    "title_ko": "Q3 잔여 i18n",
+    "desc_ko": "Q3 다국어 미러·잔여 라이브 데이터"
+  },
+  "industry_master": {
+    "title_ko": "산업 마스터",
+    "desc_ko": "산업 코드 척추 — 고영향 참조"
+  },
+  "industry_codes": {
+    "title_ko": "산업 코드표",
+    "desc_ko": "IND_* 산업 코드 레지스트리"
+  },
+  "sub_industry_codes": {
+    "title_ko": "세부산업 코드표",
+    "desc_ko": "A01 등 세부산업 코드 레지스트리"
+  },
+  "ch0_exec_subs": {
+    "title_ko": "Ch0 경영진 요약",
+    "desc_ko": "경영진용 서브 산업 콘텐츠"
+  },
+  "ch2_systems_catalog": {
+    "title_ko": "Ch2 시스템 카탈로그",
+    "desc_ko": "시스템·모듈 카탈로그 본문"
+  },
+  "ch2_card_masters": {
+    "title_ko": "Ch2 카드 마스터",
+    "desc_ko": "Ch2 앱카드 마스터 데이터"
+  },
+  "ch2_overlays": {
+    "title_ko": "Ch2 오버레이",
+    "desc_ko": "Ch2 카드 오버레이 콘텐츠"
+  },
+  "ch3_scope_catalog": {
+    "title_ko": "Ch3 범위 카탈로그",
+    "desc_ko": "Ch3 범위·모듈 카탈로그"
+  },
+  "ch4_plan_defaults": {
+    "title_ko": "Ch4 계획 기본값",
+    "desc_ko": "Ch4 로드맵·계획 기본 콘텐츠"
+  },
+  "ch6_roi_logic_catalog": {
+    "title_ko": "Ch6 ROI 로직",
+    "desc_ko": "Ch6 ROI 산출 로직 카탈로그"
+  },
+  "step5_2_management_analysis": {
+    "title_ko": "Step5 경영 분석",
+    "desc_ko": "Step5-2 경영 분석 콘텐츠"
+  }
+}

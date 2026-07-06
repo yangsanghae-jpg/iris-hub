@@ -1,0 +1,36 @@
+{
+  "dx_q_matrix": {
+    "row_lock": {
+      "fields": ["q", "sub_code", "pack_id", "field_path", "source_json_pointer", "source_index", "row_index"],
+      "reason_ko": "행 식별 — 바꾸면 참조 깨짐"
+    },
+    "value_json_lock": {
+      "fields": ["industry_code", "legacy_slug", "subindustry_label"],
+      "reason_ko": "참조·식별 키"
+    },
+    "value_json_edit_patterns": {
+      "q3": [
+        "weights.site_scope",
+        "weights.production_scale",
+        "weights.equipment_scale",
+        "weights.workforce_scale",
+        "override.site_scope_hint",
+        "override.recommended_site_scope_hint",
+        "override.default_site_scope_hint",
+        "scale_profile"
+      ]
+    }
+  },
+  "dx_q_framework": {
+    "row_lock": {
+      "fields": ["q", "block", "pack_id", "source_json_pointer", "source_index"],
+      "reason_ko": "구조 키 — 바꾸면 재조립 깨짐"
+    }
+  },
+  "dx_registry_framework": {
+    "row_lock": {
+      "fields": ["block", "pack_id", "source_json_pointer", "source_index"],
+      "reason_ko": "레지스트리 구조 키"
+    }
+  }
+}

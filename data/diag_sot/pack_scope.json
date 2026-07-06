@@ -1,0 +1,42 @@
+{
+  "version": "2026-07-06",
+  "pilot_packs": ["q3_scale_profile"],
+  "q_packs": [
+    "q1_industry_product_taxonomy",
+    "q2_routing_product_nature",
+    "q3_scale_profile",
+    "q4_automation_profile",
+    "q5_recommendation_by_subindustry",
+    "q5_axes",
+    "step2_route_diagram",
+    "step3_residual"
+  ],
+  "deferred_content_packs": [
+    "ch0_exec_subs",
+    "ch1_catalog_maps",
+    "ch1_code_catalogs_residual",
+    "ch1_code_alias",
+    "ch1_contract",
+    "ch1_sub_industry_meta",
+    "ch1_industry_packs",
+    "ch1_routing_packs",
+    "ch1_industries_legacy_group",
+    "ch1_mgmt_model_common",
+    "ch1_mgmt_model_industries",
+    "ch1_mgmt_model_industry_B_detail",
+    "ch2_systems_catalog",
+    "ch2_card2_bridges",
+    "ch2_catalog_residual",
+    "ch2_stack_library",
+    "ch2_card_masters",
+    "ch2_overlays",
+    "ch3_scope_catalog",
+    "ch4_plan_defaults",
+    "ch6_roi_logic_catalog",
+    "step5_2_management_analysis"
+  ],
+  "spine_packs": ["industry_master", "industry_codes", "sub_industry_codes"],
+  "manifest_to_dx_pack": {
+    "q3_scale_profile": "q3_scale_profile_server"
+  }
+}
