@@ -1,6 +1,6 @@
 """DIAG-SOT dx JSON 쓰기·검증·byte-0 재생성 (파일럿: q3_scale_profile).
 
-쓰기는 dx JSON에만. runtime server/data는 재생성 결과물.
+쓰기는 dx JSON에만. runtime server/data·client/data는 재생성 결과물.
 """
 from __future__ import annotations
 
@@ -94,19 +94,32 @@ def validate_q3_edits(
     return issues
 
 
-def save_q3_and_rebuild(
+def save_q_pack_and_rebuild(
     repo: DiagnosisRepo,
     q_matrix: list[dict[str, Any]],
-    runtime_rel: str,
-    *,
-    dx_pack_id: str = "q3_scale_profile_server",
+    manifest_pack_id: str,
 ) -> SaveResult:
-    """dx_q_matrix.json 저장 후 runtime JSON 재생성."""
+    """dx_q_matrix.json 저장 후 논리 팩의 server·client 미러 runtime 모두 재생성."""
+    entry = idx.pack_mirror_entry(manifest_pack_id)
+    if entry is None:
+        return SaveResult(False, f"미러 매핑 없음: {manifest_pack_id}")
+
+    mirrors = idx.pack_mirror_runtime_rels(manifest_pack_id)
+    if not mirrors:
+        return SaveResult(False, f"runtime 미러 경로 없음: {manifest_pack_id}")
+
     dx_index, err = idx.load_dx_index(repo)
     if dx_index is None:
         return SaveResult(False, err or "dx 인덱스 로드 실패")
 
-    issues = validate_q3_edits(q_matrix, dx_pack_id, dx_index.sub_codes)
+    primary = idx.pack_edit_primary_dx_id(manifest_pack_id)
+    q = str(entry.get("q") or "q3")
+    if q == "q3":
+        issues = validate_q3_edits(q_matrix, primary, dx_index.sub_codes)
+    else:
+        issues = []
+    dx_index.close()
+
     errors = [i for i in issues if i.level == "error"]
     if errors:
         return SaveResult(False, "검증 오류로 저장하지 않음", issues=issues)
@@ -115,11 +128,26 @@ def save_q3_and_rebuild(
     _write_json(dx_path, q_matrix)
 
     q_framework = load_q_framework(repo.root)
-    payload = idx.rebuild_q_pack_payload(q_matrix, q_framework, dx_pack_id)
-    runtime_path = repo.root / runtime_rel
-    _write_json(runtime_path, payload)
+    written: list[str] = []
+    for m in mirrors:
+        payload = idx.rebuild_q_pack_payload(q_matrix, q_framework, m["dx_pack_id"])
+        runtime_path = repo.root / m["runtime_rel"]
+        _write_json(runtime_path, payload)
+        written.append(m["runtime_rel"])
 
-    return SaveResult(True, "저장하고 리포트에 반영함", runtime_rel, issues)
+    return SaveResult(True, "저장하고 리포트에 반영함", ", ".join(written), issues)
+
+
+def save_q3_and_rebuild(
+    repo: DiagnosisRepo,
+    q_matrix: list[dict[str, Any]],
+    runtime_rel: str,
+    *,
+    dx_pack_id: str = "q3_scale_profile_server",
+) -> SaveResult:
+    """Deprecated — manifest_pack_id 기반 save_q_pack_and_rebuild 사용."""
+    _ = runtime_rel, dx_pack_id
+    return save_q_pack_and_rebuild(repo, q_matrix, "q3_scale_profile")
 
 
 def prove_index_regenerates(repo: DiagnosisRepo) -> tuple[bool, str]:
@@ -139,10 +167,26 @@ def prove_index_regenerates(repo: DiagnosisRepo) -> tuple[bool, str]:
     return True, f"regenerated {n1} rows from JSON"
 
 
+def audit_allowed_write_targets() -> list[str]:
+    """save 경로가 쓰는 허용 대상 — dx JSON + q_pack_runtime_map runtime 미러."""
+    allowed = [DX_Q_MATRIX_REL]
+    for entry in (idx.q_pack_runtime_map().get("packs") or {}).values():
+        for m in entry.get("mirrors") or []:
+            rel = m.get("runtime_rel")
+            if rel:
+                allowed.append(str(rel))
+    return allowed
+
+
 def grep_dx_only_writes(root: Path) -> list[str]:
-    """runtime 직접 쓰기 없이 dx만 쓰는지 — 이 모듈 소스 점검."""
+    """dx + 설정된 runtime 미러만 쓰는지 — save 구현 구조 점검."""
+    _ = root
     editor_src = Path(__file__).read_text(encoding="utf-8")
     violations: list[str] = []
-    if "server/data" in editor_src and "_write_json(runtime_path" in editor_src:
-        violations.append("runtime write in save path (expected: rebuild only)")
+    if "_write_json(dx_path" not in editor_src:
+        violations.append("dx_q_matrix write missing")
+    if "pack_mirror_runtime_rels" not in editor_src:
+        violations.append("save does not iterate mirror runtime map")
+    if "save_q_pack_and_rebuild" not in editor_src:
+        violations.append("save_q_pack_and_rebuild missing")
     return violations

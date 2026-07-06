@@ -49,6 +49,52 @@ def field_locks() -> dict[str, Any]:
     return _load_hub_json("field_locks.json")
 
 
+def q_pack_runtime_map() -> dict[str, Any]:
+    return _load_hub_json("q_pack_runtime_map.json")
+
+
+def pack_mirror_entry(manifest_pack_id: str) -> dict[str, Any] | None:
+    entry = (q_pack_runtime_map().get("packs") or {}).get(manifest_pack_id)
+    return entry if isinstance(entry, dict) else None
+
+
+def pack_mirror_dx_ids(manifest_pack_id: str) -> list[str]:
+    entry = pack_mirror_entry(manifest_pack_id)
+    if entry:
+        mirrors = entry.get("mirrors") or []
+        return [str(m["dx_pack_id"]) for m in mirrors if m.get("dx_pack_id")]
+    scope = pack_scope()
+    mapping = scope.get("manifest_to_dx_pack") or {}
+    return [str(mapping.get(manifest_pack_id, manifest_pack_id))]
+
+
+def pack_edit_primary_dx_id(manifest_pack_id: str) -> str:
+    entry = pack_mirror_entry(manifest_pack_id)
+    if entry:
+        primary = entry.get("edit_primary_dx_pack_id")
+        if primary:
+            return str(primary)
+        mirrors = entry.get("mirrors") or []
+        if mirrors:
+            return str(mirrors[0].get("dx_pack_id", manifest_pack_id))
+    scope = pack_scope()
+    mapping = scope.get("manifest_to_dx_pack") or {}
+    return str(mapping.get(manifest_pack_id, manifest_pack_id))
+
+
+def pack_mirror_runtime_rels(manifest_pack_id: str) -> list[dict[str, str]]:
+    entry = pack_mirror_entry(manifest_pack_id)
+    if not entry:
+        return []
+    out: list[dict[str, str]] = []
+    for m in entry.get("mirrors") or []:
+        dx_pid = m.get("dx_pack_id")
+        rel = m.get("runtime_rel")
+        if dx_pid and rel:
+            out.append({"dx_pack_id": str(dx_pid), "runtime_rel": str(rel)})
+    return out
+
+
 def q3_field_glossary() -> dict[str, dict[str, str]]:
     return _load_hub_json("q3_field_glossary.json")
 
@@ -182,9 +228,7 @@ def load_dx_index(repo: DiagnosisRepo) -> tuple[DxIndex | None, str | None]:
 
 
 def resolve_dx_pack_id(manifest_pack_id: str) -> str:
-    scope = pack_scope()
-    mapping = scope.get("manifest_to_dx_pack") or {}
-    return str(mapping.get(manifest_pack_id, manifest_pack_id))
+    return pack_edit_primary_dx_id(manifest_pack_id)
 
 
 def pack_edit_mode(manifest_pack_id: str) -> str:
@@ -262,6 +306,32 @@ def runtime_sync_status(
     return "pending", "진실원과 리포트 내용이 다름"
 
 
+def pack_mirror_sync_status(
+    repo_root: Path,
+    q_matrix: list[dict[str, Any]],
+    q_framework: list[dict[str, Any]],
+    manifest_pack_id: str,
+) -> tuple[str, str | None]:
+    """server·client 등 모든 미러 runtime이 byte-0 일치일 때만 synced."""
+    mirrors = pack_mirror_runtime_rels(manifest_pack_id)
+    if not mirrors:
+        dx_pid = pack_edit_primary_dx_id(manifest_pack_id)
+        rel = f"server/data/step3/scale_profile_v3.json"
+        return runtime_sync_status(repo_root, rel, q_matrix, q_framework, dx_pid)
+
+    pending_details: list[str] = []
+    for m in mirrors:
+        status, detail = runtime_sync_status(
+            repo_root, m["runtime_rel"], q_matrix, q_framework, m["dx_pack_id"]
+        )
+        if status != "synced":
+            label = m["runtime_rel"].split("/")[0]
+            pending_details.append(detail or f"{label} 미러 불일치")
+    if pending_details:
+        return "pending", "; ".join(pending_details)
+    return "synced", None
+
+
 def q3_editable_field_paths() -> list[str]:
     locks = field_locks()
     patterns = (
@@ -326,10 +396,21 @@ def flatten_q3_grid_rows(
 
 def apply_q3_grid_edits(
     q_matrix: list[dict[str, Any]],
+    manifest_pack_id: str,
+    edits: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """edits: {_row_key: new_value} → server·client 미러 dx 행 모두 갱신."""
+    updated = [dict(r) for r in q_matrix]
+    for dx_pid in pack_mirror_dx_ids(manifest_pack_id):
+        updated = _apply_q3_grid_edits_for_pack(updated, dx_pid, edits)
+    return updated
+
+
+def _apply_q3_grid_edits_for_pack(
+    q_matrix: list[dict[str, Any]],
     dx_pack_id: str,
     edits: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """edits: {_row_key: new_value} → updated q_matrix copy."""
     updated = [dict(r) for r in q_matrix]
     key_to_idx = {
         f"{r.get('sub_code')}|{fp}": (i, fp)

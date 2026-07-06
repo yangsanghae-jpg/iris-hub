@@ -100,10 +100,30 @@
 - [ ] MANIFEST/LINEAGE 재사용(목록·반영컬럼 소스).
 - [ ] 데이터 미배치 시 graceful 안내 · 라이브 sync 반영.
 
-## 6. 파일럿 (확정)
-- **파일럿 = `q3_scale_profile` 1팩.** 먼저 UX·반영배선(편집→byte-0 재생성→상태) 검증.
-- 파일럿 PASS 후 나머지 Q1/Q2/Q4/Q5로 확대(§1-4 편집 범위 내).
-- A1/A2·척추는 read-only 표시만(편집 미착수).
+## 6. 파일럿 → 확산
+
+### 6-1. 파일럿 q3 — ✅ PASS (Gatekeeper 독립 검증 2026-07-06)
+- 파생 인덱스 in-mem SQLite(JSON 재생성, 정본 아님) ✅ · 저장=dx JSON 쓰기+runtime 재생성 실제 배선 ✅
+- **byte-0 충실성 독립 확인:** rebuild(dx)==커밋 runtime 이 q2/q3/q4 전건 MATCH.
+- 잠금 whitelist(`field_locks.json`) + 저장 전 서버측 재검증(`validate_q3_edits`) ✅
+
+### 6-2. 확산 전 필수 수정 1건 (BLOCKER)
+- **server/client 미러 동시 재생성.** 현재 `save`가 `member_paths[0]`(server)만 재생성 → `client/data/step3/scale_profile_v3.json`(질문지 UI가 읽음) stale, parity 붕괴, 반영 배너가 server만 보고 "일치" 오표기.
+  - 수정: 저장 시 dx의 `_server`·`_client` 미러 행 동시 편집 + 두 runtime(server·client) 재생성. `runtime_sync_status`도 두 경로 모두 byte-0 확인 후 "일치".
+- 이 수정을 q3에서 먼저 끝내고 확산(안 그러면 결함을 Q2/Q4에 복제).
+
+### 6-3. 확산 범위 = Q2·Q4 (dx_q_matrix 동일 구조)
+- Q2 routing · Q4 automation은 q3와 **동일 dx_q_matrix 구조 + byte-0 이미 MATCH** → rebuild 그대로 적용.
+- **게이트(팩별):** 편집 열기 전 "무편집 상태 synced"(rebuild==runtime) 확인. mismatch면 열지 마라.
+
+### 6-4. Q1·Q5 = 별건 (구조 상이)
+- q1(taxonomy)·q5(recommendation)는 **dx_q_matrix에 없음** → `rebuild_q_pack_payload` 미적용. 구조별 rebuild + byte-0 증명 **별도** 후 편집 개방. Q2/Q4 확산에 끼워넣지 마라.
+
+### 6-5. A1/A2·척추
+- read-only 표시만(편집 미착수). §1-4.
+
+### 6-6. MINOR (비차단)
+- iris-hub가 p1b build 알고리즘을 **재구현**(`rebuild_q_pack_payload`) — diagnosis-tool build_data와 별개 복제. sync 바이트체크가 drift를 잡지만, 장기적으로 공유 모듈/원 파이프라인 호출이 이상적. 추적만.
 
 ## 7. 구현 순서 (권장, Cursor 조정 가능)
 S0 파생 인덱스(JSON→in-mem) + 팩타입 화이트리스트 매핑 → S1 상단 상태 스트립 + 가로 팩 선택기 → S2 전폭 편집 그리드(3컬럼·키 고정·세부산업 필터 컨텍스트화) → S3 반영 배너 + 저장→byte-0 재생성 배선 → S4 검증 버튼 → S5 sync·수용기준 자체점검 → 제출.

@@ -1,0 +1,19 @@
+{
+  "version": "2026-07-06",
+  "packs": {
+    "q3_scale_profile": {
+      "q": "q3",
+      "edit_primary_dx_pack_id": "q3_scale_profile_server",
+      "mirrors": [
+        {
+          "dx_pack_id": "q3_scale_profile_server",
+          "runtime_rel": "server/data/step3/scale_profile_v3.json"
+        },
+        {
+          "dx_pack_id": "q3_scale_profile_client",
+          "runtime_rel": "client/data/step3/scale_profile_v3.json"
+        }
+      ]
+    }
+  }
+}

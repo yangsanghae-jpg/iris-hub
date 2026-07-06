@@ -32,13 +32,41 @@ def test_load_dx_index_regenerates(repo):
 def test_rebuild_q3_byte_match(repo):
     idx, err = dx_index.load_dx_index(repo)
     assert idx is not None, err
-    dx_pid = "q3_scale_profile_server"
-    runtime_rel = "server/data/step3/scale_profile_v3.json"
-    status, _ = dx_index.runtime_sync_status(
-        repo.root, runtime_rel, idx.q_matrix, idx.q_framework, dx_pid
+    status, _ = dx_index.pack_mirror_sync_status(
+        repo.root, idx.q_matrix, idx.q_framework, "q3_scale_profile"
     )
     idx.close()
     assert status == "synced"
+
+
+def test_q3_mirror_both_runtimes_exist(repo):
+    for rel in (
+        "server/data/step3/scale_profile_v3.json",
+        "client/data/step3/scale_profile_v3.json",
+    ):
+        assert (repo.root / rel).is_file()
+
+
+def test_apply_q3_edits_both_dx_mirrors(repo):
+    qm = dx_editor.load_q_matrix(repo.root)
+    row = next(
+        r
+        for r in qm
+        if r.get("pack_id") == "q3_scale_profile_server" and r.get("sub_code") == "A01"
+    )
+    orig = dx_index.get_nested(row.get("value_json") or {}, "weights.site_scope")
+    new_val = (orig - 1) if isinstance(orig, int) and orig > 0 else (orig + 1 if isinstance(orig, int) else 1)
+    updated = dx_index.apply_q3_grid_edits(qm, "q3_scale_profile", {"A01|weights.site_scope": new_val})
+    for dx_pid in ("q3_scale_profile_server", "q3_scale_profile_client"):
+        r = next(x for x in updated if x.get("pack_id") == dx_pid and x.get("sub_code") == "A01")
+        assert dx_index.get_nested(r.get("value_json") or {}, "weights.site_scope") == new_val
+
+
+def test_pack_mirror_map_loaded():
+    entry = dx_index.pack_mirror_entry("q3_scale_profile")
+    assert entry is not None
+    rels = dx_index.pack_mirror_runtime_rels("q3_scale_profile")
+    assert len(rels) == 2
 
 
 def test_flatten_q3_has_editable_fields(repo):

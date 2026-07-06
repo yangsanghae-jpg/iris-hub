@@ -125,10 +125,9 @@ def _status_strip(manifest: dict, dx_idx: dx_index.DxIndex, packs: list[dict]) -
         mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
         if mode != "editable":
             continue
-        runtime = (pack.get("member_paths") or [""])[0]
-        dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
-        status, _ = dx_index.runtime_sync_status(
-            dx_idx.repo_root, runtime, dx_idx.q_matrix, dx_idx.q_framework, dx_pid
+        manifest_pid = pack.get("pack_id", "")
+        status, _ = dx_index.pack_mirror_sync_status(
+            dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
         )
         if status != "synced":
             pending_n += 1
@@ -156,12 +155,11 @@ def _sync_dot(pack: dict, dx_idx: dx_index.DxIndex) -> str:
     mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
     if mode not in ("editable", "pilot_wait"):
         return ""
-    runtime = (pack.get("member_paths") or [""])[0]
-    if not runtime:
+    manifest_pid = pack.get("pack_id", "")
+    if not dx_index.pack_mirror_runtime_rels(manifest_pid):
         return "sot-dot-pending"
-    dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
-    status, _ = dx_index.runtime_sync_status(
-        dx_idx.repo_root, runtime, dx_idx.q_matrix, dx_idx.q_framework, dx_pid
+    status, _ = dx_index.pack_mirror_sync_status(
+        dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
     )
     return "sot-dot-synced" if status == "synced" else "sot-dot-pending"
 
@@ -291,10 +289,9 @@ def _reflect_banner(
             False,
         )
 
-    runtime = (pack.get("member_paths") or [""])[0]
-    dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
-    sync_st, detail = dx_index.runtime_sync_status(
-        dx_idx.repo_root, runtime, dx_idx.q_matrix, dx_idx.q_framework, dx_pid
+    manifest_pid = pack.get("pack_id", "")
+    sync_st, detail = dx_index.pack_mirror_sync_status(
+        dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
     )
     if session_dirty or sync_st != "synced":
         extra = f" · {detail}" if detail and not session_dirty else ""
@@ -531,6 +528,8 @@ def render() -> None:
         st.rerun()
 
     pack = next((p for p in packs if p.get("pack_id") == selected), packs[0])
+    manifest_pid = pack.get("pack_id", "")
+    primary_dx = dx_index.resolve_dx_pack_id(manifest_pid)
     pending = st.session_state.get("sot_pending_edits") or {}
     session_dirty = bool(pending)
 
@@ -553,16 +552,8 @@ def render() -> None:
         with c2:
             if st.button("검증", type="secondary"):
                 qm = dx_editor.load_q_matrix(repo.root)
-                qm = dx_index.apply_q3_grid_edits(
-                    qm,
-                    dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
-                    pending,
-                )
-                issues = dx_editor.validate_q3_edits(
-                    qm,
-                    dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
-                    dx_idx.sub_codes,
-                )
+                qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
+                issues = dx_editor.validate_q3_edits(qm, primary_dx, dx_idx.sub_codes)
                 if not issues:
                     st.success("검증 통과")
                 else:
@@ -572,12 +563,8 @@ def render() -> None:
         with c3:
             if st.button("저장하고 리포트에 반영", type="primary", disabled=not can_edit):
                 qm = dx_editor.load_q_matrix(repo.root)
-                dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
-                qm = dx_index.apply_q3_grid_edits(qm, dx_pid, pending)
-                runtime = (pack.get("member_paths") or [""])[0]
-                result = dx_editor.save_q3_and_rebuild(
-                    repo, qm, runtime, dx_pack_id=dx_pid
-                )
+                qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
+                result = dx_editor.save_q_pack_and_rebuild(repo, qm, manifest_pid)
                 if result.ok:
                     st.session_state.pop("sot_pending_edits", None)
                     st.cache_data.clear()
