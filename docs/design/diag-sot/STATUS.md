@@ -16,7 +16,7 @@
 | **P3a** | Ch3+Ch6 sub_override | ✅ PASS/완료 | dx-only byte-0(base 비움+mutation 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존, alias map(P1 issue 관리) |
 | **P3b** | Ch2 system→module dx + flag-gated 소비 | ✅ PASS/완료 | systems_catalog byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(12/12) |
 | **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | ⚠️→✅ PASS | **1차 FAIL**(domain_cards엔 있으나 렌더되는 blocks엔 없음) → **재수정 PASS**: blocks.exec.cap에 부착→**실제 렌더 HTML에 세부산업 특화 keywords/points 표시** + flag-off 12/12 무변경. **요구3 실현** |
-| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage | ▶ **P4-core 산출 완료·Gatekeeper 검증 대기** | inventory→loader→MANIFEST→LINEAGE 4산출(diagnosis-tool `6230298`). live=loader 112/112, 고아-live 0. cleanup(archive/generator/residual)=배치별 승인 이연 |
+| **P4-core** | 잔여 인벤토리·loader refs·MANIFEST·lineage | ✅ PASS | inventory→loader→MANIFEST→LINEAGE 4산출(diagnosis-tool `6230298`). live=loader 112/112, 고아-live 0. **재현 diff 0**. cleanup(archive/generator/residual)=배치별 승인 이연 |
 | **P5** | **iris-hub 진실원 관리 탭 UI** | ✅ PASS/완료 | MANIFEST+LINEAGE 소비 그리드(39팩)+lineage 4블록(edit→generate→use→risk). read-only, 진단툴 하위 뷰. 라이브 :8765. **제1동인 가시화 = 원 목표 산출물 도달** |
 
 **요구 5개 착지 현황:** ①척추(registry) ✅ · ②Q1~Q5 수치팩 ✅ · ③A1/A2 system→module→sub_override ✅(P3) · ④ko 기본+fallback ✅(P2) · ⑤진실원↔sync ✅(dx SoT+byte-0 파이프라인). 남은 것 = 추적성 가시화(P4)+관리탭 UI.
