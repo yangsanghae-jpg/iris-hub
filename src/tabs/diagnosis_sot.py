@@ -27,8 +27,25 @@ _CSS = """
   background:linear-gradient(180deg,#fff 0%,#f8fbfe 100%);
   font-size:0.82rem; color:#344054; line-height:1.5;
 }
-.sot-pack-strip { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
-.sot-pack-chip-label { font-size:0.78rem; font-weight:700; }
+.sot-pack-strip { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+[data-testid="stPills"] [data-baseweb="button-group"] {
+  flex-wrap: wrap !important; gap: 6px !important;
+}
+[data-testid="stPills"] [data-baseweb="button-group"] button {
+  font-size: 0.68rem !important; font-weight: 600 !important;
+  padding: 5px 11px !important; min-height: 1.65rem !important;
+  white-space: nowrap !important; border-radius: 7px !important;
+  border: 1px solid rgba(47,128,196,0.22) !important;
+  background: #fff !important; color: #344054 !important;
+  box-shadow: none !important;
+}
+[data-testid="stPills"] [data-baseweb="button-group"] button[aria-pressed="true"] {
+  background: #2f80c4 !important; border-color: #2f80c4 !important;
+  color: #fff !important;
+}
+[data-testid="stPills"] [data-baseweb="button-group"] button:hover {
+  border-color: #2f80c4 !important;
+}
 .sot-v2-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 .sot-dot-synced { background:#12b76a; }
 .sot-dot-pending { background:#f79009; }
@@ -140,33 +157,35 @@ def _q_pack_ids() -> list[str]:
     return list(dx_index.pack_scope().get("q_packs") or [])
 
 
+def _pack_chip_label(manifest_pack_id: str) -> str:
+    gloss = dx_index.pack_glossary().get(manifest_pack_id) or {}
+    return gloss.get("chip_ko") or gloss.get("title_ko") or manifest_pack_id
+
+
 def _render_pack_chips(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
-    """상단 가로 Q팩 선택기 — 상태 점 유지."""
+    """상단 가로 Q팩 선택기 — pills, 선택 시 배경색 강조."""
     q_ids = set(_q_pack_ids())
     q_packs = [p for p in packs if p.get("pack_id") in q_ids]
     q_packs.sort(key=lambda p: _q_pack_ids().index(p.get("pack_id", "")) if p.get("pack_id") in q_ids else 99)
 
-    clicked: str | None = None
     if not q_packs:
         return None
 
-    cols = st.columns(len(q_packs))
-    for col, pack in zip(cols, q_packs):
-        pid = pack.get("pack_id", "")
-        title, _ = dx_index.pack_display(pid)
-        mode = dx_index.pack_edit_mode(pid)
-        dot = _sync_dot(pack, dx_idx) or "sot-dot-muted"
-        is_sel = pid == selected
-        with col:
-            label = f"{'●' if dot == 'sot-dot-synced' else '○'} {title}"
-            if st.button(
-                label,
-                key=f"sot_chip_{pid}",
-                type="primary" if is_sel else "secondary",
-                use_container_width=True,
-            ):
-                clicked = pid
-    return clicked
+    options = [p.get("pack_id", "") for p in q_packs]
+    if "sot_pack_pills" not in st.session_state:
+        st.session_state["sot_pack_pills"] = selected if selected in options else options[0]
+
+    picked = st.pills(
+        "팩",
+        options=options,
+        format_func=_pack_chip_label,
+        selection_mode="single",
+        key="sot_pack_pills",
+        label_visibility="collapsed",
+    )
+    if picked and picked != selected:
+        return str(picked)
+    return None
 
 
 def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
@@ -484,6 +503,8 @@ def render() -> None:
         if new_sel != selected:
             st.session_state.pop("sot_pending_edits", None)
         st.session_state["sot_selected_pack"] = new_sel
+        if new_sel in set(_q_pack_ids()):
+            st.session_state["sot_pack_pills"] = new_sel
         st.rerun()
 
     pack = next((p for p in packs if p.get("pack_id") == selected), packs[0])

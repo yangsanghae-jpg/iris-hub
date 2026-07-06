@@ -1,34 +1,42 @@
 {
   "q1_industry_product_taxonomy": {
     "title_ko": "Q1 산업·제품 분류",
+    "chip_ko": "Q1 산업·제품",
     "desc_ko": "세부산업별 제품 성격과 분류 체계"
   },
   "q2_routing_product_nature": {
     "title_ko": "Q2 라우팅·제품 성격",
+    "chip_ko": "Q2 라우팅",
     "desc_ko": "세부산업별 생산 라우팅과 제품 성격 매트릭스"
   },
   "q3_scale_profile": {
     "title_ko": "Q3 규모 프로필",
+    "chip_ko": "Q3 규모",
     "desc_ko": "세부산업별 규모 진단 가중치와 권장 성숙도"
   },
   "q4_automation_profile": {
     "title_ko": "Q4 자동화 프로필",
+    "chip_ko": "Q4 자동화",
     "desc_ko": "세부산업별 자동화·디지털 성숙도 가중치"
   },
   "q5_recommendation_by_subindustry": {
     "title_ko": "Q5 세부산업별 권장",
+    "chip_ko": "Q5 권장",
     "desc_ko": "세부산업별 솔루션·모듈 권장 매트릭스"
   },
   "q5_axes": {
     "title_ko": "Q5 축 정의",
+    "chip_ko": "Q5 축",
     "desc_ko": "Q5 권장 축·그룹 메타데이터"
   },
   "step2_route_diagram": {
     "title_ko": "Q2 라우트 다이어그램",
+    "chip_ko": "Q2 다이어그램",
     "desc_ko": "Step2 라우팅 시각화 보조 데이터"
   },
   "step3_residual": {
     "title_ko": "Q3 잔여 i18n",
+    "chip_ko": "Q3 i18n",
     "desc_ko": "Q3 다국어 미러·잔여 라이브 데이터"
   },
   "industry_master": {
