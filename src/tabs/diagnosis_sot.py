@@ -21,6 +21,24 @@ from src.ui_kit import hub_pagebar
 # 좌측 컨트롤(세부산업·전체 팩 상태) 공통 열 비율
 _SOT_SIDE_COLS = [1, 2.8]
 
+_Q1_SECTION_BLOCK_KEYS = {
+    "Step1 — 산업군": "step1",
+    "Step1.5 — 제품 선택": "step1_5",
+    "UI 원칙": "ui_principle",
+}
+
+
+def _safe_block_key(text: str) -> str:
+    out: list[str] = []
+    for ch in str(text):
+        if ch.isalnum():
+            out.append(ch)
+        elif ch in "._-":
+            out.append(ch)
+        elif not out or out[-1] != "_":
+            out.append("_")
+    return "".join(out).strip("_") or "block"
+
 _CSS = """
 <style>
 /* ── SOT 컨트롤 타이포 3종 (버튼·selectbox) ──
@@ -786,7 +804,7 @@ def _render_q1_label_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         _render_html(f'<div class="sot-sub-header">{escape(sec)}</div>')
         pending = _render_q3_grid_block(
             block,
-            block_key=f"{pid}_{sec}",
+            block_key=_q1_section_block_key(pid, sec),
             dev=dev,
             pending=pending,
             q=q,
@@ -794,6 +812,24 @@ def _render_q1_label_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         )
 
     st.session_state["sot_pending_edits"] = pending
+
+
+def _q1_section_block_key(pid: str, section: str) -> str:
+    slug = _Q1_SECTION_BLOCK_KEYS.get(section) or _safe_block_key(section)
+    return f"{pid}_{slug}"
+
+
+def _sub_filter_key(manifest_pid: str) -> str:
+    return f"sot_sub_filter_{manifest_pid}"
+
+
+def _ensure_sub_filter_default(manifest_pid: str, subs: list[str]) -> None:
+    """팩별 세부산업 필터 — 기본값은 첫 세부산업(편집 폼 즉시 표시)."""
+    key = _sub_filter_key(manifest_pid)
+    options = ["전체"] + subs
+    cur = st.session_state.get(key)
+    if cur not in options:
+        st.session_state[key] = subs[0] if subs else "전체"
 
 
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
@@ -814,6 +850,9 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         matrix_rows = dx_idx.matrix_rows(dx_pid)
         subs = sorted({str(r.get("sub_code", "")) for r in matrix_rows if r.get("sub_code")})
 
+    _ensure_sub_filter_default(pid, subs)
+    sub_key = _sub_filter_key(pid)
+
     _render_html('<p class="sot-field-label">세부산업</p>')
     c_sel, c_hint = st.columns(_SOT_SIDE_COLS)
     with c_sel:
@@ -821,7 +860,7 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         sub_filter = st.selectbox(
             "세부산업",
             ["전체"] + subs,
-            key="sot_sub_filter",
+            key=sub_key,
             label_visibility="collapsed",
         )
     sf = "" if sub_filter == "전체" else sub_filter
@@ -853,21 +892,28 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         by_sub: dict[str, list[dict[str, Any]]] = {}
         for row in grid_rows:
             by_sub.setdefault(row["sub_code"], []).append(row)
-        for sub in subs:
+        _render_html(
+            '<p class="sot-sub-hint">'
+            f"전체 {len(subs)}개 세부산업 요약 — 편집은 위에서 세부산업을 하나 고르세요."
+            "</p>"
+        )
+        for sub in subs[:12]:
             block = by_sub.get(sub)
             if not block:
                 continue
             sub_label = block[0].get("sub_label_ko") or ""
             header = f"{sub} {sub_label}".strip()
-            _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
-            pending = _render_q3_grid_block(
-                block,
-                block_key=f"{pid}_{sub}_ro",
-                dev=dev,
-                pending=pending,
-                q=q,
-                readonly=True,
-            )
+            with st.expander(header, expanded=False):
+                pending = _render_q3_grid_block(
+                    block,
+                    block_key=f"{pid}_{sub}_ro",
+                    dev=dev,
+                    pending=pending,
+                    q=q,
+                    readonly=True,
+                )
+        if len(subs) > 12:
+            st.caption(f"… 외 {len(subs) - 12}개 세부산업 (전체 펼침은 성능상 생략)")
 
     st.session_state["sot_pending_edits"] = pending
 
@@ -955,10 +1001,17 @@ def render() -> None:
         new_sel = chip_pick or all_pick
         if new_sel != selected:
             st.session_state.pop("sot_pending_edits", None)
+            st.session_state.pop(_sub_filter_key(new_sel), None)
         st.session_state["sot_selected_pack"] = new_sel
         if new_sel in set(_q_pack_ids()):
             st.session_state["sot_pack_pills"] = new_sel
         st.rerun()
+
+    pill_sel = st.session_state.get("sot_pack_pills")
+    valid_ids = {p.get("pack_id") for p in packs}
+    if pill_sel and pill_sel in valid_ids:
+        selected = pill_sel
+        st.session_state["sot_selected_pack"] = selected
 
     pack = next((p for p in packs if p.get("pack_id") == selected), packs[0])
     manifest_pid = pack.get("pack_id", "")
