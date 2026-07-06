@@ -998,20 +998,15 @@ def render() -> None:
     chip_pick = _render_pack_chips(packs, dx_idx, selected)
     all_pick = _render_all_packs_summary(packs, dx_idx, selected)
     if chip_pick or all_pick:
-        new_sel = chip_pick or all_pick
+        new_sel = str(chip_pick or all_pick)
         if new_sel != selected:
             st.session_state.pop("sot_pending_edits", None)
             st.session_state.pop(_sub_filter_key(new_sel), None)
         st.session_state["sot_selected_pack"] = new_sel
-        if new_sel in set(_q_pack_ids()):
-            st.session_state["sot_pack_pills"] = new_sel
+        # pills 위젯 생성 후에는 key를 쓸 수 없음 — 전체 팩 버튼만 pills 상태 리셋
+        if all_pick:
+            st.session_state.pop("sot_pack_pills", None)
         st.rerun()
-
-    pill_sel = st.session_state.get("sot_pack_pills")
-    valid_ids = {p.get("pack_id") for p in packs}
-    if pill_sel and pill_sel in valid_ids:
-        selected = pill_sel
-        st.session_state["sot_selected_pack"] = selected
 
     pack = next((p for p in packs if p.get("pack_id") == selected), packs[0])
     manifest_pid = pack.get("pack_id", "")
