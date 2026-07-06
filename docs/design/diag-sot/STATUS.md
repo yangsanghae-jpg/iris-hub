@@ -16,7 +16,7 @@
 | **P3a** | Ch3+Ch6 sub_override | ✅ PASS/완료 | dx-only byte-0(base 비움+mutation 증명), SUB_* no-guess, shared_slug 1회, 빈{} 보존, alias map(P1 issue 관리) |
 | **P3b** | Ch2 system→module dx + flag-gated 소비 | ✅ PASS/완료 | systems_catalog byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(12/12) |
 | **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | ⚠️→✅ PASS | **1차 FAIL**(domain_cards엔 있으나 렌더되는 blocks엔 없음) → **재수정 PASS**: blocks.exec.cap에 부착→**실제 렌더 HTML에 세부산업 특화 keywords/points 표시** + flag-off 12/12 무변경. **요구3 실현** |
-| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage | ▶ **P4-core 진행** | plan 승인. P4-core(inventory→loader→MANIFEST→LINEAGE)=추적성 제1동인. cleanup(archive/generator/residual)=배치별 승인 이연 |
+| **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage | ▶ **P4-core 산출 완료·Gatekeeper 검증 대기** | inventory→loader→MANIFEST→LINEAGE 4산출(diagnosis-tool `6230298`). live=loader 112/112, 고아-live 0. cleanup(archive/generator/residual)=배치별 승인 이연 |
 | 후속 | **iris-hub 관리 탭 UI** | ⏳ 대기 | P4-core의 MANIFEST+LINEAGE 소비. 진실원 그리드+lineage 뷰+편집→sync = **원 목표 산출물** |
 
 **요구 5개 착지 현황:** ①척추(registry) ✅ · ②Q1~Q5 수치팩 ✅ · ③A1/A2 system→module→sub_override ✅(P3) · ④ko 기본+fallback ✅(P2) · ⑤진실원↔sync ✅(dx SoT+byte-0 파이프라인). 남은 것 = 추적성 가시화(P4)+관리탭 UI.
@@ -34,13 +34,31 @@
 
 | repo | 브랜치 | HEAD |
 |------|--------|------|
-| diagnosis-tool | `feat/diag-sot-sync` | `a2492fc` (P4 plan 승인 수령) |
-| iris-hub | `feat/diag-sot` | P4 plan 승인 커밋 |
+| diagnosis-tool | `feat/diag-sot-sync` | `6230298` (P4-core 산출: inventory·loader-ref·manifest·lineage) |
+| iris-hub | `feat/diag-sot` | STATUS P4-core 산출 반영 |
+
+## P4-core 산출 결과 (2026-07-06, diagnosis-tool `6230298`)
+
+산출물(4) — 데이터/로더 무편집, generator 실행 0:
+- `docs/diag-sot/reports/P4_INVENTORY.json` — runtime candidate 112(server/data 97 + knowledge 15) 분류
+- `docs/diag-sot/reports/P4_LOADER_REFERENCE_REPORT.md` — loader 참조 결과
+- `scripts/data_poc/DIAG_SOT_MANIFEST.json` — 39 pack, live=loader **112/112 커버·고아-live 0**
+- `scripts/data_poc/DIAG_SOT_LINEAGE.json` — core row-level(P1 610·P2 828·P3a 190/P3b system 49·module 203·sub_override 254) + pack-level 39 + issue rollup 16
+- (+ `p4_loader_scan.py`·`p4_build_manifest_lineage.py` read-only 재현 스캐너)
+
+loader 분류: `live_loader_referenced` 71 · `live_indirect_referenced` 38(os.listdir 워크/동적 stack_id) · **archive·fixture 후보 3(런타임 무참조)**.
+
+**archive 후보(P4-cleanup 별도 승인 대상, 이번 미이동):**
+- `server/data/system_catalog.json` — root legacy 중복(런타임=`ch2/catalog/systems_catalog.json`). plan "root duplicate" 의심 **확인**.
+- `server/data/ch1/catalog/drivers.json` — 런타임=`drivers_catalog.json`. drivers×2 중복 **확인**.
+- `server/data/tools/diagnose_req_ch2.json` — 샘플 요청 fixture.
+
+**plan 가정 정정:** `ch1_industries/`·`ch1/industry_packs/`·`ch1/routing_packs/`·`stack_library/`·`ch1_mgmt_model/industries/`는 이름상 legacy로 보이나 **`os.listdir` 동적로드로 live** → archive 금지. 실제 무참조는 위 3건뿐.
 
 ## 다음 액션
 
-- **M2:** P4-core 착수 — P4-1 inventory → P4-2 loader refs → P4-3 `DIAG_SOT_MANIFEST.json`(live=로더) → P4-4 `DIAG_SOT_LINEAGE.json`(field-group 전팩 + P1~P3 core row-level). **archive/삭제/loader편집/generator실행 금지.**
-- **Gatekeeper:** P4-core 제출 시 MANIFEST live=로더 표본 grep 검증 + LINEAGE 완비 확인 → DIAG-SOT 데이터 기반 완성 → 관리탭 UI 단계.
+- **Gatekeeper:** MANIFEST live=로더 표본 grep 검증(고아-live 0 재확인) + LINEAGE 관리탭 §8 계약(edit→generate→use→risk) 완비 확인 → PASS 시 DIAG-SOT 데이터 기반 완성 → 관리탭 UI 단계.
+- **P4-cleanup(이연, 배치별 승인):** archive 3후보 무참조 proof→이동 · residual byte-0(ch4/step5_2 등) · generator 은퇴(coverage+no-import 증명).
 
 ## 보류·백로그 (P4 이후 결정)
 
