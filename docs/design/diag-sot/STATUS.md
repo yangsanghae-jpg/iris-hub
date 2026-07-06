@@ -17,7 +17,7 @@
 | **P3b** | Ch2 system→module dx + flag-gated 소비 | ✅ PASS/완료 | systems_catalog byte-0·module_id 결정론·SUB_* 0 + compose flag-off no-op(12/12) |
 | **P3b-5** | sub_override 실제 표면화(요구3 가시효과) | ⚠️→✅ PASS | **1차 FAIL**(domain_cards엔 있으나 렌더되는 blocks엔 없음) → **재수정 PASS**: blocks.exec.cap에 부착→**실제 렌더 HTML에 세부산업 특화 keywords/points 표시** + flag-off 12/12 무변경. **요구3 실현** |
 | **P4** | 잔여 이관·legacy 격리·MANIFEST·lineage | ▶ **P4-core 산출 완료·Gatekeeper 검증 대기** | inventory→loader→MANIFEST→LINEAGE 4산출(diagnosis-tool `6230298`). live=loader 112/112, 고아-live 0. cleanup(archive/generator/residual)=배치별 승인 이연 |
-| 후속 | **iris-hub 관리 탭 UI** | ⏳ 대기 | P4-core의 MANIFEST+LINEAGE 소비. 진실원 그리드+lineage 뷰+편집→sync = **원 목표 산출물** |
+| **P5** | **iris-hub 진실원 관리 탭 UI** | ✅ PASS/완료 | MANIFEST+LINEAGE 소비 그리드(39팩)+lineage 4블록(edit→generate→use→risk). read-only, 진단툴 하위 뷰. 라이브 :8765. **제1동인 가시화 = 원 목표 산출물 도달** |
 
 **요구 5개 착지 현황:** ①척추(registry) ✅ · ②Q1~Q5 수치팩 ✅ · ③A1/A2 system→module→sub_override ✅(P3) · ④ko 기본+fallback ✅(P2) · ⑤진실원↔sync ✅(dx SoT+byte-0 파이프라인). 남은 것 = 추적성 가시화(P4)+관리탭 UI.
 
@@ -35,7 +35,7 @@
 | repo | 브랜치 | HEAD |
 |------|--------|------|
 | diagnosis-tool | `feat/diag-sot-sync` | `6230298` (P4-core 산출: inventory·loader-ref·manifest·lineage) |
-| iris-hub | `feat/diag-sot` | STATUS P4-core 산출 반영 |
+| iris-hub | `feat/diag-sot` | P5 관리탭 구현 + 판정 |
 
 ## P4-core 산출 결과 (2026-07-06, diagnosis-tool `6230298`)
 
@@ -55,18 +55,18 @@ loader 분류: `live_loader_referenced` 71 · `live_indirect_referenced` 38(os.l
 
 **plan 가정 정정:** `ch1_industries/`·`ch1/industry_packs/`·`ch1/routing_packs/`·`stack_library/`·`ch1_mgmt_model/industries/`는 이름상 legacy로 보이나 **`os.listdir` 동적로드로 live** → archive 금지. 실제 무참조는 위 3건뿐.
 
-## P4-core 판정 (2026-07-06)
+## P4-core / P5 판정 (2026-07-06)
 
-- **✅ PASS (조건부)** — `P4_CORE_GATE_VERDICT.md`. Exit 게이트 7/7 통과(표본 grep 독립검증), 잔여 조건 1건 = **M5 재현 스캐너 실행 diff 0 확인**.
-- ⚠ 절차 이례: P4-core를 Gatekeeper가 직접 생성 → **역할 복원**(이후 실행=M5 Cursor, Claude=계획·지시·검증만).
-- MINOR(비차단): q1/q5 dx팩 generated_path null(client-canonical) · ch1_mgmt_model live/unknown 분리 → cleanup 보강.
+- **P4-core ✅ PASS 확정** — `P4_CORE_GATE_VERDICT.md`. Exit 7/7 + **M5 재현 diff 0**(Gatekeeper 재실행 확인)으로 조건부 게이트 해소.
+- **P5 관리탭 ✅ PASS** — `P5_MGMT_TAB_GATE_VERDICT.md`. 39팩 로드·§8.2 4블록 실측·read-only·라이브 :8765(200/ok). 제1동인 가시화 완성.
+- ⚠ 절차 이례(P4-core Gatekeeper 직접 생성) → **역할 복원** 완료(실행=M5 Cursor, Claude=계획·지시·검증).
+- MINOR(비차단): related_issues 과매칭 가능 · UI 픽셀 육안 미확인 · q1/q5 generated_path null · ch1_mgmt_model live/unknown → cleanup 보강.
 
-## 다음 액션 (지시서 발행 완료)
+## 다음 액션
 
-- **M5 Cursor ①(우선, 원 목표):** 관리탭 UI — `WORK_ORDER_P5_MGMT_TAB.md`(설계 `P5_MGMT_TAB_SPEC.md`). MANIFEST+LINEAGE 소비, 진단툴 하위 뷰, read-only 가시화 + lineage 4블록. → DIAG-SOT 최종 산출물.
-- **M5 Cursor ②(부차, 배치별 승인):** `WORK_ORDER_P4_CLEANUP.md` — 배치A archive 3후보 · 배치B residual byte-0(ch4/step5_2/ch0) · 배치C generator 은퇴.
-- **M5 Cursor 선행:** P4-core 재현 스캐너 실행 → diff 0 확인(검증 조건 해소).
-- **Gatekeeper(Claude):** 각 제출물 표본 검증·게이트 판정. 실행 미수행.
+- **M5 Cursor(부차, 배치별 승인):** `WORK_ORDER_P4_CLEANUP.md` — 배치A archive 3후보(proof 재첨부+회귀 green 제출→승인) · 배치B residual byte-0(ch4/step5_2/ch0) · 배치C generator 은퇴.
+- **Gatekeeper(Claude):** 각 배치 제출물 표본 검증·판정. 실행 미수행.
+- **원 목표 도달:** 데이터 기반(P1~P4-core) + 가시화(P5) 완성. cleanup은 부차·이연.
 
 ## 보류·백로그 (P4 이후 결정)
 
@@ -82,5 +82,5 @@ M2 환경 git이 간헐적으로 막힘(DNS). 미커밋 산출물은 **Gatekeepe
 - **설계:** `00_MANIFEST` · `10_OVERVIEW` · `P0~P4_SPEC` · `../DIAGNOSIS_TOOL_SOT_TARGET_DESIGN`(배경)
 - **작업지시:** `WORK_ORDER_{P0,P1,P1B,P2,P3,P3A,P3B,P3B5,P4}`
 - **판정/승인:** `P1A_GATE_VERDICT`(반려) · `P2_DISCOVERY_APPROVAL` · `P2_CATALOG_ROUNDTRIP_DECISION` · `P2_CATALOG_GATE_VERDICT` · `P2_GATE_VERDICT` · `P3A_SCHEMA_APPROVAL` · `P3A_GATE_VERDICT`... · `P3B_SCHEMA_APPROVAL` · `P3B_GATE_VERDICT(_2)` · `P3B5_DIAGNOSIS_APPROVAL` · `P3B5_GATE_VERDICT(_2)` · `P4_PLAN_APPROVAL` · **`P4_CORE_GATE_VERDICT`**
-- **P5 관리탭:** **`P5_MGMT_TAB_SPEC`**(설계) · **`WORK_ORDER_P5_MGMT_TAB`** · **`WORK_ORDER_P4_CLEANUP`**
+- **P5 관리탭:** **`P5_MGMT_TAB_SPEC`**(설계) · **`WORK_ORDER_P5_MGMT_TAB`** · **`P5_MGMT_TAB_GATE_VERDICT`** · **`WORK_ORDER_P4_CLEANUP`**
 - **M2 산출(diagnosis-tool `docs/diag-sot/reports/`):** `P0~P4` result/draft·diagnosis 보고서
