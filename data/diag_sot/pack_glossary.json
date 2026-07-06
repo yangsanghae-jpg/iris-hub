@@ -1,7 +1,7 @@
 {
   "q1_industry_product_taxonomy": {
     "title_ko": "Q1 산업·제품 분류",
-    "chip_ko": "Q1 산업·제품",
+    "chip_ko": "Q1\n산업·제품",
     "desc_ko": "세부산업별 제품 성격과 분류 체계"
   },
   "q2_routing_product_nature": {
@@ -31,7 +31,7 @@
   },
   "step2_route_diagram": {
     "title_ko": "Q2 라우트 다이어그램",
-    "chip_ko": "Q2 다이어그램",
+    "chip_ko": "Q2\n다이어그램",
     "desc_ko": "Step2 라우팅 시각화 보조 데이터"
   },
   "step3_residual": {

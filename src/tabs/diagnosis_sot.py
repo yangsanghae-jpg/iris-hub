@@ -34,16 +34,30 @@ _CSS = """
 }
 .sot-pack-strip { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
 [data-testid="stPills"] [data-baseweb="button-group"] {
-  flex-wrap: wrap !important; gap: 5px !important;
+  display:flex !important; flex-wrap:wrap !important; gap:6px !important;
+  width:100% !important;
 }
 [data-testid="stPills"] [data-baseweb="button-group"] button {
-  font-size: 0.75rem !important; font-weight: 800 !important;
-  letter-spacing: -0.01em !important;
-  padding: 4px 10px !important; min-height: 1.55rem !important;
-  white-space: nowrap !important; border-radius: 0.5rem !important;
+  flex: 0 0 calc((100% - 42px) / 8) !important;
+  width: calc((100% - 42px) / 8) !important;
+  min-width: 4.25rem !important;
+  max-width: calc((100% - 42px) / 8) !important;
+  height: 2.5rem !important; min-height: 2.5rem !important;
+  font-size: 0.68rem !important; font-weight: 700 !important;
+  line-height: 1.15 !important; letter-spacing: -0.02em !important;
+  padding: 3px 4px !important;
+  white-space: normal !important; word-break: keep-all !important;
+  text-align: center !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  border-radius: 0.5rem !important;
   border: 1px solid rgba(49,51,63,0.2) !important;
   background: rgb(240,242,246) !important; color: #101828 !important;
-  box-shadow: none !important;
+  box-shadow: none !important; overflow: hidden !important;
+}
+[data-testid="stPills"] [data-baseweb="button-group"] button > div,
+[data-testid="stPills"] [data-baseweb="button-group"] button p {
+  width:100% !important; text-align:center !important; margin:0 !important;
+  font-size:0.68rem !important; line-height:1.15 !important; white-space:normal !important;
 }
 [data-testid="stPills"] [data-baseweb="button-group"] button[aria-pressed="true"] {
   background: rgba(47,128,196,0.14) !important;
@@ -111,8 +125,14 @@ div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stBu
 }
 div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] button {
   flex:1 !important; min-height:2.5rem !important; height:100% !important;
-  font-size:0.875rem !important; padding:0.4rem 0.5rem !important;
-  border-radius:0.5rem !important;
+  font-size:0.68rem !important; font-weight:600 !important;
+  padding:0.35rem 0.4rem !important; border-radius:0.5rem !important;
+  display:inline-flex !important; align-items:center !important; justify-content:center !important;
+  text-align:center !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] button p {
+  width:100% !important; margin:0 !important; text-align:center !important;
+  font-size:0.68rem !important; line-height:1.15 !important; white-space:normal !important;
 }
 .sot-sub-filter-row { align-items:flex-end !important; margin-bottom:8px; }
 .sot-sub-hint {
@@ -342,7 +362,7 @@ def _render_action_bar(
 ) -> None:
     """반영 배너(축소) + 되돌리기·검증·저장 버튼 동일 행."""
     banner_html, can_save = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
-    c_banner, c_undo, c_val, c_save = st.columns([2.3, 0.62, 0.62, 0.62])
+    c_banner, c_undo, c_val, c_save = st.columns([2.1, 0.72, 0.72, 0.72])
     with c_banner:
         _render_html(f'<div class="sot-banner-wrap">{banner_html}</div>')
     with c_undo:
@@ -362,7 +382,7 @@ def _render_action_bar(
                     fn(iss.message)
     with c_save:
         if st.button(
-            "저장·반영",
+            "저장\n반영",
             type="primary",
             use_container_width=True,
             disabled=not can_save,
