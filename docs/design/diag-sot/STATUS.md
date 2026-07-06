@@ -55,10 +55,18 @@ loader 분류: `live_loader_referenced` 71 · `live_indirect_referenced` 38(os.l
 
 **plan 가정 정정:** `ch1_industries/`·`ch1/industry_packs/`·`ch1/routing_packs/`·`stack_library/`·`ch1_mgmt_model/industries/`는 이름상 legacy로 보이나 **`os.listdir` 동적로드로 live** → archive 금지. 실제 무참조는 위 3건뿐.
 
-## 다음 액션
+## P4-core 판정 (2026-07-06)
 
-- **Gatekeeper:** MANIFEST live=로더 표본 grep 검증(고아-live 0 재확인) + LINEAGE 관리탭 §8 계약(edit→generate→use→risk) 완비 확인 → PASS 시 DIAG-SOT 데이터 기반 완성 → 관리탭 UI 단계.
-- **P4-cleanup(이연, 배치별 승인):** archive 3후보 무참조 proof→이동 · residual byte-0(ch4/step5_2 등) · generator 은퇴(coverage+no-import 증명).
+- **✅ PASS (조건부)** — `P4_CORE_GATE_VERDICT.md`. Exit 게이트 7/7 통과(표본 grep 독립검증), 잔여 조건 1건 = **M5 재현 스캐너 실행 diff 0 확인**.
+- ⚠ 절차 이례: P4-core를 Gatekeeper가 직접 생성 → **역할 복원**(이후 실행=M5 Cursor, Claude=계획·지시·검증만).
+- MINOR(비차단): q1/q5 dx팩 generated_path null(client-canonical) · ch1_mgmt_model live/unknown 분리 → cleanup 보강.
+
+## 다음 액션 (지시서 발행 완료)
+
+- **M5 Cursor ①(우선, 원 목표):** 관리탭 UI — `WORK_ORDER_P5_MGMT_TAB.md`(설계 `P5_MGMT_TAB_SPEC.md`). MANIFEST+LINEAGE 소비, 진단툴 하위 뷰, read-only 가시화 + lineage 4블록. → DIAG-SOT 최종 산출물.
+- **M5 Cursor ②(부차, 배치별 승인):** `WORK_ORDER_P4_CLEANUP.md` — 배치A archive 3후보 · 배치B residual byte-0(ch4/step5_2/ch0) · 배치C generator 은퇴.
+- **M5 Cursor 선행:** P4-core 재현 스캐너 실행 → diff 0 확인(검증 조건 해소).
+- **Gatekeeper(Claude):** 각 제출물 표본 검증·게이트 판정. 실행 미수행.
 
 ## 보류·백로그 (P4 이후 결정)
 
@@ -73,5 +81,6 @@ M2 환경 git이 간헐적으로 막힘(DNS). 미커밋 산출물은 **Gatekeepe
 
 - **설계:** `00_MANIFEST` · `10_OVERVIEW` · `P0~P4_SPEC` · `../DIAGNOSIS_TOOL_SOT_TARGET_DESIGN`(배경)
 - **작업지시:** `WORK_ORDER_{P0,P1,P1B,P2,P3,P3A,P3B,P3B5,P4}`
-- **판정/승인:** `P1A_GATE_VERDICT`(반려) · `P2_DISCOVERY_APPROVAL` · `P2_CATALOG_ROUNDTRIP_DECISION` · `P2_CATALOG_GATE_VERDICT` · `P2_GATE_VERDICT` · `P3A_SCHEMA_APPROVAL` · `P3A_GATE_VERDICT`... · `P3B_SCHEMA_APPROVAL` · `P3B_GATE_VERDICT(_2)` · `P3B5_DIAGNOSIS_APPROVAL` · `P3B5_GATE_VERDICT(_2)` · `P4_PLAN_APPROVAL`
+- **판정/승인:** `P1A_GATE_VERDICT`(반려) · `P2_DISCOVERY_APPROVAL` · `P2_CATALOG_ROUNDTRIP_DECISION` · `P2_CATALOG_GATE_VERDICT` · `P2_GATE_VERDICT` · `P3A_SCHEMA_APPROVAL` · `P3A_GATE_VERDICT`... · `P3B_SCHEMA_APPROVAL` · `P3B_GATE_VERDICT(_2)` · `P3B5_DIAGNOSIS_APPROVAL` · `P3B5_GATE_VERDICT(_2)` · `P4_PLAN_APPROVAL` · **`P4_CORE_GATE_VERDICT`**
+- **P5 관리탭:** **`P5_MGMT_TAB_SPEC`**(설계) · **`WORK_ORDER_P5_MGMT_TAB`** · **`WORK_ORDER_P4_CLEANUP`**
 - **M2 산출(diagnosis-tool `docs/diag-sot/reports/`):** `P0~P4` result/draft·diagnosis 보고서
