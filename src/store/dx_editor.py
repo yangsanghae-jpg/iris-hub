@@ -1,4 +1,4 @@
-"""DIAG-SOT dx JSON 쓰기·검증·byte-0 재생성 (Q2/Q3/Q4 dx_q_matrix · Q5 dx_q5_* 팩).
+"""DIAG-SOT dx JSON 쓰기·검증·byte-0 재생성 (Q1 dx_q_framework · Q2/Q3/Q4 dx_q_matrix · Q5 dx_q5_* 팩).
 
 쓰기는 dx JSON에만. runtime server/data·client/data는 재생성 결과물.
 """
@@ -16,6 +16,7 @@ DX_Q_MATRIX_REL = "scripts/data_poc/_p1b/dx_q_matrix.json"
 DX_Q_FRAMEWORK_REL = "scripts/data_poc/_p1b/dx_q_framework.json"
 DX_Q5_RECOMMENDATION_REL = "scripts/data_poc/_p1a/dx_q5_recommendation.json"
 DX_Q5_FRAMEWORK_REL = "scripts/data_poc/_p1a/dx_q5_framework.json"
+DX_Q1_FRAMEWORK_REL = "scripts/data_poc/_p1a/dx_q_framework.json"
 
 
 @dataclass
@@ -68,6 +69,16 @@ def load_q5_framework(repo_root: Path) -> list[dict[str, Any]]:
         return []
     data = json.loads(path.read_text(encoding="utf-8"))
     return data if isinstance(data, list) else []
+
+
+def load_q1_framework(repo_root: Path) -> list[dict[str, Any]]:
+    path = repo_root / DX_Q1_FRAMEWORK_REL
+    if not path.is_file():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("dx_q_framework must be a list")
+    return data
 
 
 def validate_q3_edits(
@@ -168,6 +179,45 @@ def validate_q4_edits(
     return issues
 
 
+def validate_q1_edits(
+    q1_framework: list[dict[str, Any]],
+    *,
+    pending_edits: dict[str, Any] | None = None,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    editable = set(idx.q_editable_field_paths("q1"))
+    locks = idx.field_locks().get("dx_q_framework_q1", {})
+    locked_blocks = set((locks.get("block_lock") or {}).get("blocks") or [])
+
+    for row in q1_framework:
+        if row.get("q") != "q1" or row.get("pack_id") != "q1_taxonomy":
+            continue
+        block = str(row.get("block") or "")
+        if block in locked_blocks:
+            continue
+        if block != "metadata":
+            issues.append(ValidationIssue("error", f"Q1 block {block} 편집 불가"))
+            continue
+        vj = row.get("value_json") or {}
+        if not isinstance(vj, dict):
+            issues.append(ValidationIssue("error", "metadata value_json 형식 오류"))
+            continue
+        for fp in editable:
+            val = idx.get_nested(vj, fp)
+            if val is not None and not isinstance(val, str):
+                issues.append(
+                    ValidationIssue("error", f"{fp} 는 문자열만 허용", fp)
+                )
+
+    if pending_edits:
+        for key, val in pending_edits.items():
+            if key not in editable:
+                issues.append(ValidationIssue("error", f"whitelist 밖 필드: {key}", key))
+            elif not isinstance(val, str):
+                issues.append(ValidationIssue("error", f"{key} 는 문자열만 허용", key))
+    return issues
+
+
 def validate_q5_edits(
     q5_recommendation: list[dict[str, Any]],
     sub_codes: set[str],
@@ -209,9 +259,15 @@ def validate_q_pack_edits(
     manifest_pack_id: str,
     sub_codes: set[str],
     *,
+    q1_framework: list[dict[str, Any]] | None = None,
     q5_recommendation: list[dict[str, Any]] | None = None,
+    pending_edits: dict[str, Any] | None = None,
 ) -> list[ValidationIssue]:
     q = idx.pack_q_code(manifest_pack_id)
+    if q == "q1":
+        if q1_framework is None:
+            return [ValidationIssue("error", "Q1 dx 데이터 없음")]
+        return validate_q1_edits(q1_framework, pending_edits=pending_edits)
     if q == "q5":
         if q5_recommendation is None:
             return [ValidationIssue("error", "Q5 dx 데이터 없음")]
@@ -263,14 +319,56 @@ def save_q5_and_rebuild(
     return SaveResult(True, "저장하고 리포트에 반영함", ", ".join(written), issues)
 
 
+def save_q1_and_rebuild(
+    repo: DiagnosisRepo,
+    q1_framework: list[dict[str, Any]],
+    manifest_pack_id: str,
+    *,
+    pending_edits: dict[str, Any] | None = None,
+) -> SaveResult:
+    """dx_q_framework.json 저장 후 동일 payload를 server·client runtime에 기록."""
+    entry = idx.pack_mirror_entry(manifest_pack_id)
+    if entry is None:
+        return SaveResult(False, f"미러 매핑 없음: {manifest_pack_id}")
+
+    mirrors = idx.pack_mirror_runtime_rels(manifest_pack_id)
+    if not mirrors:
+        return SaveResult(False, f"runtime 미러 경로 없음: {manifest_pack_id}")
+
+    issues = validate_q1_edits(q1_framework, pending_edits=pending_edits)
+    errors = [i for i in issues if i.level == "error"]
+    if errors:
+        return SaveResult(False, "검증 오류로 저장하지 않음", issues=issues)
+
+    dx_path = repo.root / DX_Q1_FRAMEWORK_REL
+    _write_json(dx_path, q1_framework)
+
+    payload = idx.rebuild_q1_payload(q1_framework)
+    written: list[str] = []
+    for m in mirrors:
+        runtime_path = repo.root / m["runtime_rel"]
+        _write_json(runtime_path, payload)
+        written.append(m["runtime_rel"])
+
+    return SaveResult(True, "저장하고 리포트에 반영함", ", ".join(written), issues)
+
+
 def save_q_pack_and_rebuild(
     repo: DiagnosisRepo,
     q_matrix: list[dict[str, Any]],
     manifest_pack_id: str,
     *,
+    q1_framework: list[dict[str, Any]] | None = None,
     q5_recommendation: list[dict[str, Any]] | None = None,
+    pending_edits: dict[str, Any] | None = None,
 ) -> SaveResult:
-    """dx JSON 저장 후 논리 팩 runtime 미러 재생성 (Q2~Q4 matrix · Q5 recommendation)."""
+    """dx JSON 저장 후 논리 팩 runtime 미러 재생성 (Q1 framework · Q2~Q4 matrix · Q5 recommendation)."""
+    if idx.pack_q_code(manifest_pack_id) == "q1":
+        if q1_framework is None:
+            return SaveResult(False, "Q1 dx 데이터 없음")
+        return save_q1_and_rebuild(
+            repo, q1_framework, manifest_pack_id, pending_edits=pending_edits
+        )
     if idx.pack_q_code(manifest_pack_id) == "q5":
         if q5_recommendation is None:
             return SaveResult(False, "Q5 dx 데이터 없음")
@@ -340,7 +438,7 @@ def prove_index_regenerates(repo: DiagnosisRepo) -> tuple[bool, str]:
 
 def audit_allowed_write_targets() -> list[str]:
     """save 경로가 쓰는 허용 대상 — dx JSON + q_pack_runtime_map runtime 미러."""
-    allowed = [DX_Q_MATRIX_REL, DX_Q5_RECOMMENDATION_REL]
+    allowed = [DX_Q_MATRIX_REL, DX_Q5_RECOMMENDATION_REL, DX_Q1_FRAMEWORK_REL]
     for entry in (idx.q_pack_runtime_map().get("packs") or {}).values():
         for m in entry.get("mirrors") or []:
             rel = m.get("runtime_rel")

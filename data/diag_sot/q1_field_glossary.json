@@ -1,0 +1,147 @@
+{
+  "step_ui.step1.title.ko": {
+    "label_ko": "Q1 산업군 — 제목 (ko)",
+    "hint_ko": "Step1 화면 제목",
+    "reflects_ko": "Q1 Step1 UI · title"
+  },
+  "step_ui.step1.title.zh": {
+    "label_ko": "Q1 산업군 — 제목 (zh)",
+    "reflects_ko": "Q1 Step1 UI · title"
+  },
+  "step_ui.step1.title.en": {
+    "label_ko": "Q1 산업군 — 제목 (en)",
+    "reflects_ko": "Q1 Step1 UI · title"
+  },
+  "step_ui.step1.title.ja": {
+    "label_ko": "Q1 산업군 — 제목 (ja)",
+    "reflects_ko": "Q1 Step1 UI · title"
+  },
+  "step_ui.step1.desc.ko": {
+    "label_ko": "Q1 산업군 — 설명 (ko)",
+    "reflects_ko": "Q1 Step1 UI · desc"
+  },
+  "step_ui.step1.desc.zh": {
+    "label_ko": "Q1 산업군 — 설명 (zh)",
+    "reflects_ko": "Q1 Step1 UI · desc"
+  },
+  "step_ui.step1.desc.en": {
+    "label_ko": "Q1 산업군 — 설명 (en)",
+    "reflects_ko": "Q1 Step1 UI · desc"
+  },
+  "step_ui.step1.desc.ja": {
+    "label_ko": "Q1 산업군 — 설명 (ja)",
+    "reflects_ko": "Q1 Step1 UI · desc"
+  },
+  "step_ui.step1_5.title.ko": {
+    "label_ko": "Q1 제품선택 — 제목 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · title"
+  },
+  "step_ui.step1_5.title.zh": {
+    "label_ko": "Q1 제품선택 — 제목 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · title"
+  },
+  "step_ui.step1_5.title.en": {
+    "label_ko": "Q1 제품선택 — 제목 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · title"
+  },
+  "step_ui.step1_5.title.ja": {
+    "label_ko": "Q1 제품선택 — 제목 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · title"
+  },
+  "step_ui.step1_5.desc.ko": {
+    "label_ko": "Q1 제품선택 — 설명 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · desc"
+  },
+  "step_ui.step1_5.desc.zh": {
+    "label_ko": "Q1 제품선택 — 설명 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · desc"
+  },
+  "step_ui.step1_5.desc.en": {
+    "label_ko": "Q1 제품선택 — 설명 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · desc"
+  },
+  "step_ui.step1_5.desc.ja": {
+    "label_ko": "Q1 제품선택 — 설명 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · desc"
+  },
+  "step_ui.step1_5.required_hint.ko": {
+    "label_ko": "Q1 제품선택 — 필수 안내 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · required_hint"
+  },
+  "step_ui.step1_5.required_hint.zh": {
+    "label_ko": "Q1 제품선택 — 필수 안내 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · required_hint"
+  },
+  "step_ui.step1_5.required_hint.en": {
+    "label_ko": "Q1 제품선택 — 필수 안내 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · required_hint"
+  },
+  "step_ui.step1_5.required_hint.ja": {
+    "label_ko": "Q1 제품선택 — 필수 안내 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · required_hint"
+  },
+  "step_ui.step1_5.next_button.ko": {
+    "label_ko": "Q1 제품선택 — 다음 버튼 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · next_button"
+  },
+  "step_ui.step1_5.next_button.zh": {
+    "label_ko": "Q1 제품선택 — 다음 버튼 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · next_button"
+  },
+  "step_ui.step1_5.next_button.en": {
+    "label_ko": "Q1 제품선택 — 다음 버튼 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · next_button"
+  },
+  "step_ui.step1_5.next_button.ja": {
+    "label_ko": "Q1 제품선택 — 다음 버튼 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · next_button"
+  },
+  "step_ui.step1_5.empty.ko": {
+    "label_ko": "Q1 제품선택 — 빈 목록 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · empty"
+  },
+  "step_ui.step1_5.empty.zh": {
+    "label_ko": "Q1 제품선택 — 빈 목록 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · empty"
+  },
+  "step_ui.step1_5.empty.en": {
+    "label_ko": "Q1 제품선택 — 빈 목록 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · empty"
+  },
+  "step_ui.step1_5.empty.ja": {
+    "label_ko": "Q1 제품선택 — 빈 목록 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · empty"
+  },
+  "step_ui.step1_5.load_error.ko": {
+    "label_ko": "Q1 제품선택 — 로드 오류 (ko)",
+    "reflects_ko": "Q1 Step1.5 UI · load_error"
+  },
+  "step_ui.step1_5.load_error.zh": {
+    "label_ko": "Q1 제품선택 — 로드 오류 (zh)",
+    "reflects_ko": "Q1 Step1.5 UI · load_error"
+  },
+  "step_ui.step1_5.load_error.en": {
+    "label_ko": "Q1 제품선택 — 로드 오류 (en)",
+    "reflects_ko": "Q1 Step1.5 UI · load_error"
+  },
+  "step_ui.step1_5.load_error.ja": {
+    "label_ko": "Q1 제품선택 — 로드 오류 (ja)",
+    "reflects_ko": "Q1 Step1.5 UI · load_error"
+  },
+  "ui_principle.ko": {
+    "label_ko": "UI 원칙 (ko)",
+    "reflects_ko": "Q1 metadata · ui_principle"
+  },
+  "ui_principle.zh": {
+    "label_ko": "UI 원칙 (zh)",
+    "reflects_ko": "Q1 metadata · ui_principle"
+  },
+  "ui_principle.en": {
+    "label_ko": "UI 원칙 (en)",
+    "reflects_ko": "Q1 metadata · ui_principle"
+  },
+  "ui_principle.ja": {
+    "label_ko": "UI 원칙 (ja)",
+    "reflects_ko": "Q1 metadata · ui_principle"
+  }
+}

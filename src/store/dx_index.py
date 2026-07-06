@@ -18,6 +18,7 @@ _DX_REL = {
     "q_framework": "scripts/data_poc/_p1b/dx_q_framework.json",
     "q5_recommendation": "scripts/data_poc/_p1a/dx_q5_recommendation.json",
     "q5_framework": "scripts/data_poc/_p1a/dx_q5_framework.json",
+    "q1_framework": "scripts/data_poc/_p1a/dx_q_framework.json",
     "registry_framework": "scripts/data_poc/_p1b/dx_registry_framework.json",
     "sub_industry": "scripts/data_poc/_p1a/dx_sub_industry.json",
     "industry": "scripts/data_poc/_p1b/dx_industry.json",
@@ -190,6 +191,7 @@ class DxIndex:
     q_framework: list[dict[str, Any]] = field(default_factory=list)
     q5_recommendation: list[dict[str, Any]] = field(default_factory=list)
     q5_framework: list[dict[str, Any]] = field(default_factory=list)
+    q1_framework: list[dict[str, Any]] = field(default_factory=list)
     sub_codes: set[str] = field(default_factory=set)
     _conn: sqlite3.Connection | None = field(default=None, repr=False)
 
@@ -243,8 +245,20 @@ class DxIndex:
     def q5_row_count(self, dx_pack_id: str = "q5_recommendation") -> int:
         return len(self.q5_recommendation_rows(dx_pack_id))
 
+    def q1_taxonomy_rows(self) -> list[dict[str, Any]]:
+        return [r for r in self.q1_framework if r.get("q") == "q1" and r.get("pack_id") == "q1_taxonomy"]
+
+    def q1_label_field_count(self) -> int:
+        return len(flatten_q1_label_rows(self.q1_framework))
+
     def total_row_count(self) -> int:
-        return len(self.q_matrix) + len(self.q_framework) + len(self.q5_recommendation) + len(self.q5_framework)
+        return (
+            len(self.q_matrix)
+            + len(self.q_framework)
+            + len(self.q5_recommendation)
+            + len(self.q5_framework)
+            + len(self.q1_framework)
+        )
 
     def close(self) -> None:
         if self._conn is not None:
@@ -262,6 +276,7 @@ def load_dx_index(repo: DiagnosisRepo) -> tuple[DxIndex | None, str | None]:
     q_framework = _read_json(root / _DX_REL["q_framework"])
     q5_recommendation = _read_json(root / _DX_REL["q5_recommendation"])
     q5_framework = _read_json(root / _DX_REL["q5_framework"])
+    q1_framework = _read_json(root / _DX_REL["q1_framework"])
     sub_industry = _read_json(root / _DX_REL["sub_industry"])
 
     if not isinstance(q_matrix, list):
@@ -277,6 +292,7 @@ def load_dx_index(repo: DiagnosisRepo) -> tuple[DxIndex | None, str | None]:
         q_framework=q_framework if isinstance(q_framework, list) else [],
         q5_recommendation=q5_recommendation if isinstance(q5_recommendation, list) else [],
         q5_framework=q5_framework if isinstance(q5_framework, list) else [],
+        q1_framework=q1_framework if isinstance(q1_framework, list) else [],
         sub_codes=sub_codes,
     )
     return idx, None
@@ -317,6 +333,17 @@ def chapter_group(pack: dict[str, Any]) -> str:
     if ch.startswith("Ch"):
         return "A 콘텐츠팩"
     return "기타"
+
+
+def rebuild_q1_payload(q1_framework: list[dict[str, Any]]) -> dict[str, Any]:
+    """p1a rebuild_q1_from_dx와 동일 알고리즘."""
+    rows = [r for r in q1_framework if r.get("q") == "q1" and r.get("pack_id") == "q1_taxonomy"]
+    payload: dict[str, Any] = {}
+    for row in sorted(rows, key=lambda item: int(item.get("source_index", 0))):
+        ptr = str(row.get("source_json_pointer") or "").strip("/")
+        key = unescape_json_pointer(ptr)
+        payload[key] = row.get("value_json")
+    return payload
 
 
 def rebuild_q5_payload(
@@ -376,6 +403,7 @@ def runtime_sync_status(
     q_framework: list[dict[str, Any]],
     dx_pack_id: str,
     *,
+    q1_framework: list[dict[str, Any]] | None = None,
     q5_framework: list[dict[str, Any]] | None = None,
     q5_recommendation: list[dict[str, Any]] | None = None,
 ) -> tuple[str, str | None]:
@@ -384,7 +412,9 @@ def runtime_sync_status(
     if not runtime_path.is_file():
         return "pending", "리포트 파일 없음"
 
-    if q5_framework is not None and q5_recommendation is not None:
+    if q1_framework is not None:
+        rebuilt = rebuild_q1_payload(q1_framework)
+    elif q5_framework is not None and q5_recommendation is not None:
         rebuilt = rebuild_q5_payload(q5_framework, q5_recommendation)
     else:
         rebuilt = rebuild_q_pack_payload(q_matrix, q_framework, dx_pack_id)
@@ -401,6 +431,7 @@ def pack_mirror_sync_status(
     q_framework: list[dict[str, Any]],
     manifest_pack_id: str,
     *,
+    q1_framework: list[dict[str, Any]] | None = None,
     q5_framework: list[dict[str, Any]] | None = None,
     q5_recommendation: list[dict[str, Any]] | None = None,
 ) -> tuple[str, str | None]:
@@ -412,6 +443,7 @@ def pack_mirror_sync_status(
         rel = f"server/data/step3/scale_profile_v3.json"
         return runtime_sync_status(
             repo_root, rel, q_matrix, q_framework, dx_pid,
+            q1_framework=q1_framework if q == "q1" else None,
             q5_framework=q5_framework if q == "q5" else None,
             q5_recommendation=q5_recommendation if q == "q5" else None,
         )
@@ -424,6 +456,7 @@ def pack_mirror_sync_status(
             q_matrix,
             q_framework,
             m["dx_pack_id"],
+            q1_framework=q1_framework if q == "q1" else None,
             q5_framework=q5_framework if q == "q5" else None,
             q5_recommendation=q5_recommendation if q == "q5" else None,
         )
@@ -439,12 +472,13 @@ def pack_mirror_sync_status_from_index(
     dx_idx: DxIndex,
     manifest_pack_id: str,
 ) -> tuple[str, str | None]:
-    """DxIndex 기반 미러 sync — Q2~Q4·Q5 공통."""
+    """DxIndex 기반 미러 sync — Q1·Q2~Q4·Q5 공통."""
     return pack_mirror_sync_status(
         dx_idx.repo_root,
         dx_idx.q_matrix,
         dx_idx.q_framework,
         manifest_pack_id,
+        q1_framework=dx_idx.q1_framework,
         q5_framework=dx_idx.q5_framework,
         q5_recommendation=dx_idx.q5_recommendation,
     )
@@ -452,6 +486,13 @@ def pack_mirror_sync_status_from_index(
 
 def q_editable_field_paths(q: str) -> list[str]:
     locks = field_locks()
+    if q == "q1":
+        patterns = (
+            locks.get("dx_q_framework_q1", {})
+            .get("value_json_edit_patterns", {})
+            .get("q1", [])
+        )
+        return list(patterns)
     if q == "q5":
         patterns = (
             locks.get("dx_q5_recommendation", {})
@@ -517,6 +558,85 @@ def flatten_q_grid_rows(
                 }
             )
     return out
+
+
+def _q1_section_label(field_path: str) -> str:
+    if field_path.startswith("ui_principle."):
+        return "UI 원칙"
+    if field_path.startswith("step_ui.step1_5."):
+        return "Step1.5 — 제품 선택"
+    if field_path.startswith("step_ui.step1."):
+        return "Step1 — 산업군"
+    return "기타"
+
+
+def flatten_q1_label_rows(q1_framework: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Q1 편집용 평탄 행 (metadata block UI 라벨 pointer)."""
+    q = "q1"
+    meta_row = next(
+        (
+            r
+            for r in q1_framework
+            if r.get("q") == "q1" and r.get("block") == "metadata" and r.get("pack_id") == "q1_taxonomy"
+        ),
+        None,
+    )
+    if not meta_row:
+        return []
+    value_json = meta_row.get("value_json") or {}
+    if not isinstance(value_json, dict):
+        return []
+    glossary = q_field_glossary(q)
+    field_paths = q_editable_field_paths(q)
+    out: list[dict[str, Any]] = []
+    for fp in field_paths:
+        val = get_nested(value_json, fp)
+        if val is None:
+            continue
+        meta = glossary.get(fp) or {}
+        editable = is_field_editable(q, fp)
+        out.append(
+            {
+                "_row_key": fp,
+                "section": _q1_section_label(fp),
+                "field_path": fp,
+                "meaning": meta.get("label_ko") or fp,
+                "hint": meta.get("hint_ko") or "",
+                "value": val,
+                "reflects": meta.get("reflects_ko") or "—",
+                "editable": editable,
+            }
+        )
+    return out
+
+
+def apply_q1_label_edits(
+    q1_framework: list[dict[str, Any]],
+    edits: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """edits: {field_path: new_value} → metadata block value_json 갱신."""
+    q = "q1"
+    updated = [dict(r) for r in q1_framework]
+    field_paths = set(q_editable_field_paths(q))
+    meta_idx = next(
+        (
+            i
+            for i, r in enumerate(updated)
+            if r.get("q") == "q1" and r.get("block") == "metadata" and r.get("pack_id") == "q1_taxonomy"
+        ),
+        None,
+    )
+    if meta_idx is None:
+        return updated
+    for row_key, new_val in edits.items():
+        if row_key not in field_paths:
+            continue
+        row = updated[meta_idx]
+        vj = dict(row.get("value_json") or {})
+        set_nested(vj, row_key, new_val)
+        row["value_json"] = vj
+        updated[meta_idx] = row
+    return updated
 
 
 def flatten_q5_grid_rows(
@@ -593,33 +713,6 @@ def _apply_q_grid_edits_for_pack(
         f"{r.get('sub_code')}|{fp}": (i, fp)
         for i, r in enumerate(updated)
         if r.get("pack_id") == dx_pack_id
-        for fp in field_paths
-    }
-    for row_key, new_val in edits.items():
-        loc = key_to_idx.get(row_key)
-        if not loc:
-            continue
-        idx, fp = loc
-        row = updated[idx]
-        vj = dict(row.get("value_json") or {})
-        set_nested(vj, fp, new_val)
-        row["value_json"] = vj
-        updated[idx] = row
-    return updated
-
-
-def apply_q5_grid_edits(
-    q5_recommendation: list[dict[str, Any]],
-    edits: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """edits: {_row_key: new_value} → dx_q5_recommendation 행 갱신 (단일 dx, 미러 없음)."""
-    q = "q5"
-    updated = [dict(r) for r in q5_recommendation]
-    field_paths = q_editable_field_paths(q)
-    key_to_idx = {
-        f"{r.get('sub_code')}|{fp}": (i, fp)
-        for i, r in enumerate(updated)
-        if r.get("pack_id") == "q5_recommendation"
         for fp in field_paths
     }
     for row_key, new_val in edits.items():

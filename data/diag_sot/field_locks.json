@@ -39,6 +39,71 @@
       ]
     }
   },
+  "dx_q_framework_q1": {
+    "row_lock": {
+      "fields": ["q", "block", "pack_id", "source_json_pointer", "source_index"],
+      "reason_ko": "구조 키 — 바꾸면 재조립 깨짐"
+    },
+    "value_json_lock": {
+      "fields": [
+        "name",
+        "version",
+        "date",
+        "source",
+        "scope",
+        "card_count",
+        "languages",
+        "industry_summaries",
+        "step_ui.step1.version_badge",
+        "step_ui.step1_5.version_badge"
+      ],
+      "reason_ko": "identity·provenance·version_badge·구조 필드 잠금"
+    },
+    "value_json_edit_patterns": {
+      "q1": [
+        "step_ui.step1.title.ko",
+        "step_ui.step1.title.zh",
+        "step_ui.step1.title.en",
+        "step_ui.step1.title.ja",
+        "step_ui.step1.desc.ko",
+        "step_ui.step1.desc.zh",
+        "step_ui.step1.desc.en",
+        "step_ui.step1.desc.ja",
+        "step_ui.step1_5.title.ko",
+        "step_ui.step1_5.title.zh",
+        "step_ui.step1_5.title.en",
+        "step_ui.step1_5.title.ja",
+        "step_ui.step1_5.desc.ko",
+        "step_ui.step1_5.desc.zh",
+        "step_ui.step1_5.desc.en",
+        "step_ui.step1_5.desc.ja",
+        "step_ui.step1_5.required_hint.ko",
+        "step_ui.step1_5.required_hint.zh",
+        "step_ui.step1_5.required_hint.en",
+        "step_ui.step1_5.required_hint.ja",
+        "step_ui.step1_5.next_button.ko",
+        "step_ui.step1_5.next_button.zh",
+        "step_ui.step1_5.next_button.en",
+        "step_ui.step1_5.next_button.ja",
+        "step_ui.step1_5.empty.ko",
+        "step_ui.step1_5.empty.zh",
+        "step_ui.step1_5.empty.en",
+        "step_ui.step1_5.empty.ja",
+        "step_ui.step1_5.load_error.ko",
+        "step_ui.step1_5.load_error.zh",
+        "step_ui.step1_5.load_error.en",
+        "step_ui.step1_5.load_error.ja",
+        "ui_principle.ko",
+        "ui_principle.zh",
+        "ui_principle.en",
+        "ui_principle.ja"
+      ]
+    },
+    "block_lock": {
+      "blocks": ["industries"],
+      "reason_ko": "택소노미 트리 — 별도 설계 전까지 편집 금지"
+    }
+  },
   "dx_q5_recommendation": {
     "row_lock": {
       "fields": [

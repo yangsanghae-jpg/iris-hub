@@ -23,7 +23,7 @@ def test_pack_edit_mode_q3_editable():
     assert dx_index.pack_edit_mode("q2_routing_product_nature") == "editable"
     assert dx_index.pack_edit_mode("q4_automation_profile") == "editable"
     assert dx_index.pack_edit_mode("q5_recommendation_by_subindustry") == "editable"
-    assert dx_index.pack_edit_mode("q1_industry_product_taxonomy") == "pilot_wait"
+    assert dx_index.pack_edit_mode("q1_industry_product_taxonomy") == "editable"
     assert dx_index.pack_edit_mode("q5_axes") == "pilot_wait"
     assert dx_index.pack_edit_mode("ch2_systems_catalog") == "deferred"
     assert dx_index.pack_edit_mode("industry_master") == "spine"
@@ -273,3 +273,115 @@ def test_audit_allowed_write_targets_st2():
         "client/data/step4/automation_profile_v3.json",
     ):
         assert rel in allowed
+
+
+# --- Q1 STEP B (STB-a ~ STB-f) ---
+
+
+def test_rebuild_q1_byte_match(repo):
+    """STB-a: 무편집 rebuild_q1 == server·client runtime byte-0 MATCH."""
+    idx, err = dx_index.load_dx_index(repo)
+    assert idx is not None, err
+    status, detail = dx_index.pack_mirror_sync_status_from_index(idx, "q1_industry_product_taxonomy")
+    idx.close()
+    assert status == "synced", detail
+
+
+def test_q1_edit_both_mirrors(repo):
+    """STB-b: 라벨 1건 편집 → server·client 둘 다 갱신."""
+    q1 = dx_editor.load_q1_framework(repo.root)
+    meta = next(r for r in q1 if r.get("block") == "metadata")
+    orig = dx_index.get_nested(meta.get("value_json") or {}, "step_ui.step1.title.ko")
+    new_val = f"{orig} (STB-b)" if isinstance(orig, str) else "STB-b"
+    updated = dx_index.apply_q1_label_edits(q1, {"step_ui.step1.title.ko": new_val})
+    result = dx_editor.save_q1_and_rebuild(repo, updated, "q1_industry_product_taxonomy")
+    assert result.ok, result.message
+    for rel in (
+        "server/data/step1_5/industry_product_taxonomy_v3.json",
+        "client/data/step1_5/industry_product_taxonomy_v3.json",
+    ):
+        payload = json.loads((repo.root / rel).read_text(encoding="utf-8"))
+        assert dx_index.get_nested(payload["metadata"], "step_ui.step1.title.ko") == new_val
+    restored = dx_index.apply_q1_label_edits(updated, {"step_ui.step1.title.ko": orig})
+    restore_result = dx_editor.save_q1_and_rebuild(repo, restored, "q1_industry_product_taxonomy")
+    assert restore_result.ok
+
+
+def test_q1_locked_fields_not_editable(repo):
+    """STB-c: industries·version_badge·whitelist 밖 필드는 편집 불가."""
+    paths = set(dx_index.q_editable_field_paths("q1"))
+    assert "step_ui.step1.version_badge.ko" not in paths
+    assert "step_ui.step1_5.version_badge.ko" not in paths
+    assert "name" not in paths
+    assert not dx_index.is_field_editable("q1", "step_ui.step1.version_badge.ko")
+    idx, _ = dx_index.load_dx_index(repo)
+    assert idx is not None
+    grid = dx_index.flatten_q1_label_rows(idx.q1_framework)
+    assert not any("version_badge" in r["field_path"] for r in grid)
+    assert all(r["field_path"] in paths for r in grid)
+    idx.close()
+
+
+def test_validate_q1_rejects_invalid(repo):
+    """STB-d: whitelist 밖·비문자열 저장 거부."""
+    q1 = dx_editor.load_q1_framework(repo.root)
+    issues = dx_editor.validate_q1_edits(
+        q1,
+        pending_edits={"step_ui.step1.version_badge.ko": "HACK"},
+    )
+    assert any(i.level == "error" for i in issues)
+    bad = dx_index.apply_q1_label_edits(q1, {"step_ui.step1.title.ko": 123})
+    issues2 = dx_editor.validate_q1_edits(bad)
+    assert any(i.level == "error" for i in issues2)
+
+
+def test_audit_allowed_write_targets_stb_e():
+    """STB-e: 쓰기 = dx_q_framework + q1 server/client runtime만."""
+    allowed = dx_editor.audit_allowed_write_targets()
+    assert "scripts/data_poc/_p1a/dx_q_framework.json" in allowed
+    for rel in (
+        "server/data/step1_5/industry_product_taxonomy_v3.json",
+        "client/data/step1_5/industry_product_taxonomy_v3.json",
+    ):
+        assert rel in allowed
+
+
+def test_q1_regression_q2_q5_synced(repo):
+    """STB-f: Q1 작업 후 Q2~Q5 무편집 synced 유지."""
+    idx, err = dx_index.load_dx_index(repo)
+    assert idx is not None, err
+    for manifest in (
+        "q2_routing_product_nature",
+        "q3_scale_profile",
+        "q4_automation_profile",
+        "q5_recommendation_by_subindustry",
+    ):
+        status, detail = dx_index.pack_mirror_sync_status_from_index(idx, manifest)
+        assert status == "synced", f"{manifest}: {detail}"
+    idx.close()
+
+
+def test_flatten_q1_has_editable_fields(repo):
+    idx, _ = dx_index.load_dx_index(repo)
+    assert idx is not None
+    grid = dx_index.flatten_q1_label_rows(idx.q1_framework)
+    assert grid
+    assert all(r["editable"] for r in grid)
+    assert not any("version_badge" in r["field_path"] for r in grid)
+    idx.close()
+
+
+def test_pack_mirror_map_q1():
+    entry = dx_index.pack_mirror_entry("q1_industry_product_taxonomy")
+    assert entry is not None
+    rels = dx_index.pack_mirror_runtime_rels("q1_industry_product_taxonomy")
+    assert len(rels) == 2
+
+
+def test_field_locks_q1_version_badge_locked():
+    locks = dx_index.field_locks()
+    locked = locks["dx_q_framework_q1"]["value_json_lock"]["fields"]
+    assert "step_ui.step1.version_badge" in locked
+    assert "step_ui.step1_5.version_badge" in locked
+    patterns = locks["dx_q_framework_q1"]["value_json_edit_patterns"]["q1"]
+    assert "step_ui.step1.version_badge.ko" not in patterns

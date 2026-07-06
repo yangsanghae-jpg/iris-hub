@@ -325,7 +325,13 @@ def _status_strip(manifest: dict, dx_idx: dx_index.DxIndex, packs: list[dict]) -
 
 def _pack_row_count(pack: dict, dx_idx: dx_index.DxIndex) -> int:
     pid = pack.get("pack_id", "")
-    if dx_index.pack_q_code(pid) == "q5":
+    q = dx_index.pack_q_code(pid)
+    if q == "q1":
+        n = dx_idx.q1_label_field_count()
+        if n:
+            return n
+        return int(pack.get("member_count") or 0)
+    if q == "q5":
         n = dx_idx.q5_row_count()
         if n:
             return n
@@ -467,14 +473,17 @@ def _apply_pending_edits(
     repo: Any,
     manifest_pid: str,
     pending: dict[str, Any],
-) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
-    """Q2~Q4 → q_matrix, Q5 → q5_recommendation."""
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
+    """Q1 → q1_framework, Q2~Q4 → q_matrix, Q5 → q5_recommendation."""
     q = dx_index.pack_q_code(manifest_pid)
+    if q == "q1":
+        q1 = dx_editor.load_q1_framework(repo.root)
+        return None, None, dx_index.apply_q1_label_edits(q1, pending)
     if q == "q5":
         q5 = dx_editor.load_q5_recommendation(repo.root)
-        return None, dx_index.apply_q5_grid_edits(q5, pending)
+        return None, dx_index.apply_q5_grid_edits(q5, pending), None
     qm = dx_editor.load_q_matrix(repo.root)
-    return dx_index.apply_q3_grid_edits(qm, manifest_pid, pending), None
+    return dx_index.apply_q3_grid_edits(qm, manifest_pid, pending), None, None
 
 
 def _render_action_bar(
@@ -498,9 +507,14 @@ def _render_action_bar(
             st.rerun()
     with c_val:
         if st.button("검증", type="secondary", use_container_width=True, key="sot_validate"):
-            qm, q5 = _apply_pending_edits(repo, manifest_pid, pending)
+            qm, q5, q1 = _apply_pending_edits(repo, manifest_pid, pending)
             issues = dx_editor.validate_q_pack_edits(
-                qm or [], manifest_pid, dx_idx.sub_codes, q5_recommendation=q5
+                qm or [],
+                manifest_pid,
+                dx_idx.sub_codes,
+                q1_framework=q1,
+                q5_recommendation=q5,
+                pending_edits=pending if dx_index.pack_q_code(manifest_pid) == "q1" else None,
             )
             if not issues:
                 st.success("검증 통과")
@@ -516,9 +530,14 @@ def _render_action_bar(
             disabled=not can_save,
             key="sot_save",
         ):
-            qm, q5 = _apply_pending_edits(repo, manifest_pid, pending)
+            qm, q5, q1 = _apply_pending_edits(repo, manifest_pid, pending)
             result = dx_editor.save_q_pack_and_rebuild(
-                repo, qm or [], manifest_pid, q5_recommendation=q5
+                repo,
+                qm or [],
+                manifest_pid,
+                q1_framework=q1,
+                q5_recommendation=q5,
+                pending_edits=pending if dx_index.pack_q_code(manifest_pid) == "q1" else None,
             )
             if result.ok:
                 st.session_state.pop("sot_pending_edits", None)
@@ -736,9 +755,54 @@ def _render_q3_grid_block(
     return _render_q3_field_rows(grid_rows, block_key=block_key, pending=pending, q=q)
 
 
+def _render_q1_label_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
+    """Q1 metadata UI 라벨 pointer 에디터 (industries 트리 잠금)."""
+    pid = pack.get("pack_id", "")
+    q = "q1"
+    pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
+    dev = st.session_state.get("sot_dev_mode", False)
+
+    grid_rows = dx_index.flatten_q1_label_rows(dx_idx.q1_framework)
+    if not grid_rows:
+        st.info("표시할 편집 항목이 없습니다.")
+        return
+
+    _render_html(
+        '<p class="sot-sub-hint">'
+        "UI 표시 문자열만 편집합니다. 산업·제품 분류 트리(industries)와 버전 배지는 잠겨 있습니다."
+        "</p>"
+    )
+
+    sections: list[str] = []
+    for row in grid_rows:
+        sec = str(row.get("section") or "기타")
+        if sec not in sections:
+            sections.append(sec)
+
+    for sec in sections:
+        block = [r for r in grid_rows if r.get("section") == sec]
+        if not block:
+            continue
+        _render_html(f'<div class="sot-sub-header">{escape(sec)}</div>')
+        pending = _render_q3_grid_block(
+            block,
+            block_key=f"{pid}_{sec}",
+            dev=dev,
+            pending=pending,
+            q=q,
+            readonly=False,
+        )
+
+    st.session_state["sot_pending_edits"] = pending
+
+
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pid = pack.get("pack_id", "")
     q = dx_index.pack_q_code(pid)
+    if q == "q1":
+        _render_q1_label_editor(pack, dx_idx)
+        return
+
     pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
     dev = st.session_state.get("sot_dev_mode", False)
 

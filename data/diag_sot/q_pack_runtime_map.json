@@ -43,6 +43,20 @@
         }
       ]
     },
+    "q1_industry_product_taxonomy": {
+      "q": "q1",
+      "edit_primary_dx_pack_id": "q1_taxonomy",
+      "mirrors": [
+        {
+          "dx_pack_id": "q1_taxonomy",
+          "runtime_rel": "server/data/step1_5/industry_product_taxonomy_v3.json"
+        },
+        {
+          "dx_pack_id": "q1_taxonomy",
+          "runtime_rel": "client/data/step1_5/industry_product_taxonomy_v3.json"
+        }
+      ]
+    },
     "q5_recommendation_by_subindustry": {
       "q": "q5",
       "edit_primary_dx_pack_id": "q5_recommendation",
