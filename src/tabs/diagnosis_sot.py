@@ -74,8 +74,9 @@ _CSS = """
 .sot-dot-pending { background:#f79009; }
 .sot-dot-muted { background:#d0d5dd; }
 .sot-sub-header {
-  margin:14px 0 6px; padding:6px 10px; border-radius:8px;
+  margin:14px 0 0; padding:8px 12px; border-radius:8px 8px 0 0;
   background:rgba(47,128,196,0.06); font-size:0.82rem; font-weight:700; color:#344054;
+  border:1px solid rgba(49,51,63,0.12); border-bottom:none;
 }
 .sot-all-packs-table { font-size:0.75rem; color:#475467; width:100%; border-collapse:collapse; }
 .sot-all-packs-table td { padding:4px 8px; border-bottom:1px solid rgba(47,128,196,0.08); }
@@ -118,18 +119,54 @@ div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stBu
   font-size:0.8rem; color:#667085; line-height:1.4;
   padding:0.55rem 0 0; margin:0;
 }
-.sot-field-row {
-  display:grid; grid-template-columns:minmax(0,1.6fr) minmax(140px,0.7fr) minmax(0,1fr);
-  gap:10px; align-items:center; padding:7px 10px; margin:2px 0;
-  border-bottom:1px solid rgba(47,128,196,0.08); font-size:0.8rem;
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) {
+  border-color: rgba(49,51,63,0.12) !important;
+  border-radius: 0 0 8px 8px !important;
+  border-top: none !important;
+  margin: 8px 0 12px !important;
+  overflow: hidden;
 }
-.sot-field-row:last-child { border-bottom:none; }
-.sot-field-label { color:#344054; line-height:1.35; }
-.sot-field-label small { color:#667085; font-weight:400; }
-.sot-field-reflect { color:#667085; font-size:0.74rem; }
-.sot-field-grid {
-  border:1px solid rgba(47,128,196,0.14); border-radius:10px;
-  background:#fff; margin:8px 0 12px; overflow:hidden;
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stHorizontalBlock"] {
+  align-items: center !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid rgba(49,51,63,0.08);
+  min-height: 2.75rem;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stHorizontalBlock"]:first-of-type {
+  background: rgb(240,242,246) !important;
+  min-height: 2.25rem;
+  border-bottom: 1px solid rgba(49,51,63,0.12);
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stHorizontalBlock"]:last-of-type {
+  border-bottom: none;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stHorizontalBlock"]:first-of-type p {
+  font-size: 0.875rem !important; font-weight: 600 !important; color: #31333f !important;
+  margin: 0 !important;
+}
+.sot-edit-item-name { font-size: 0.875rem; color: #31333f; line-height: 1.35; margin: 0; }
+.sot-edit-item-hint { font-size: 0.75rem; color: #667085; line-height: 1.3; margin: 2px 0 0; }
+.sot-edit-reflect { font-size: 0.8rem; color: #667085; line-height: 1.35; margin: 0; }
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stNumberInput"] > div {
+  background: transparent !important; gap: 4px !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stNumberInput"] input {
+  min-height: 2rem !important; font-size: 0.875rem !important;
+  border: 1px solid rgba(49,51,63,0.18) !important; border-radius: 6px !important;
+  background: #fff !important; padding: 0 8px !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stNumberInput"] button {
+  min-height: 2rem !important; min-width: 2rem !important;
+  border: 1px solid rgba(49,51,63,0.18) !important; border-radius: 6px !important;
+  background: #fff !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div {
+  min-height: 2rem !important; font-size: 0.875rem !important;
+  border-radius: 6px !important; background: #fff !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div > div {
+  font-size: 0.875rem !important;
 }
 .sot-reflect-synced { background:rgba(18,183,106,0.08); border-color:rgba(18,183,106,0.25); color:#027a48; }
 .sot-reflect-pending { background:rgba(247,144,9,0.1); border-color:rgba(247,144,9,0.28); color:#b54708; }
@@ -442,75 +479,85 @@ def _render_q3_field_rows(
     block_key: str,
     pending: dict[str, Any],
 ) -> dict[str, Any]:
-    """행별 위젯 — 코드형은 select, 가중치는 number."""
-    hdr = st.columns([2.2, 1, 1.2])
-    with hdr[0]:
-        st.markdown("**항목**")
-    with hdr[1]:
-        st.markdown("**값**")
-    with hdr[2]:
-        st.markdown("**어디에 반영**")
+    """편집 그리드 — dataframe 톤의 bordered 테이블 + 행별 위젯."""
+    editable_rows = [r for r in grid_rows if r.get("editable", True)]
+    if not editable_rows:
+        return pending
 
-    for row in grid_rows:
-        if not row.get("editable", True):
-            continue
-        rk = str(row["_row_key"])
-        fp = str(row.get("field_path") or "")
-        spec = dx_index.q3_field_editor_spec(fp)
-        orig = row["value"]
-        current = pending.get(rk, orig)
-        meaning = row["meaning"]
-        hint = row.get("hint") or ""
-        label_line = f"{meaning} — {hint}" if hint else meaning
-        reflect = str(row.get("reflects") or "—")
+    with st.container(border=True):
+        _render_html('<span class="sot-edit-head-marker" aria-hidden="true"></span>')
+        hdr = st.columns([2.3, 1, 1.3])
+        with hdr[0]:
+            st.markdown("**항목**")
+        with hdr[1]:
+            st.markdown("**값**")
+        with hdr[2]:
+            st.markdown("**어디에 반영**")
 
-        col_label, col_val, col_ref = st.columns([2.2, 1, 1.2])
-        with col_label:
-            st.caption(label_line)
-        with col_val:
-            widget_key = f"sot_f_{block_key}_{rk}"
-            if spec.get("type") == "select":
-                options = dx_index.q3_field_select_options(str(spec.get("options_ref") or ""))
-                if not options:
-                    options = [str(current)]
-                cur_s = str(current)
-                idx = options.index(cur_s) if cur_s in options else 0
-                new_val = st.selectbox(
-                    "값",
-                    options,
-                    index=idx,
-                    key=widget_key,
-                    label_visibility="collapsed",
-                )
-            elif spec.get("type") == "number":
-                try:
-                    num = int(current)
-                except (TypeError, ValueError):
-                    num = 0
-                new_val = st.number_input(
-                    "값",
-                    min_value=int(spec.get("min", 0)),
-                    max_value=int(spec.get("max", 100)),
-                    step=int(spec.get("step", 1)),
-                    value=num,
-                    key=widget_key,
-                    label_visibility="collapsed",
-                )
-            else:
-                new_val = st.text_input(
-                    "값",
-                    value=str(current),
-                    key=widget_key,
-                    label_visibility="collapsed",
-                )
+        for row in editable_rows:
+            rk = str(row["_row_key"])
+            fp = str(row.get("field_path") or "")
+            spec = dx_index.q3_field_editor_spec(fp)
+            orig = row["value"]
+            current = pending.get(rk, orig)
+            meaning = escape(str(row["meaning"]))
+            hint = escape(str(row.get("hint") or ""))
+            reflect = escape(str(row.get("reflects") or "—"))
 
-            coerced = _coerce_value(orig, new_val)
-            if coerced != orig:
-                pending[rk] = coerced
-            elif rk in pending:
-                del pending[rk]
-        with col_ref:
-            st.caption(reflect)
+            col_label, col_val, col_ref = st.columns([2.3, 1, 1.3])
+            with col_label:
+                hint_html = (
+                    f'<p class="sot-edit-item-hint">{hint}</p>' if hint else ""
+                )
+                _render_html(
+                    f'<p class="sot-edit-item-name">{meaning}</p>{hint_html}'
+                )
+            with col_val:
+                widget_key = f"sot_f_{block_key}_{rk}"
+                if spec.get("type") == "select":
+                    options = dx_index.q3_field_select_options(str(spec.get("options_ref") or ""))
+                    if not options:
+                        options = [str(current)]
+                    cur_s = str(current)
+                    idx = options.index(cur_s) if cur_s in options else 0
+                    new_val = st.selectbox(
+                        "값",
+                        options,
+                        index=idx,
+                        key=widget_key,
+                        label_visibility="collapsed",
+                    )
+                elif spec.get("type") == "number":
+                    try:
+                        num = int(current)
+                    except (TypeError, ValueError):
+                        num = 0
+                    lo = int(spec.get("min", 0))
+                    hi = int(spec.get("max", 100))
+                    new_val = st.number_input(
+                        "값",
+                        min_value=lo,
+                        max_value=hi,
+                        step=int(spec.get("step", 1)),
+                        value=num,
+                        key=widget_key,
+                        label_visibility="collapsed",
+                    )
+                else:
+                    new_val = st.text_input(
+                        "값",
+                        value=str(current),
+                        key=widget_key,
+                        label_visibility="collapsed",
+                    )
+
+                coerced = _coerce_value(orig, new_val)
+                if coerced != orig:
+                    pending[rk] = coerced
+                elif rk in pending:
+                    del pending[rk]
+            with col_ref:
+                _render_html(f'<p class="sot-edit-reflect">{reflect}</p>')
 
     return pending
 
