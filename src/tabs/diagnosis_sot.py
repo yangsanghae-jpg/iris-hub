@@ -16,10 +16,18 @@ from src.config import DIAGNOSIS_TOOL_GITHUB
 from src.diagnosis_git import resolve_diagnosis_repo
 from src.store import diag_sot as sot
 from src.store import dx_editor, dx_index
-from src.ui_kit import hub_pagebar, hub_section
+from src.ui_kit import hub_pagebar
+
+# 좌측 컨트롤(세부산업·전체 팩 상태) 공통 열 비율
+_SOT_SIDE_COLS = [1, 2.8]
 
 _CSS = """
 <style>
+/* ── SOT 컨트롤 타이포 3종 (버튼·selectbox) ──
+   chip   0.75rem  — 팩 pills (다수·2줄 라벨)
+   ctrl   0.8125rem — 일반 버튼·selectbox·그리드 입력 (= hub 13px)
+   banner 0.875rem  — 액션바 상태 배너 (버튼 아님)
+*/
 .sot-v2-strip {
   display:flex; flex-wrap:wrap; gap:10px 18px;
   padding:12px 14px; margin-bottom:12px;
@@ -32,41 +40,115 @@ _CSS = """
 .hub-pagebar-desc {
   font-size:0.8rem !important; line-height:1.4 !important; color:#667085 !important;
 }
+/* ── SOT 제목 2종 ──
+   section — 구역 소제목: 팩 선택 · 선택 팩명(Q3 규모 프로필 등)
+   field   — 컨트롤 행 라벨: 전체 팩 상태 · 세부산업
+*/
+.sot-section-title,
+.sot-section-title.sot-section-title--pack,
+[data-testid="stHtml"] p.sot-section-title {
+  font-size:0.9375rem !important; font-weight:700 !important; color:#101828 !important;
+  line-height:1.3 !important; letter-spacing:-0.01em !important;
+  margin:0 0 0.45rem !important;
+}
+.sot-section-title--pack { margin-top:0.6rem !important; }
+.sot-field-label {
+  font-size:0.8125rem !important; font-weight:600 !important; color:#344054 !important;
+  line-height:1.25 !important; margin:0 0 0.35rem !important;
+}
 .sot-pack-strip { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
-[data-testid="stPills"] [data-baseweb="button-group"] {
+/* Q팩 pills — Streamlit 1.50+: stButtonGroup + st-key-sot_pack_pills */
+.st-key-sot_pack_pills[data-testid="stElementContainer"] {
+  width:100% !important; max-width:100% !important;
+}
+[data-testid="stVerticalBlock"]:has(.sot-pack-pills-marker) .st-key-sot_pack_pills,
+.st-key-sot_pack_pills {
+  min-height:unset !important; height:auto !important;
+  margin-bottom:4px !important; padding-bottom:0 !important;
+}
+.st-key-sot_pack_pills [data-testid="stButtonGroup"] {
+  width:100% !important; margin-bottom:0 !important; padding-bottom:0 !important;
+}
+.sot-pack-pills-marker { display:none !important; }
+.st-key-sot_pack_pills [data-baseweb="button-group"] {
   display:flex !important; flex-wrap:wrap !important; gap:6px !important;
-  width:100% !important;
+  width:100% !important; align-content:flex-start !important;
 }
-[data-testid="stPills"] [data-baseweb="button-group"] button {
-  flex: 0 0 calc((100% - 42px) / 8) !important;
-  width: calc((100% - 42px) / 8) !important;
-  min-width: 4.25rem !important;
-  max-width: calc((100% - 42px) / 8) !important;
-  height: 2.5rem !important; min-height: 2.5rem !important;
-  font-size: 0.68rem !important; font-weight: 700 !important;
-  line-height: 1.15 !important; letter-spacing: -0.02em !important;
-  padding: 3px 4px !important;
-  white-space: normal !important; word-break: keep-all !important;
-  text-align: center !important;
-  display: inline-flex !important; align-items: center !important; justify-content: center !important;
-  border-radius: 0.5rem !important;
-  border: 1px solid rgba(49,51,63,0.2) !important;
-  background: rgb(240,242,246) !important; color: #101828 !important;
-  box-shadow: none !important; overflow: hidden !important;
+.st-key-sot_pack_pills [data-testid="stBaseButton-pills"],
+.st-key-sot_pack_pills [data-testid="stBaseButton-pillsActive"] {
+  flex:0 0 5.5rem !important; width:5.5rem !important;
+  min-width:5.5rem !important; max-width:5.5rem !important;
+  height:2.75rem !important; min-height:2.75rem !important; max-height:2.75rem !important;
+  font-size:0.75rem !important; font-weight:700 !important;
+  line-height:1.15 !important; letter-spacing:-0.02em !important;
+  padding:3px 4px !important;
+  white-space:normal !important; word-break:keep-all !important;
+  text-align:center !important;
+  display:inline-flex !important; align-items:center !important; justify-content:center !important;
+  border-radius:0.5rem !important;
+  border:1px solid rgba(49,51,63,0.2) !important;
+  background:rgb(240,242,246) !important; color:#101828 !important;
+  box-shadow:none !important; overflow:hidden !important;
 }
-[data-testid="stPills"] [data-baseweb="button-group"] button > div,
-[data-testid="stPills"] [data-baseweb="button-group"] button p {
-  width:100% !important; text-align:center !important; margin:0 !important;
-  font-size:0.68rem !important; line-height:1.15 !important; white-space:normal !important;
+.st-key-sot_pack_pills [data-testid="stBaseButton-pills"] [data-testid="stMarkdownContainer"],
+.st-key-sot_pack_pills [data-testid="stBaseButton-pillsActive"] [data-testid="stMarkdownContainer"] {
+  width:100% !important; overflow:hidden !important;
 }
-[data-testid="stPills"] [data-baseweb="button-group"] button[aria-pressed="true"] {
-  background: rgba(47,128,196,0.14) !important;
-  border-color: #2f80c4 !important; color: #175cd3 !important;
+.st-key-sot_pack_pills [data-testid="stBaseButton-pills"] [data-testid="stMarkdownContainer"] p,
+.st-key-sot_pack_pills [data-testid="stBaseButton-pillsActive"] [data-testid="stMarkdownContainer"] p {
+  width:100% !important; margin:0 !important; text-align:center !important;
+  font-size:0.75rem !important; line-height:1.15 !important;
+  white-space:normal !important; word-break:keep-all !important;
+  overflow-wrap:break-word !important;
 }
-[data-testid="stPills"] [data-baseweb="button-group"] button:hover {
-  border-color: #2f80c4 !important;
+.st-key-sot_pack_pills [data-testid="stBaseButton-pillsActive"] {
+  background:rgba(47,128,196,0.14) !important;
+  border-color:#2f80c4 !important; color:#175cd3 !important;
 }
-/* 전체 팩 상태 — 세부산업 selectbox 톤 */
+.st-key-sot_pack_pills [data-testid="stBaseButton-pills"]:hover {
+  border-color:#2f80c4 !important;
+}
+/* ctrl — 좌측 selectbox·전체 버튼 (전체팩·세부산업) */
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stSelectbox"] > div > div,
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stSelectbox"] > div > div > div,
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stSelectbox"] [data-baseweb="select"],
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stButton"] > button {
+  min-height:2.5rem !important; font-size:0.8125rem !important;
+  border-radius:0.5rem !important;
+}
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stButton"] > button {
+  background:rgb(240,242,246) !important;
+  border:1px solid rgba(49,51,63,0.2) !important;
+  color:#31333f !important; font-weight:400 !important;
+  justify-content:flex-start !important; text-align:left !important;
+  padding:0.45rem 0.7rem !important;
+}
+[data-testid="stColumn"]:has(.sot-side-ctrl-marker) [data-testid="stButton"] > button p {
+  font-size:0.8125rem !important; line-height:1.25 !important; margin:0 !important;
+}
+/* ctrl — 툴바·액션·팩빠른선택 버튼 */
+.st-key-sot_refresh [data-testid="stButton"] > button,
+.st-key-sot_undo [data-testid="stButton"] > button,
+.st-key-sot_validate [data-testid="stButton"] > button,
+.st-key-sot_save [data-testid="stButton"] > button,
+.st-key-sot_all_packs_toggle [data-testid="stButton"] > button,
+div[class*="st-key-sot_all_"] [data-testid="stButton"] > button {
+  font-size:0.8125rem !important; font-weight:600 !important; line-height:1.25 !important;
+}
+.st-key-sot_refresh [data-testid="stButton"] > button p,
+.st-key-sot_undo [data-testid="stButton"] > button p,
+.st-key-sot_validate [data-testid="stButton"] > button p,
+.st-key-sot_save [data-testid="stButton"] > button p,
+.st-key-sot_all_packs_toggle [data-testid="stButton"] > button p,
+div[class*="st-key-sot_all_"] [data-testid="stButton"] > button p {
+  font-size:0.8125rem !important; line-height:1.25 !important; margin:0 !important;
+}
+/* 전체 팩 상태 펼침 — 우측 패널 */
+.sot-all-packs-panel {
+  border:1px solid rgba(49,51,63,0.12); border-radius:0.5rem;
+  background:#fff; padding:8px 10px; margin-top:0;
+}
+/* 전체 팩 상태 — 구 expander 톤(다른 expander용) */
 [data-testid="stExpander"] details {
   border: 1px solid rgba(49,51,63,0.2) !important;
   border-radius: 0.5rem !important;
@@ -107,7 +189,7 @@ _CSS = """
   display:flex; align-items:center; min-height:2.5rem; height:100%;
   padding:0 12px !important; border-radius:0.5rem; margin:0;
   border:1px solid rgba(47,128,196,0.16);
-  font-size:0.875rem !important; line-height:1.25 !important;
+  font-size:0.875rem !important; line-height:1.3 !important;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .sot-reflect-banner strong { font-size:0.875rem !important; font-weight:700; }
@@ -125,14 +207,14 @@ div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stBu
 }
 div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] button {
   flex:1 !important; min-height:2.5rem !important; height:100% !important;
-  font-size:0.68rem !important; font-weight:600 !important;
-  padding:0.35rem 0.4rem !important; border-radius:0.5rem !important;
+  font-size:0.8125rem !important; font-weight:600 !important;
+  padding:0.4rem 0.5rem !important; border-radius:0.5rem !important;
   display:inline-flex !important; align-items:center !important; justify-content:center !important;
   text-align:center !important;
 }
 div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] button p {
   width:100% !important; margin:0 !important; text-align:center !important;
-  font-size:0.68rem !important; line-height:1.15 !important; white-space:normal !important;
+  font-size:0.8125rem !important; line-height:1.25 !important; white-space:normal !important;
 }
 .sot-sub-filter-row { align-items:flex-end !important; margin-bottom:8px; }
 .sot-sub-hint {
@@ -162,8 +244,8 @@ div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stBu
   border-bottom: none;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stHorizontalBlock"]:first-of-type p {
-  font-size: 0.875rem !important; font-weight: 600 !important; color: #31333f !important;
-  margin: 0 !important;
+  font-size:0.8125rem !important; font-weight:600 !important; color:#31333f !important;
+  margin:0 !important;
 }
 .sot-edit-item-name { font-size: 0.875rem; color: #31333f; line-height: 1.35; margin: 0; }
 .sot-edit-item-hint { font-size: 0.75rem; color: #667085; line-height: 1.3; margin: 2px 0 0; }
@@ -172,26 +254,29 @@ div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stBu
   background: transparent !important; gap: 4px !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stNumberInput"] input {
-  min-height: 2rem !important; font-size: 0.875rem !important;
-  border: 1px solid rgba(49,51,63,0.18) !important; border-radius: 6px !important;
-  background: #fff !important; padding: 0 8px !important;
+  min-height:2rem !important; font-size:0.8125rem !important;
+  border:1px solid rgba(49,51,63,0.18) !important; border-radius:6px !important;
+  background:#fff !important; padding:0 8px !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stTextInput"] input {
+  min-height:2rem !important; font-size:0.8125rem !important;
+  border:1px solid rgba(49,51,63,0.18) !important; border-radius:6px !important;
+  background:#fff !important; padding:0 8px !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div,
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div > div,
+[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] [data-baseweb="select"] {
+  min-height:2rem !important; font-size:0.8125rem !important;
+  border-radius:6px !important; background:#fff !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stNumberInput"] button {
-  min-height: 2rem !important; min-width: 2rem !important;
-  border: 1px solid rgba(49,51,63,0.18) !important; border-radius: 6px !important;
-  background: #fff !important;
-}
-[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div {
-  min-height: 2rem !important; font-size: 0.875rem !important;
-  border-radius: 6px !important; background: #fff !important;
-}
-[data-testid="stVerticalBlockBorderWrapper"]:has(.sot-edit-head-marker) [data-testid="stSelectbox"] > div > div > div {
-  font-size: 0.875rem !important;
+  min-height:2rem !important; min-width:2rem !important;
+  border:1px solid rgba(49,51,63,0.18) !important; border-radius:6px !important;
+  background:#fff !important;
 }
 .sot-reflect-synced { background:rgba(18,183,106,0.08); border-color:rgba(18,183,106,0.25); color:#027a48; }
 .sot-reflect-pending { background:rgba(247,144,9,0.1); border-color:rgba(247,144,9,0.28); color:#b54708; }
 .sot-reflect-readonly { background:rgba(102,112,133,0.06); color:#475467; }
-.sot-pack-title { font-size:1.05rem; font-weight:800; color:#101828; margin:0 0 4px; }
 .sot-pack-desc { font-size:0.8rem; color:#667085; margin:0 0 8px; }
 </style>
 """
@@ -281,8 +366,24 @@ def _pack_chip_label(manifest_pack_id: str) -> str:
     return gloss.get("chip_ko") or gloss.get("title_ko") or manifest_pack_id
 
 
+def _all_packs_summary_line(packs: list[dict], dx_idx: dx_index.DxIndex) -> str:
+    q_n = sum(1 for p in packs if dx_index.chapter_group(p) == "Q 수치팩")
+    a_n = sum(1 for p in packs if dx_index.chapter_group(p) == "A 콘텐츠팩")
+    pending = 0
+    for pack in packs:
+        if dx_index.pack_edit_mode(pack.get("pack_id", "")) != "editable":
+            continue
+        st_, _ = dx_index.pack_mirror_sync_status(
+            dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, pack.get("pack_id", "")
+        )
+        if st_ != "synced":
+            pending += 1
+    return f"Q {q_n} · A {a_n} · 전체 {len(packs)}팩 · 미반영 {pending}"
+
+
 def _render_pack_chips(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
     """상단 가로 Q팩 선택기 — pills, 선택 시 배경색 강조."""
+    _render_html('<span class="sot-pack-pills-marker" aria-hidden="true"></span>')
     q_ids = set(_q_pack_ids())
     q_packs = [p for p in packs if p.get("pack_id") in q_ids]
     q_packs.sort(key=lambda p: _q_pack_ids().index(p.get("pack_id", "")) if p.get("pack_id") in q_ids else 99)
@@ -301,6 +402,7 @@ def _render_pack_chips(packs: list[dict], dx_idx: dx_index.DxIndex, selected: st
         selection_mode="single",
         key="sot_pack_pills",
         label_visibility="collapsed",
+        width="stretch",
     )
     if picked and picked != selected:
         return str(picked)
@@ -308,7 +410,7 @@ def _render_pack_chips(packs: list[dict], dx_idx: dx_index.DxIndex, selected: st
 
 
 def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
-    """접이식 전체 팩 상태 — 작업공간 점유 최소."""
+    """전체 팩 상태 — 세부산업과 동일 좌열 폭 + 우측 요약/펼침."""
     clicked: str | None = None
     groups: dict[str, list[dict]] = {}
     for pack in packs:
@@ -316,37 +418,49 @@ def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selec
         groups.setdefault(g, []).append(pack)
 
     order = ["Q 수치팩", "A 콘텐츠팩", "기타"]
-    with st.expander("전체 팩 상태", expanded=False):
-        rows_html: list[str] = []
-        for gname in order:
-            if gname not in groups:
-                continue
-            for pack in sorted(groups[gname], key=lambda p: p.get("pack_id", "")):
+    open_ = st.session_state.get("sot_all_packs_open", False)
+    summary = _all_packs_summary_line(packs, dx_idx)
+
+    _render_html('<p class="sot-field-label">전체 팩 상태</p>')
+    c_left, c_right = st.columns(_SOT_SIDE_COLS)
+    with c_left:
+        _render_html('<span class="sot-side-ctrl-marker" aria-hidden="true"></span>')
+        if st.button("전체", key="sot_all_packs_toggle", use_container_width=True, type="secondary"):
+            st.session_state["sot_all_packs_open"] = not open_
+            st.rerun()
+    with c_right:
+        if not open_:
+            _render_html(f'<p class="sot-sub-hint">{escape(summary)}</p>')
+        else:
+            rows_html: list[str] = []
+            for gname in order:
+                if gname not in groups:
+                    continue
+                for pack in sorted(groups[gname], key=lambda p: p.get("pack_id", "")):
+                    pid = pack.get("pack_id", "")
+                    title, _ = dx_index.pack_display(pid)
+                    mode = dx_index.pack_edit_mode(pid)
+                    dot = _sync_dot(pack, dx_idx) or "sot-dot-muted"
+                    count = _pack_row_count(pack, dx_idx)
+                    sel = " ✓" if pid == selected else ""
+                    badge = _pack_badge(mode)
+                    rows_html.append(
+                        f"<tr><td><span class='sot-v2-dot {dot}'></span>{escape(title)}{sel}</td>"
+                        f"<td>{escape(pid)}</td><td>{count}행</td><td>{badge}</td></tr>"
+                    )
+            table = (
+                "<div class='sot-all-packs-panel'><table class='sot-all-packs-table'><tbody>"
+                + "".join(rows_html)
+                + "</tbody></table></div>"
+            )
+            _render_html(table)
+            pick_cols = st.columns(4)
+            for i, pack in enumerate(sorted(packs, key=lambda p: p.get("pack_id", ""))):
                 pid = pack.get("pack_id", "")
                 title, _ = dx_index.pack_display(pid)
-                mode = dx_index.pack_edit_mode(pid)
-                dot = _sync_dot(pack, dx_idx) or "sot-dot-muted"
-                count = _pack_row_count(pack, dx_idx)
-                sel = " ✓" if pid == selected else ""
-                badge = _pack_badge(mode)
-                rows_html.append(
-                    f"<tr><td><span class='sot-v2-dot {dot}'></span>{escape(title)}{sel}</td>"
-                    f"<td>{escape(pid)}</td><td>{count}행</td><td>{badge}</td></tr>"
-                )
-        table = (
-            "<table class='sot-all-packs-table'><tbody>"
-            + "".join(rows_html)
-            + "</tbody></table>"
-        )
-        _render_html(table)
-
-        pick_cols = st.columns(4)
-        for i, pack in enumerate(sorted(packs, key=lambda p: p.get("pack_id", ""))):
-            pid = pack.get("pack_id", "")
-            title, _ = dx_index.pack_display(pid)
-            with pick_cols[i % 4]:
-                if st.button(title, key=f"sot_all_{pid}", use_container_width=True):
-                    clicked = pid
+                with pick_cols[i % 4]:
+                    if st.button(title, key=f"sot_all_{pid}", use_container_width=True):
+                        clicked = pid
     return clicked
 
 
@@ -608,11 +722,10 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
     dev = st.session_state.get("sot_dev_mode", False)
 
-    _render_html(
-        '<p style="font-size:0.875rem;margin:0 0 0.35rem;color:#31333f">세부산업</p>'
-    )
-    c_sel, c_hint = st.columns([1, 2.8])
+    _render_html('<p class="sot-field-label">세부산업</p>')
+    c_sel, c_hint = st.columns(_SOT_SIDE_COLS)
     with c_sel:
+        _render_html('<span class="sot-side-ctrl-marker" aria-hidden="true"></span>')
         sub_filter = st.selectbox(
             "세부산업",
             ["전체"] + subs,
@@ -709,7 +822,7 @@ def render() -> None:
 
     col_refresh, col_dev = st.columns([1, 3])
     with col_refresh:
-        if st.button("새로고침", type="secondary"):
+        if st.button("새로고침", type="secondary", key="sot_refresh"):
             st.cache_data.clear()
             st.session_state.pop("sot_pending_edits", None)
             st.rerun()
@@ -738,7 +851,7 @@ def render() -> None:
     if selected not in {p.get("pack_id") for p in packs}:
         selected = "q3_scale_profile"
 
-    hub_section("팩 선택", level="page")
+    _render_html('<p class="sot-section-title">팩 선택</p>')
     chip_pick = _render_pack_chips(packs, dx_idx, selected)
     all_pick = _render_all_packs_summary(packs, dx_idx, selected)
     if chip_pick or all_pick:
@@ -757,7 +870,7 @@ def render() -> None:
     session_dirty = bool(pending)
 
     title, desc = dx_index.pack_display(pack.get("pack_id", ""))
-    _render_html(f'<p class="sot-pack-title">{escape(title)}</p>')
+    _render_html(f'<p class="sot-section-title sot-section-title--pack">{escape(title)}</p>')
     _render_html(f'<p class="sot-pack-desc">{escape(desc)}</p>')
 
     mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
