@@ -86,12 +86,38 @@ _CSS = """
 .sot-badge-deferred { background:rgba(152,162,179,0.18); color:#475467; }
 .sot-badge-spine { background:rgba(47,128,196,0.12); color:#175cd3; }
 .sot-badge-wait { background:rgba(247,144,9,0.14); color:#b54708; }
+.sot-banner-wrap { display:flex; flex:1; width:100%; min-height:2.5rem; }
+.sot-banner-wrap .sot-reflect-banner { flex:1; width:100%; }
 .sot-reflect-banner {
-  padding:8px 12px; border-radius:10px; margin:0;
+  display:flex; align-items:center; min-height:2.5rem; height:100%;
+  padding:0 12px !important; border-radius:0.5rem; margin:0;
   border:1px solid rgba(47,128,196,0.16);
-  font-size:0.78rem; line-height:1.35;
+  font-size:0.875rem !important; line-height:1.25 !important;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.sot-reflect-banner strong { font-size:0.82rem; }
+.sot-reflect-banner strong { font-size:0.875rem !important; font-weight:700; }
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) {
+  align-items:stretch !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="column"] {
+  display:flex !important; flex-direction:column !important; justify-content:stretch !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stVerticalBlock"] {
+  flex:1 !important; display:flex !important; flex-direction:column !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] {
+  flex:1 !important; display:flex !important;
+}
+div[data-testid="stHorizontalBlock"]:has(.sot-reflect-banner) [data-testid="stButton"] button {
+  flex:1 !important; min-height:2.5rem !important; height:100% !important;
+  font-size:0.875rem !important; padding:0.4rem 0.5rem !important;
+  border-radius:0.5rem !important;
+}
+.sot-sub-filter-row { align-items:flex-end !important; margin-bottom:8px; }
+.sot-sub-hint {
+  font-size:0.8rem; color:#667085; line-height:1.4;
+  padding:0.55rem 0 0; margin:0;
+}
 .sot-field-row {
   display:grid; grid-template-columns:minmax(0,1.6fr) minmax(140px,0.7fr) minmax(0,1fr);
   gap:10px; align-items:center; padding:7px 10px; margin:2px 0;
@@ -281,7 +307,7 @@ def _render_action_bar(
     banner_html, can_save = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
     c_banner, c_undo, c_val, c_save = st.columns([2.3, 0.62, 0.62, 0.62])
     with c_banner:
-        _render_html(banner_html)
+        _render_html(f'<div class="sot-banner-wrap">{banner_html}</div>')
     with c_undo:
         if st.button("되돌리기", type="secondary", use_container_width=True, key="sot_undo"):
             st.session_state.pop("sot_pending_edits", None)
@@ -364,15 +390,13 @@ def _reflect_banner(
         extra = f" · {detail}" if detail and not session_dirty else ""
         return (
             '<div class="sot-reflect-banner sot-reflect-pending">'
-            "여기서 편집 → 실제 진단 리포트<br>"
-            f"<strong>⚠ 수정됨 · 아직 반영 안 됨</strong>{escape(extra)}"
+            f"여기서 편집 → 리포트 · <strong>⚠ 아직 반영 안 됨</strong>{escape(extra)}"
             "</div>",
             True,
         )
     return (
         '<div class="sot-reflect-banner sot-reflect-synced">'
-        "여기서 편집 → 실제 진단 리포트<br>"
-        "<strong>✓ 리포트와 일치</strong>"
+        "여기서 편집 → 리포트 · <strong>✓ 리포트와 일치</strong>"
         "</div>",
         True,
     )
@@ -517,16 +541,30 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
     dev = st.session_state.get("sot_dev_mode", False)
 
-    sub_filter = st.selectbox("세부산업", ["전체"] + subs, key="sot_sub_filter")
+    _render_html(
+        '<p style="font-size:0.875rem;margin:0 0 0.35rem;color:#31333f">세부산업</p>'
+    )
+    c_sel, c_hint = st.columns([1, 2.8])
+    with c_sel:
+        sub_filter = st.selectbox(
+            "세부산업",
+            ["전체"] + subs,
+            key="sot_sub_filter",
+            label_visibility="collapsed",
+        )
     sf = "" if sub_filter == "전체" else sub_filter
+    with c_hint:
+        if not sf:
+            _render_html(
+                '<p class="sot-sub-hint">'
+                "전체 보기는 읽기 전용입니다. 값을 고치려면 세부산업을 하나 고르세요."
+                "</p>"
+            )
     grid_rows = dx_index.flatten_q3_grid_rows(matrix_rows, sub_filter=sf)
 
     if not grid_rows:
         st.info("표시할 편집 항목이 없습니다.")
         return
-
-    if not sf:
-        st.caption("전체 보기는 읽기 전용입니다. 값을 고치려면 세부산업을 하나 고르세요.")
 
     if sf:
         sub_label = next((r["sub_label_ko"] for r in grid_rows if r["sub_label_ko"]), "")
