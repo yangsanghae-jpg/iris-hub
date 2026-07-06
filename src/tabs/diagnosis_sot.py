@@ -1,6 +1,6 @@
-"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q 파일럿).
+"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q3 파일럿).
 
-좌: 팩 목록(챕터 그룹) · 우: 편집 그리드 + 반영 배너.
+상단: 상태 스트립 + 가로 팩 선택기 · 본문: 전폭 3컬럼 그리드 + 반영 배너.
 쓰기는 dx JSON만. runtime은 재생성 결과물.
 """
 from __future__ import annotations
@@ -27,16 +27,18 @@ _CSS = """
   background:linear-gradient(180deg,#fff 0%,#f8fbfe 100%);
   font-size:0.82rem; color:#344054; line-height:1.5;
 }
-.sot-v2-layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:14px; align-items:start; }
-.sot-v2-list {
-  border:1px solid rgba(47,128,196,0.14); border-radius:12px;
-  background:#fff; max-height:72vh; overflow:auto; padding:8px 6px;
-}
-.sot-v2-group { margin:8px 0 4px; padding:4px 8px; font-size:0.7rem; font-weight:800; color:#667085; letter-spacing:0.04em; }
-.sot-v2-pack-btn { width:100%; text-align:left !important; margin:2px 0 !important; }
-.sot-v2-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.sot-pack-strip { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+.sot-pack-chip-label { font-size:0.78rem; font-weight:700; }
+.sot-v2-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 .sot-dot-synced { background:#12b76a; }
 .sot-dot-pending { background:#f79009; }
+.sot-dot-muted { background:#d0d5dd; }
+.sot-sub-header {
+  margin:14px 0 6px; padding:6px 10px; border-radius:8px;
+  background:rgba(47,128,196,0.06); font-size:0.82rem; font-weight:700; color:#344054;
+}
+.sot-all-packs-table { font-size:0.75rem; color:#475467; width:100%; border-collapse:collapse; }
+.sot-all-packs-table td { padding:4px 8px; border-bottom:1px solid rgba(47,128,196,0.08); }
 .sot-v2-badge {
   display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px;
   font-size:0.62rem; font-weight:700; vertical-align:middle;
@@ -53,7 +55,6 @@ _CSS = """
 .sot-reflect-readonly { background:rgba(102,112,133,0.06); color:#475467; }
 .sot-pack-title { font-size:1.05rem; font-weight:800; color:#101828; margin:0 0 4px; }
 .sot-pack-desc { font-size:0.8rem; color:#667085; margin:0 0 8px; }
-@media (max-width: 900px) { .sot-v2-layout { grid-template-columns: 1fr; } }
 </style>
 """
 
@@ -135,40 +136,79 @@ def _pack_badge(mode: str) -> str:
     return ""
 
 
-def _render_pack_list(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
+def _q_pack_ids() -> list[str]:
+    return list(dx_index.pack_scope().get("q_packs") or [])
+
+
+def _render_pack_chips(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
+    """상단 가로 Q팩 선택기 — 상태 점 유지."""
+    q_ids = set(_q_pack_ids())
+    q_packs = [p for p in packs if p.get("pack_id") in q_ids]
+    q_packs.sort(key=lambda p: _q_pack_ids().index(p.get("pack_id", "")) if p.get("pack_id") in q_ids else 99)
+
+    clicked: str | None = None
+    if not q_packs:
+        return None
+
+    cols = st.columns(len(q_packs))
+    for col, pack in zip(cols, q_packs):
+        pid = pack.get("pack_id", "")
+        title, _ = dx_index.pack_display(pid)
+        mode = dx_index.pack_edit_mode(pid)
+        dot = _sync_dot(pack, dx_idx) or "sot-dot-muted"
+        is_sel = pid == selected
+        with col:
+            label = f"{'●' if dot == 'sot-dot-synced' else '○'} {title}"
+            if st.button(
+                label,
+                key=f"sot_chip_{pid}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
+                clicked = pid
+    return clicked
+
+
+def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selected: str) -> str | None:
+    """접이식 전체 팩 상태 — 작업공간 점유 최소."""
+    clicked: str | None = None
     groups: dict[str, list[dict]] = {}
     for pack in packs:
         g = dx_index.chapter_group(pack)
         groups.setdefault(g, []).append(pack)
 
     order = ["Q 수치팩", "A 콘텐츠팩", "기타"]
-    clicked: str | None = None
-    _render_html('<div class="sot-v2-list">')
-    for gname in order:
-        if gname not in groups:
-            continue
-        _render_html(f'<div class="sot-v2-group">{escape(gname)}</div>')
-        for pack in sorted(groups[gname], key=lambda p: p.get("pack_id", "")):
+    with st.expander("전체 팩 상태", expanded=False):
+        rows_html: list[str] = []
+        for gname in order:
+            if gname not in groups:
+                continue
+            for pack in sorted(groups[gname], key=lambda p: p.get("pack_id", "")):
+                pid = pack.get("pack_id", "")
+                title, _ = dx_index.pack_display(pid)
+                mode = dx_index.pack_edit_mode(pid)
+                dot = _sync_dot(pack, dx_idx) or "sot-dot-muted"
+                count = _pack_row_count(pack, dx_idx)
+                sel = " ✓" if pid == selected else ""
+                badge = _pack_badge(mode)
+                rows_html.append(
+                    f"<tr><td><span class='sot-v2-dot {dot}'></span>{escape(title)}{sel}</td>"
+                    f"<td>{escape(pid)}</td><td>{count}행</td><td>{badge}</td></tr>"
+                )
+        table = (
+            "<table class='sot-all-packs-table'><tbody>"
+            + "".join(rows_html)
+            + "</tbody></table>"
+        )
+        _render_html(table)
+
+        pick_cols = st.columns(4)
+        for i, pack in enumerate(sorted(packs, key=lambda p: p.get("pack_id", ""))):
             pid = pack.get("pack_id", "")
             title, _ = dx_index.pack_display(pid)
-            mode = dx_index.pack_edit_mode(pid)
-            dot = _sync_dot(pack, dx_idx)
-            dot_cls = dot or "sot-dot-pending"
-            count = _pack_row_count(pack, dx_idx)
-            sel = " · 선택됨" if pid == selected else ""
-            line = (
-                f'<div style="padding:6px 8px;margin:2px 0;border-radius:8px;'
-                f'{"background:rgba(47,128,196,0.08);" if pid == selected else ""}">'
-                f'<span class="sot-v2-dot {dot_cls}"></span>'
-                f'<strong style="font-size:0.78rem">{escape(title)}</strong>{sel}'
-                f'<div style="font-size:0.68rem;color:#667085">{escape(pid)} · {count}행</div>'
-                f"{_pack_badge(mode)}"
-                f"</div>"
-            )
-            _render_html(line)
-            if st.button("열기", key=f"sot_pick_{pid}", use_container_width=True):
-                clicked = pid
-    _render_html("</div>")
+            with pick_cols[i % 4]:
+                if st.button(title, key=f"sot_all_{pid}", use_container_width=True):
+                    clicked = pid
     return clicked
 
 
@@ -232,6 +272,92 @@ def _reflect_banner(
     )
 
 
+def _format_item_label(meaning: str, hint: str) -> str:
+    if hint:
+        return f"{meaning} — {hint}"
+    return meaning
+
+
+def _grid_df(grid_rows: list[dict[str, Any]], *, dev: bool) -> pd.DataFrame:
+    records = []
+    for r in grid_rows:
+        val = r["value"]
+        if not r.get("editable", True):
+            val = f"🔒 {val}"
+        records.append(
+            {
+                "항목": _format_item_label(r["meaning"], r["hint"]),
+                "값": val,
+                "어디에 반영": r["reflects"],
+            }
+        )
+    df = pd.DataFrame(records)
+    if dev:
+        df["_key"] = [r["_row_key"] for r in grid_rows]
+        df["_field_path"] = [r.get("field_path", "") for r in grid_rows]
+    return df
+
+
+def _apply_grid_edits(
+    grid_rows: list[dict[str, Any]],
+    edited: pd.DataFrame,
+    pending: dict[str, Any],
+) -> dict[str, Any]:
+    orig_map = {r["_row_key"]: r["value"] for r in grid_rows}
+    for i, erow in edited.iterrows():
+        if i >= len(grid_rows):
+            break
+        row = grid_rows[i]
+        if not row.get("editable", True):
+            continue
+        key = str(row["_row_key"])
+        new_val = erow["값"]
+        if str(new_val).startswith("🔒 "):
+            new_val = str(new_val)[2:]
+        old_val = orig_map.get(key)
+        if str(new_val) != str(old_val):
+            pending[key] = _coerce_value(old_val, new_val)
+        elif key in pending:
+            del pending[key]
+    return pending
+
+
+def _render_q3_grid_block(
+    grid_rows: list[dict[str, Any]],
+    *,
+    block_key: str,
+    dev: bool,
+    pending: dict[str, Any],
+) -> dict[str, Any]:
+    for row in grid_rows:
+        rk = row["_row_key"]
+        if rk in pending:
+            row["value"] = pending[rk]
+
+    df = _grid_df(grid_rows, dev=dev)
+    show_cols = ["항목", "값", "어디에 반영"]
+    if dev:
+        show_cols.extend(["_key", "_field_path"])
+
+    disabled_cols = ["항목", "어디에 반영"]
+    if dev:
+        disabled_cols.extend(["_key", "_field_path"])
+
+    edited = st.data_editor(
+        df[show_cols],
+        use_container_width=True,
+        hide_index=True,
+        disabled=disabled_cols,
+        column_config={
+            "항목": st.column_config.TextColumn("항목", width="large"),
+            "값": st.column_config.TextColumn("값", width="medium"),
+            "어디에 반영": st.column_config.TextColumn("어디에 반영", width="medium"),
+        },
+        key=f"sot_grid_{block_key}",
+    )
+    return _apply_grid_edits(grid_rows, edited, pending)
+
+
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pid = pack.get("pack_id", "")
     dx_pid = dx_index.resolve_dx_pack_id(pid)
@@ -239,67 +365,37 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     subs = sorted({str(r.get("sub_code", "")) for r in matrix_rows if r.get("sub_code")})
 
     pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
+    dev = st.session_state.get("sot_dev_mode", False)
 
     sub_filter = st.selectbox("세부산업", ["전체"] + subs, key="sot_sub_filter")
     sf = "" if sub_filter == "전체" else sub_filter
     grid_rows = dx_index.flatten_q3_grid_rows(matrix_rows, sub_filter=sf)
 
-    for row in grid_rows:
-        rk = row["_row_key"]
-        if rk in pending:
-            row["value"] = pending[rk]
-
     if not grid_rows:
         st.info("표시할 편집 항목이 없습니다.")
         return
 
-    df = pd.DataFrame(
-        [
-            {
-                "세부산업": r["sub_code"],
-                "산업명": r["sub_label_ko"],
-                "항목": r["meaning"],
-                "부제": r["hint"],
-                "값": r["value"],
-                "어디에 반영": r["reflects"],
-                "_key": r["_row_key"],
-                "_editable": r["editable"],
-            }
-            for r in grid_rows
-        ]
-    )
-
-    dev = st.session_state.get("sot_dev_mode", False)
-    show_cols = ["세부산업", "산업명", "항목", "부제", "값", "어디에 반영"]
-    if dev:
-        show_cols.append("_key")
-
-    edited = st.data_editor(
-        df[show_cols],
-        use_container_width=True,
-        hide_index=True,
-        disabled=["세부산업", "산업명", "항목", "부제", "어디에 반영"] + (["_key"] if dev else []),
-        column_config={
-            "값": st.column_config.TextColumn("값", width="medium"),
-            "어디에 반영": st.column_config.TextColumn("어디에 반영", width="medium"),
-        },
-        key=f"sot_grid_{pid}_{sf}",
-    )
-
-    orig_map = {r["_row_key"]: r["value"] for r in grid_rows}
-    key_by_label = {
-        (r["sub_code"], r["meaning"]): r["_row_key"] for r in grid_rows
-    }
-    for _, erow in edited.iterrows():
-        key = key_by_label.get((erow["세부산업"], erow["항목"]))
-        if not key:
-            continue
-        new_val = erow["값"]
-        old_val = orig_map.get(str(key))
-        if str(new_val) != str(old_val):
-            pending[str(key)] = _coerce_value(old_val, new_val)
-        elif str(key) in pending:
-            del pending[str(key)]
+    if sf:
+        sub_label = next((r["sub_label_ko"] for r in grid_rows if r["sub_label_ko"]), "")
+        header = f"{sf} {sub_label}".strip()
+        _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
+        pending = _render_q3_grid_block(
+            grid_rows, block_key=f"{pid}_{sf}", dev=dev, pending=pending
+        )
+    else:
+        by_sub: dict[str, list[dict[str, Any]]] = {}
+        for row in grid_rows:
+            by_sub.setdefault(row["sub_code"], []).append(row)
+        for sub in subs:
+            block = by_sub.get(sub)
+            if not block:
+                continue
+            sub_label = block[0].get("sub_label_ko") or ""
+            header = f"{sub} {sub_label}".strip()
+            _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
+            pending = _render_q3_grid_block(
+                block, block_key=f"{pid}_{sub}", dev=dev, pending=pending
+            )
 
     st.session_state["sot_pending_edits"] = pending
 
@@ -380,73 +476,74 @@ def render() -> None:
     if selected not in {p.get("pack_id") for p in packs}:
         selected = "q3_scale_profile"
 
-    left, right = st.columns([1, 2.2])
-    with left:
-        hub_section("팩 목록", level="page")
-        picked = _render_pack_list(packs, dx_idx, selected)
-        if picked:
-            st.session_state["sot_selected_pack"] = picked
-            st.rerun()
+    hub_section("팩 선택", level="page")
+    chip_pick = _render_pack_chips(packs, dx_idx, selected)
+    all_pick = _render_all_packs_summary(packs, dx_idx, selected)
+    if chip_pick or all_pick:
+        new_sel = chip_pick or all_pick
+        if new_sel != selected:
+            st.session_state.pop("sot_pending_edits", None)
+        st.session_state["sot_selected_pack"] = new_sel
+        st.rerun()
 
     pack = next((p for p in packs if p.get("pack_id") == selected), packs[0])
     pending = st.session_state.get("sot_pending_edits") or {}
     session_dirty = bool(pending)
 
-    with right:
-        title, desc = dx_index.pack_display(pack.get("pack_id", ""))
-        _render_html(f'<p class="sot-pack-title">{escape(title)}</p>')
-        _render_html(f'<p class="sot-pack-desc">{escape(desc)}</p>')
+    title, desc = dx_index.pack_display(pack.get("pack_id", ""))
+    _render_html(f'<p class="sot-pack-title">{escape(title)}</p>')
+    _render_html(f'<p class="sot-pack-desc">{escape(desc)}</p>')
 
-        banner_html, can_edit = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
-        _render_html(banner_html)
+    banner_html, can_edit = _reflect_banner(pack, dx_idx, session_dirty=session_dirty)
+    _render_html(banner_html)
 
-        mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
-        if mode == "editable":
-            _render_q3_editor(pack, dx_idx)
+    mode = dx_index.pack_edit_mode(pack.get("pack_id", ""))
+    if mode == "editable":
+        _render_q3_editor(pack, dx_idx)
 
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                if st.button("되돌리기", type="secondary"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.button("되돌리기", type="secondary"):
+                st.session_state.pop("sot_pending_edits", None)
+                st.rerun()
+        with c2:
+            if st.button("검증", type="secondary"):
+                qm = dx_editor.load_q_matrix(repo.root)
+                qm = dx_index.apply_q3_grid_edits(
+                    qm,
+                    dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
+                    pending,
+                )
+                issues = dx_editor.validate_q3_edits(
+                    qm,
+                    dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
+                    dx_idx.sub_codes,
+                )
+                if not issues:
+                    st.success("검증 통과")
+                else:
+                    for iss in issues:
+                        fn = st.warning if iss.level == "warn" else st.error
+                        fn(iss.message)
+        with c3:
+            if st.button("저장하고 리포트에 반영", type="primary", disabled=not can_edit):
+                qm = dx_editor.load_q_matrix(repo.root)
+                dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
+                qm = dx_index.apply_q3_grid_edits(qm, dx_pid, pending)
+                runtime = (pack.get("member_paths") or [""])[0]
+                result = dx_editor.save_q3_and_rebuild(
+                    repo, qm, runtime, dx_pack_id=dx_pid
+                )
+                if result.ok:
                     st.session_state.pop("sot_pending_edits", None)
+                    st.cache_data.clear()
+                    st.success(result.message)
                     st.rerun()
-            with c2:
-                if st.button("검증", type="secondary"):
-                    qm = dx_editor.load_q_matrix(repo.root)
-                    qm = dx_index.apply_q3_grid_edits(
-                        qm,
-                        dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
-                        pending,
-                    )
-                    issues = dx_editor.validate_q3_edits(
-                        qm,
-                        dx_index.resolve_dx_pack_id(pack.get("pack_id", "")),
-                        dx_idx.sub_codes,
-                    )
-                    if not issues:
-                        st.success("검증 통과")
-                    else:
-                        for iss in issues:
-                            fn = st.warning if iss.level == "warn" else st.error
-                            fn(iss.message)
-            with c3:
-                if st.button("저장하고 리포트에 반영", type="primary", disabled=not can_edit):
-                    qm = dx_editor.load_q_matrix(repo.root)
-                    dx_pid = dx_index.resolve_dx_pack_id(pack.get("pack_id", ""))
-                    qm = dx_index.apply_q3_grid_edits(qm, dx_pid, pending)
-                    runtime = (pack.get("member_paths") or [""])[0]
-                    result = dx_editor.save_q3_and_rebuild(
-                        repo, qm, runtime, dx_pack_id=dx_pid
-                    )
-                    if result.ok:
-                        st.session_state.pop("sot_pending_edits", None)
-                        st.cache_data.clear()
-                        st.success(result.message)
-                        st.rerun()
-                    else:
-                        st.error(result.message)
-                        for iss in result.issues:
-                            st.warning(iss.message)
-        else:
-            _render_readonly_pack(pack, dx_idx, lineage)
+                else:
+                    st.error(result.message)
+                    for iss in result.issues:
+                        st.warning(iss.message)
+    else:
+        _render_readonly_pack(pack, dx_idx, lineage)
 
     dx_idx.close()
