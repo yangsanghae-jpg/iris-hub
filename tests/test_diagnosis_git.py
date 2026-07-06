@@ -1,4 +1,4 @@
-"""Tests for diagnosis-tool git resolution (진단툴 관리 탭 경로 해석)."""
+"""Tests for diagnosis-tool git resolution (진단툴 탭 경로 해석)."""
 from pathlib import Path
 
 import pytest

@@ -1,4 +1,4 @@
-"""탭: 📋 진단툴 관리 — DIAG-SOT 진실원(MANIFEST+LINEAGE) read-only 가시화."""
+"""탭: 🔧 진단툴 — DIAG-SOT 진실원(MANIFEST+LINEAGE) read-only 가시화."""
 from __future__ import annotations
 
 from html import escape
@@ -229,7 +229,7 @@ def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
     hub_pagebar(
-        "진단툴 관리",
+        "진단툴",
         "SoT Control",
         "MANIFEST+LINEAGE 기반 진실원 그리드 · lineage 4블록(edit→generate→use→risk). read-only.",
         "DIAG-SOT",
