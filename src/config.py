@@ -4,7 +4,6 @@ import socket
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DIAGNOSIS_MIGRATION_YAML = REPO_ROOT / "data" / "diagnosis_migration.yaml"
 
 # ─── 머신 인식 (2026-07-02 정책) ─────────────────────────────────────────────
 # 운영 경로는 hostname으로 결정한다. M5는 ~/Documents(iCloud 미러)를 절대 참조하지 않는다.
