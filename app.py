@@ -1,7 +1,7 @@
 """iris-hub v0 — 사이드바 내비게이션 (V2.8.2).
 
 메뉴 (사이드바 세로 목록):
-  IRIS 자체 (10): 🔧 진단툴 | 📥 입력 | 🌐 외부응답 | 🔄 흐름 | 📦 데이터 | ...
+  IRIS 자체 (10): 🔧 진단툴 | 📋 진단툴 관리 | 📥 입력 | 🌐 외부응답 | 🔄 흐름 | 📦 데이터 | ...
   외부 진입점 (4): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 📚 Obsidian
   설정 (1):       ⚙️ 설정
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.tabs import diagnosis_mgmt, external, flow, graph, intake, inventory, pptx, wiki
+from src.tabs import diagnosis_mgmt, diagnosis_sot, external, flow, graph, intake, inventory, pptx, wiki
 
 
 def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -36,6 +36,7 @@ def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
 
 NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("diagnosis", "🔧 진단툴", diagnosis_mgmt.render),
+    ("diagnosis_sot", "📋 진단툴 관리", diagnosis_sot.render),
     ("intake", "📥 입력", intake.render),
     ("flow", "🔄 흐름", flow.render),
     ("inventory", "📦 데이터", inventory.render),
@@ -46,7 +47,7 @@ NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
     ("openclaw", "🦅 OpenClaw", external.render_openclaw),
 ]
 NAV_GROUPS: list[tuple[str, list[str]]] = [
-    ("Core", ["diagnosis", "intake", "flow"]),
+    ("Core", ["diagnosis", "diagnosis_sot", "intake", "flow"]),
     ("Knowledge", ["inventory", "graph", "wiki"]),
     ("Create", ["pptx"]),
     ("External", ["webui", "openclaw"]),
