@@ -1,4 +1,4 @@
-"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q2/Q3/Q4/Q5 편집).
+"""탭: 📋 진실원 — DIAG-SOT 진실원 관리 (P5 v2 · Q2/Q3/Q4/Q5 편집).
 
 상단: 상태 스트립 + 가로 팩 선택기 · 본문: 전폭 3컬럼 그리드 + 반영 배너.
 쓰기는 dx JSON만. runtime은 재생성 결과물.
@@ -957,8 +957,8 @@ def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
     hub_pagebar(
-        "진단툴",
-        "진실원 관리",
+        "진실원",
+        "SoT 관리",
         "팩 목록에서 고르고 값을 고친 뒤 리포트에 반영합니다",
         "DIAG-SOT",
     )

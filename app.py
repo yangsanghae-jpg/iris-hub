@@ -1,7 +1,7 @@
 """iris-hub v0 — 사이드바 내비게이션 (V2.8.2).
 
 메뉴 (사이드바 세로 목록):
-  IRIS 자체: 🔧 진단툴 | 📥 입력 | 🔄 흐름 | 📦 데이터 | ...
+  IRIS 자체: 📋 진실원 | 📥 입력 | 🔄 흐름 | 📦 데이터 | ...
   외부 진입점 (4): 💬 WebUI | 🦅 OpenClaw | 🌐 Grafana | 📚 Obsidian
   설정 (1):       ⚙️ 설정
 
@@ -35,7 +35,7 @@ def _port_alive(host: str, port: int, timeout: float = 0.3) -> bool:
 
 
 NAV_ITEMS: list[tuple[str, str, Callable[[], None]]] = [
-    ("diagnosis_sot", "🔧 진단툴", diagnosis_sot.render),
+    ("diagnosis_sot", "📋 진실원", diagnosis_sot.render),
     ("intake", "📥 입력", intake.render),
     ("flow", "🔄 흐름", flow.render),
     ("inventory", "📦 데이터", inventory.render),
