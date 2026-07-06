@@ -1,0 +1,13 @@
+{
+  "option_sets": {},
+  "fields": {
+    "weights.planning": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "weights.quality": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "weights.equipment_control": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "weights.logistics": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "recommended_levels.planning": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "recommended_levels.quality": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "recommended_levels.equipment_control": { "type": "number", "min": 1, "max": 5, "step": 1 },
+    "recommended_levels.logistics": { "type": "number", "min": 1, "max": 5, "step": 1 }
+  }
+}

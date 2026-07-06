@@ -1,6 +1,20 @@
 {
   "version": "2026-07-06",
   "packs": {
+    "q2_routing_product_nature": {
+      "q": "q2",
+      "edit_primary_dx_pack_id": "q2_routing_product_nature_server",
+      "mirrors": [
+        {
+          "dx_pack_id": "q2_routing_product_nature_server",
+          "runtime_rel": "server/data/step2/routing_product_nature_v3.json"
+        },
+        {
+          "dx_pack_id": "q2_routing_product_nature_client",
+          "runtime_rel": "client/data/step2/routing_product_nature_v3.json"
+        }
+      ]
+    },
     "q3_scale_profile": {
       "q": "q3",
       "edit_primary_dx_pack_id": "q3_scale_profile_server",
@@ -12,6 +26,20 @@
         {
           "dx_pack_id": "q3_scale_profile_client",
           "runtime_rel": "client/data/step3/scale_profile_v3.json"
+        }
+      ]
+    },
+    "q4_automation_profile": {
+      "q": "q4",
+      "edit_primary_dx_pack_id": "q4_automation_profile_server",
+      "mirrors": [
+        {
+          "dx_pack_id": "q4_automation_profile_server",
+          "runtime_rel": "server/data/step4/automation_profile_v3.json"
+        },
+        {
+          "dx_pack_id": "q4_automation_profile_client",
+          "runtime_rel": "client/data/step4/automation_profile_v3.json"
         }
       ]
     }

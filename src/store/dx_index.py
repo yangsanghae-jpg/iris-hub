@@ -99,18 +99,43 @@ def q3_field_glossary() -> dict[str, dict[str, str]]:
     return _load_hub_json("q3_field_glossary.json")
 
 
+def q_field_glossary(q: str) -> dict[str, dict[str, str]]:
+    data = _load_hub_json(f"{q}_field_glossary.json")
+    return data if data else q3_field_glossary()
+
+
 def q3_field_editors() -> dict[str, Any]:
     return _load_hub_json("q3_field_editors.json")
 
 
+def q_field_editors(q: str) -> dict[str, Any]:
+    data = _load_hub_json(f"{q}_field_editors.json")
+    return data if data else q3_field_editors()
+
+
+def pack_q_code(manifest_pack_id: str) -> str:
+    entry = pack_mirror_entry(manifest_pack_id)
+    if entry and entry.get("q"):
+        return str(entry["q"])
+    return "q3"
+
+
 def q3_field_editor_spec(field_path: str) -> dict[str, Any]:
-    fields = q3_field_editors().get("fields") or {}
+    return q_field_editor_spec("q3", field_path)
+
+
+def q_field_editor_spec(q: str, field_path: str) -> dict[str, Any]:
+    fields = q_field_editors(q).get("fields") or {}
     spec = fields.get(field_path)
     return spec if isinstance(spec, dict) else {"type": "text"}
 
 
 def q3_field_select_options(options_ref: str) -> list[str]:
-    sets = q3_field_editors().get("option_sets") or {}
+    return q_field_select_options("q3", options_ref)
+
+
+def q_field_select_options(q: str, options_ref: str) -> list[str]:
+    sets = q_field_editors(q).get("option_sets") or {}
     opts = sets.get(options_ref)
     return list(opts) if isinstance(opts, list) else []
 
@@ -348,14 +373,18 @@ def pack_mirror_sync_status(
     return "synced", None
 
 
-def q3_editable_field_paths() -> list[str]:
+def q_editable_field_paths(q: str) -> list[str]:
     locks = field_locks()
     patterns = (
         locks.get("dx_q_matrix", {})
         .get("value_json_edit_patterns", {})
-        .get("q3", [])
+        .get(q, [])
     )
     return list(patterns)
+
+
+def q3_editable_field_paths() -> list[str]:
+    return q_editable_field_paths("q3")
 
 
 def is_field_editable(q: str, field_path: str) -> bool:
@@ -368,14 +397,16 @@ def is_field_editable(q: str, field_path: str) -> bool:
     return field_path in patterns
 
 
-def flatten_q3_grid_rows(
+def flatten_q_grid_rows(
     matrix_rows: list[dict[str, Any]],
+    manifest_pack_id: str,
     *,
     sub_filter: str = "",
 ) -> list[dict[str, Any]]:
-    """편집 그리드용 평탄 행."""
-    glossary = q3_field_glossary()
-    field_paths = q3_editable_field_paths()
+    """편집 그리드용 평탄 행 (Q2/Q3/Q4 dx_q_matrix 팩)."""
+    q = pack_q_code(manifest_pack_id)
+    glossary = q_field_glossary(q)
+    field_paths = q_editable_field_paths(q)
     out: list[dict[str, Any]] = []
     for row in sorted(matrix_rows, key=lambda r: str(r.get("sub_code", ""))):
         sub = str(row.get("sub_code") or "")
@@ -385,7 +416,7 @@ def flatten_q3_grid_rows(
         if not isinstance(value_json, dict):
             continue
         label_ko = ""
-        sub_label = value_json.get("subindustry_label") or {}
+        sub_label = value_json.get("subindustry_label") or value_json.get("label") or {}
         if isinstance(sub_label, dict):
             label_ko = str(sub_label.get("ko") or "")
         for fp in field_paths:
@@ -393,7 +424,7 @@ def flatten_q3_grid_rows(
             if val is None:
                 continue
             meta = glossary.get(fp) or {}
-            editable = is_field_editable("q3", fp)
+            editable = is_field_editable(q, fp)
             out.append(
                 {
                     "_row_key": f"{sub}|{fp}",
@@ -410,29 +441,41 @@ def flatten_q3_grid_rows(
     return out
 
 
+def flatten_q3_grid_rows(
+    matrix_rows: list[dict[str, Any]],
+    *,
+    sub_filter: str = "",
+) -> list[dict[str, Any]]:
+    """Deprecated — manifest_pack_id 기반 flatten_q_grid_rows 사용."""
+    return flatten_q_grid_rows(matrix_rows, "q3_scale_profile", sub_filter=sub_filter)
+
+
 def apply_q3_grid_edits(
     q_matrix: list[dict[str, Any]],
     manifest_pack_id: str,
     edits: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """edits: {_row_key: new_value} → server·client 미러 dx 행 모두 갱신."""
+    q = pack_q_code(manifest_pack_id)
     updated = [dict(r) for r in q_matrix]
     for dx_pid in pack_mirror_dx_ids(manifest_pack_id):
-        updated = _apply_q3_grid_edits_for_pack(updated, dx_pid, edits)
+        updated = _apply_q_grid_edits_for_pack(updated, dx_pid, edits, q)
     return updated
 
 
-def _apply_q3_grid_edits_for_pack(
+def _apply_q_grid_edits_for_pack(
     q_matrix: list[dict[str, Any]],
     dx_pack_id: str,
     edits: dict[str, Any],
+    q: str,
 ) -> list[dict[str, Any]]:
     updated = [dict(r) for r in q_matrix]
+    field_paths = q_editable_field_paths(q)
     key_to_idx = {
         f"{r.get('sub_code')}|{fp}": (i, fp)
         for i, r in enumerate(updated)
         if r.get("pack_id") == dx_pack_id
-        for fp in q3_editable_field_paths()
+        for fp in field_paths
     }
     for row_key, new_val in edits.items():
         loc = key_to_idx.get(row_key)

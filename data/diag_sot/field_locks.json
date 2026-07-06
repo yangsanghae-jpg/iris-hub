@@ -9,6 +9,14 @@
       "reason_ko": "참조·식별 키"
     },
     "value_json_edit_patterns": {
+      "q2": [
+        "routing_profile.primary_route",
+        "product_nature.N1",
+        "product_nature.N2",
+        "product_nature.N3",
+        "product_nature.N4",
+        "product_nature.N5"
+      ],
       "q3": [
         "weights.site_scope",
         "weights.production_scale",
@@ -18,6 +26,16 @@
         "override.recommended_site_scope_hint",
         "override.default_site_scope_hint",
         "scale_profile"
+      ],
+      "q4": [
+        "weights.planning",
+        "weights.quality",
+        "weights.equipment_control",
+        "weights.logistics",
+        "recommended_levels.planning",
+        "recommended_levels.quality",
+        "recommended_levels.equipment_control",
+        "recommended_levels.logistics"
       ]
     }
   },

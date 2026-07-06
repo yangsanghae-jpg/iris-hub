@@ -1,0 +1,42 @@
+{
+  "weights.planning": {
+    "label_ko": "계획 가중치",
+    "hint_ko": "1~5 정수",
+    "reflects_ko": "Q4 자동화 · planning 가중"
+  },
+  "weights.quality": {
+    "label_ko": "품질 가중치",
+    "hint_ko": "1~5 정수",
+    "reflects_ko": "Q4 자동화 · quality 가중"
+  },
+  "weights.equipment_control": {
+    "label_ko": "설비제어 가중치",
+    "hint_ko": "1~5 정수",
+    "reflects_ko": "Q4 자동화 · equipment_control 가중"
+  },
+  "weights.logistics": {
+    "label_ko": "물류 가중치",
+    "hint_ko": "1~5 정수",
+    "reflects_ko": "Q4 자동화 · logistics 가중"
+  },
+  "recommended_levels.planning": {
+    "label_ko": "권장 계획 수준",
+    "hint_ko": "1~5 (L1~L5)",
+    "reflects_ko": "Q4 UI · planning 권장 등급"
+  },
+  "recommended_levels.quality": {
+    "label_ko": "권장 품질 수준",
+    "hint_ko": "1~5 (L1~L5)",
+    "reflects_ko": "Q4 UI · quality 권장 등급"
+  },
+  "recommended_levels.equipment_control": {
+    "label_ko": "권장 설비제어 수준",
+    "hint_ko": "1~5 (L1~L5)",
+    "reflects_ko": "Q4 UI · equipment_control 권장 등급"
+  },
+  "recommended_levels.logistics": {
+    "label_ko": "권장 물류 수준",
+    "hint_ko": "1~5 (L1~L5)",
+    "reflects_ko": "Q4 UI · logistics 권장 등급"
+  }
+}

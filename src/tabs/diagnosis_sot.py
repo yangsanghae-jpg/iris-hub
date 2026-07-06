@@ -1,4 +1,4 @@
-"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q3 파일럿).
+"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q2/Q3/Q4 편집).
 
 상단: 상태 스트립 + 가로 팩 선택기 · 본문: 전폭 3컬럼 그리드 + 반영 배너.
 쓰기는 dx JSON만. runtime은 재생성 결과물.
@@ -487,7 +487,7 @@ def _render_action_bar(
         if st.button("검증", type="secondary", use_container_width=True, key="sot_validate"):
             qm = dx_editor.load_q_matrix(repo.root)
             qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
-            issues = dx_editor.validate_q3_edits(qm, primary_dx, dx_idx.sub_codes)
+            issues = dx_editor.validate_q_pack_edits(qm, manifest_pid, dx_idx.sub_codes)
             if not issues:
                 st.success("검증 통과")
             else:
@@ -541,7 +541,7 @@ def _reflect_banner(
     if mode == "pilot_wait":
         return (
             '<div class="sot-reflect-banner sot-reflect-readonly">'
-            "Q 수치팩 — q3 파일럿 PASS 후 편집을 엽니다."
+            "Q 수치팩 — 아직 편집 개방 전인 팩입니다."
             "</div>",
             False,
         )
@@ -612,6 +612,7 @@ def _render_q3_field_rows(
     *,
     block_key: str,
     pending: dict[str, Any],
+    q: str,
 ) -> dict[str, Any]:
     """편집 그리드 — dataframe 톤의 bordered 테이블 + 행별 위젯."""
     editable_rows = [r for r in grid_rows if r.get("editable", True)]
@@ -631,7 +632,7 @@ def _render_q3_field_rows(
         for row in editable_rows:
             rk = str(row["_row_key"])
             fp = str(row.get("field_path") or "")
-            spec = dx_index.q3_field_editor_spec(fp)
+            spec = dx_index.q_field_editor_spec(q, fp)
             orig = row["value"]
             current = pending.get(rk, orig)
             meaning = escape(str(row["meaning"]))
@@ -649,7 +650,7 @@ def _render_q3_field_rows(
             with col_val:
                 widget_key = f"sot_f_{block_key}_{rk}"
                 if spec.get("type") == "select":
-                    options = dx_index.q3_field_select_options(str(spec.get("options_ref") or ""))
+                    options = dx_index.q_field_select_options(q, str(spec.get("options_ref") or ""))
                     if not options:
                         options = [str(current)]
                     cur_s = str(current)
@@ -702,6 +703,7 @@ def _render_q3_grid_block(
     block_key: str,
     dev: bool,
     pending: dict[str, Any],
+    q: str,
     readonly: bool = False,
 ) -> dict[str, Any]:
     if readonly:
@@ -710,11 +712,12 @@ def _render_q3_grid_block(
         st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
         return pending
 
-    return _render_q3_field_rows(grid_rows, block_key=block_key, pending=pending)
+    return _render_q3_field_rows(grid_rows, block_key=block_key, pending=pending, q=q)
 
 
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pid = pack.get("pack_id", "")
+    q = dx_index.pack_q_code(pid)
     dx_pid = dx_index.resolve_dx_pack_id(pid)
     matrix_rows = dx_idx.matrix_rows(dx_pid)
     subs = sorted({str(r.get("sub_code", "")) for r in matrix_rows if r.get("sub_code")})
@@ -740,7 +743,7 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
                 "전체 보기는 읽기 전용입니다. 값을 고치려면 세부산업을 하나 고르세요."
                 "</p>"
             )
-    grid_rows = dx_index.flatten_q3_grid_rows(matrix_rows, sub_filter=sf)
+    grid_rows = dx_index.flatten_q_grid_rows(matrix_rows, pid, sub_filter=sf)
 
     if not grid_rows:
         st.info("표시할 편집 항목이 없습니다.")
@@ -751,7 +754,7 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         header = f"{sf} {sub_label}".strip()
         _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
         pending = _render_q3_grid_block(
-            grid_rows, block_key=f"{pid}_{sf}", dev=dev, pending=pending, readonly=False
+            grid_rows, block_key=f"{pid}_{sf}", dev=dev, pending=pending, q=q, readonly=False
         )
     else:
         by_sub: dict[str, list[dict[str, Any]]] = {}
@@ -769,6 +772,7 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
                 block_key=f"{pid}_{sub}_ro",
                 dev=dev,
                 pending=pending,
+                q=q,
                 readonly=True,
             )
 

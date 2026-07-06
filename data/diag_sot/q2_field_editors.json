@@ -1,0 +1,14 @@
+{
+  "option_sets": {
+    "route_codes": ["R1", "R2", "R3", "R4"],
+    "product_nature_levels": ["core", "low", "partial"]
+  },
+  "fields": {
+    "routing_profile.primary_route": { "type": "select", "options_ref": "route_codes" },
+    "product_nature.N1": { "type": "select", "options_ref": "product_nature_levels" },
+    "product_nature.N2": { "type": "select", "options_ref": "product_nature_levels" },
+    "product_nature.N3": { "type": "select", "options_ref": "product_nature_levels" },
+    "product_nature.N4": { "type": "select", "options_ref": "product_nature_levels" },
+    "product_nature.N5": { "type": "select", "options_ref": "product_nature_levels" }
+  }
+}

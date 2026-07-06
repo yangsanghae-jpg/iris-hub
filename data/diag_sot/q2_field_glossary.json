@@ -1,0 +1,32 @@
+{
+  "routing_profile.primary_route": {
+    "label_ko": "기본 라우트",
+    "hint_ko": "R1~R4 라우팅 유형",
+    "reflects_ko": "Q2 라우팅 · primary_route"
+  },
+  "product_nature.N1": {
+    "label_ko": "제품 성격 N1",
+    "hint_ko": "core · low · partial",
+    "reflects_ko": "Q2 제품 성격 · N1 축"
+  },
+  "product_nature.N2": {
+    "label_ko": "제품 성격 N2",
+    "hint_ko": "core · low · partial",
+    "reflects_ko": "Q2 제품 성격 · N2 축"
+  },
+  "product_nature.N3": {
+    "label_ko": "제품 성격 N3",
+    "hint_ko": "core · low · partial",
+    "reflects_ko": "Q2 제품 성격 · N3 축"
+  },
+  "product_nature.N4": {
+    "label_ko": "제품 성격 N4",
+    "hint_ko": "core · low · partial",
+    "reflects_ko": "Q2 제품 성격 · N4 축"
+  },
+  "product_nature.N5": {
+    "label_ko": "제품 성격 N5",
+    "hint_ko": "core · low · partial",
+    "reflects_ko": "Q2 제품 성격 · N5 축"
+  }
+}

@@ -1,4 +1,4 @@
-"""DIAG-SOT dx JSON 쓰기·검증·byte-0 재생성 (파일럿: q3_scale_profile).
+"""DIAG-SOT dx JSON 쓰기·검증·byte-0 재생성 (Q2/Q3/Q4 dx_q_matrix 팩).
 
 쓰기는 dx JSON에만. runtime server/data·client/data는 재생성 결과물.
 """
@@ -59,7 +59,7 @@ def validate_q3_edits(
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     rows = [r for r in q_matrix if r.get("pack_id") == dx_pack_id]
-    weight_fields = [f for f in idx.q3_editable_field_paths() if f.startswith("weights.")]
+    weight_fields = [f for f in idx.q_editable_field_paths("q3") if f.startswith("weights.")]
     scale_levels = {"S1", "S2", "S3", "S4", "S5"}
 
     for row in rows:
@@ -94,6 +94,76 @@ def validate_q3_edits(
     return issues
 
 
+def validate_q2_edits(
+    q_matrix: list[dict[str, Any]],
+    dx_pack_id: str,
+    sub_codes: set[str],
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    rows = [r for r in q_matrix if r.get("pack_id") == dx_pack_id]
+    route_codes = {"R1", "R2", "R3", "R4"}
+    nature_levels = {"core", "low", "partial"}
+
+    for row in rows:
+        sub = str(row.get("sub_code") or "")
+        if sub and sub not in sub_codes:
+            issues.append(ValidationIssue("error", f"세부산업 코드 {sub} 가 척추에 없음", sub))
+        vj = row.get("value_json") or {}
+        if not isinstance(vj, dict):
+            continue
+        route = idx.get_nested(vj, "routing_profile.primary_route")
+        if route is not None and str(route) not in route_codes:
+            issues.append(
+                ValidationIssue("error", f"{sub} primary_route 는 R1~R4", f"{sub}|routing_profile.primary_route")
+            )
+        for fp in idx.q_editable_field_paths("q2"):
+            if not fp.startswith("product_nature."):
+                continue
+            val = idx.get_nested(vj, fp)
+            if val is not None and str(val) not in nature_levels:
+                issues.append(ValidationIssue("error", f"{sub} {fp} 는 core/low/partial", f"{sub}|{fp}"))
+    return issues
+
+
+def validate_q4_edits(
+    q_matrix: list[dict[str, Any]],
+    dx_pack_id: str,
+    sub_codes: set[str],
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    rows = [r for r in q_matrix if r.get("pack_id") == dx_pack_id]
+    int_fields = idx.q_editable_field_paths("q4")
+
+    for row in rows:
+        sub = str(row.get("sub_code") or "")
+        if sub and sub not in sub_codes:
+            issues.append(ValidationIssue("error", f"세부산업 코드 {sub} 가 척추에 없음", sub))
+        vj = row.get("value_json") or {}
+        if not isinstance(vj, dict):
+            continue
+        for fp in int_fields:
+            val = idx.get_nested(vj, fp)
+            if val is None:
+                continue
+            if not isinstance(val, int) or val < 1 or val > 5:
+                issues.append(ValidationIssue("error", f"{sub} {fp} 는 1~5 정수", f"{sub}|{fp}"))
+    return issues
+
+
+def validate_q_pack_edits(
+    q_matrix: list[dict[str, Any]],
+    manifest_pack_id: str,
+    sub_codes: set[str],
+) -> list[ValidationIssue]:
+    primary = idx.pack_edit_primary_dx_id(manifest_pack_id)
+    q = idx.pack_q_code(manifest_pack_id)
+    if q == "q2":
+        return validate_q2_edits(q_matrix, primary, sub_codes)
+    if q == "q4":
+        return validate_q4_edits(q_matrix, primary, sub_codes)
+    return validate_q3_edits(q_matrix, primary, sub_codes)
+
+
 def save_q_pack_and_rebuild(
     repo: DiagnosisRepo,
     q_matrix: list[dict[str, Any]],
@@ -112,12 +182,7 @@ def save_q_pack_and_rebuild(
     if dx_index is None:
         return SaveResult(False, err or "dx 인덱스 로드 실패")
 
-    primary = idx.pack_edit_primary_dx_id(manifest_pack_id)
-    q = str(entry.get("q") or "q3")
-    if q == "q3":
-        issues = validate_q3_edits(q_matrix, primary, dx_index.sub_codes)
-    else:
-        issues = []
+    issues = validate_q_pack_edits(q_matrix, manifest_pack_id, dx_index.sub_codes)
     dx_index.close()
 
     errors = [i for i in issues if i.level == "error"]
