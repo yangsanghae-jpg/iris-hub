@@ -317,20 +317,37 @@ def _format_item_label(meaning: str, hint: str) -> str:
     return meaning
 
 
+def _cell_display_value(val: Any, *, locked: bool = False) -> str:
+    if locked:
+        return f"🔒 {val}"
+    if val is None:
+        return ""
+    return str(val)
+
+
+def _value_column_config(grid_rows: list[dict[str, Any]]) -> Any:
+    """혼합 타입(정수 가중치·문자 등급) — 문자열 편집 + 타입별 힌트."""
+    return st.column_config.TextColumn(
+        "값",
+        width="medium",
+        help="더블클릭 또는 셀 선택 후 입력",
+    )
+
+
 def _grid_df(grid_rows: list[dict[str, Any]], *, dev: bool) -> pd.DataFrame:
     records = []
     for r in grid_rows:
-        val = r["value"]
-        if not r.get("editable", True):
-            val = f"🔒 {val}"
+        locked = not r.get("editable", True)
         records.append(
             {
                 "항목": _format_item_label(r["meaning"], r["hint"]),
-                "값": val,
+                "값": _cell_display_value(r["value"], locked=locked),
                 "어디에 반영": r["reflects"],
             }
         )
     df = pd.DataFrame(records)
+    # TextColumn 편집 — int64 자동 추론 방지
+    df["값"] = df["값"].astype(str)
     if dev:
         df["_key"] = [r["_row_key"] for r in grid_rows]
         df["_field_path"] = [r.get("field_path", "") for r in grid_rows]
@@ -367,6 +384,7 @@ def _render_q3_grid_block(
     block_key: str,
     dev: bool,
     pending: dict[str, Any],
+    readonly: bool = False,
 ) -> dict[str, Any]:
     for row in grid_rows:
         rk = row["_row_key"]
@@ -378,6 +396,10 @@ def _render_q3_grid_block(
     if dev:
         show_cols.extend(["_key", "_field_path"])
 
+    if readonly:
+        st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
+        return pending
+
     disabled_cols = ["항목", "어디에 반영"]
     if dev:
         disabled_cols.extend(["_key", "_field_path"])
@@ -387,9 +409,10 @@ def _render_q3_grid_block(
         use_container_width=True,
         hide_index=True,
         disabled=disabled_cols,
+        num_rows="fixed",
         column_config={
             "항목": st.column_config.TextColumn("항목", width="large"),
-            "값": st.column_config.TextColumn("값", width="medium"),
+            "값": _value_column_config(grid_rows),
             "어디에 반영": st.column_config.TextColumn("어디에 반영", width="medium"),
         },
         key=f"sot_grid_{block_key}",
@@ -414,12 +437,15 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
         st.info("표시할 편집 항목이 없습니다.")
         return
 
+    if not sf:
+        st.caption("전체 보기는 읽기 전용입니다. 값을 고치려면 세부산업을 하나 고르세요.")
+
     if sf:
         sub_label = next((r["sub_label_ko"] for r in grid_rows if r["sub_label_ko"]), "")
         header = f"{sf} {sub_label}".strip()
         _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
         pending = _render_q3_grid_block(
-            grid_rows, block_key=f"{pid}_{sf}", dev=dev, pending=pending
+            grid_rows, block_key=f"{pid}_{sf}", dev=dev, pending=pending, readonly=False
         )
     else:
         by_sub: dict[str, list[dict[str, Any]]] = {}
@@ -433,7 +459,11 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
             header = f"{sub} {sub_label}".strip()
             _render_html(f'<div class="sot-sub-header">{escape(header)}</div>')
             pending = _render_q3_grid_block(
-                block, block_key=f"{pid}_{sub}", dev=dev, pending=pending
+                block,
+                block_key=f"{pid}_{sub}_ro",
+                dev=dev,
+                pending=pending,
+                readonly=True,
             )
 
     st.session_state["sot_pending_edits"] = pending
