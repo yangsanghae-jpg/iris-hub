@@ -124,3 +124,57 @@ def hub_equal_col(left_html: str, right_html: str) -> None:
         f"<div class='hub-equal-col'>{left_html}{right_html}</div>",
         unsafe_allow_html=True,
     )
+
+
+# ─── DIAG-SOT status badges (P5) ───────────────────────────────────────────
+SOT_COVERAGE_CLASS: dict[str, str] = {
+    "dx_covered_byte0": "sot-badge-ok",
+    "dx_covered_partial": "sot-badge-warn",
+    "residual_live": "sot-badge-info",
+    "legacy_duplicate_unreferenced": "sot-badge-muted",
+    "tool_fixture": "sot-badge-neutral",
+    "unclassified_candidate": "sot-badge-warn",
+}
+
+SOT_LOADER_CLASS: dict[str, str] = {
+    "live_loader_referenced": "sot-badge-ok",
+    "live_indirect_referenced": "sot-badge-info",
+    "unreferenced_by_static_scan": "sot-badge-muted",
+    "tool_fixture_or_test_only": "sot-badge-neutral",
+}
+
+
+def sot_badge(label: str, kind: str = "neutral") -> str:
+    """Return a compact HTML badge for DIAG-SOT grid/lineage."""
+    css = {
+        "ok": "sot-badge-ok",
+        "warn": "sot-badge-warn",
+        "info": "sot-badge-info",
+        "muted": "sot-badge-muted",
+        "neutral": "sot-badge-neutral",
+    }.get(kind, "sot-badge-neutral")
+    return f'<span class="sot-badge {css}">{escape(label)}</span>'
+
+
+def sot_coverage_badge(status: str) -> str:
+    short = {
+        "dx_covered_byte0": "byte0",
+        "dx_covered_partial": "partial",
+        "residual_live": "residual",
+        "legacy_duplicate_unreferenced": "legacy",
+        "tool_fixture": "fixture",
+        "unclassified_candidate": "unknown",
+    }.get(status, status or "—")
+    css = SOT_COVERAGE_CLASS.get(status, "sot-badge-neutral")
+    return f'<span class="sot-badge {css}">{escape(short)}</span>'
+
+
+def sot_loader_badge(status: str) -> str:
+    short = {
+        "live_loader_referenced": "direct",
+        "live_indirect_referenced": "indirect",
+        "unreferenced_by_static_scan": "none",
+        "tool_fixture_or_test_only": "fixture",
+    }.get(status, status or "—")
+    css = SOT_LOADER_CLASS.get(status, "sot-badge-neutral")
+    return f'<span class="sot-badge {css}">{escape(short)}</span>'
