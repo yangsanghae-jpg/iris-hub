@@ -27,24 +27,47 @@ _CSS = """
   background:linear-gradient(180deg,#fff 0%,#f8fbfe 100%);
   font-size:0.82rem; color:#344054; line-height:1.5;
 }
-.sot-pack-strip { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+.sot-v2-strip strong { font-weight:800; color:#101828; }
+/* pagebar 설명 = Q3 팩 desc(.sot-pack-desc) 톤 */
+.hub-pagebar-desc {
+  font-size:0.8rem !important; line-height:1.4 !important; color:#667085 !important;
+}
+.sot-pack-strip { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
 [data-testid="stPills"] [data-baseweb="button-group"] {
-  flex-wrap: wrap !important; gap: 6px !important;
+  flex-wrap: wrap !important; gap: 5px !important;
 }
 [data-testid="stPills"] [data-baseweb="button-group"] button {
-  font-size: 0.68rem !important; font-weight: 600 !important;
-  padding: 5px 11px !important; min-height: 1.65rem !important;
-  white-space: nowrap !important; border-radius: 7px !important;
-  border: 1px solid rgba(47,128,196,0.22) !important;
-  background: #fff !important; color: #344054 !important;
+  font-size: 0.75rem !important; font-weight: 800 !important;
+  letter-spacing: -0.01em !important;
+  padding: 4px 10px !important; min-height: 1.55rem !important;
+  white-space: nowrap !important; border-radius: 0.5rem !important;
+  border: 1px solid rgba(49,51,63,0.2) !important;
+  background: rgb(240,242,246) !important; color: #101828 !important;
   box-shadow: none !important;
 }
 [data-testid="stPills"] [data-baseweb="button-group"] button[aria-pressed="true"] {
-  background: #2f80c4 !important; border-color: #2f80c4 !important;
-  color: #fff !important;
+  background: rgba(47,128,196,0.14) !important;
+  border-color: #2f80c4 !important; color: #175cd3 !important;
 }
 [data-testid="stPills"] [data-baseweb="button-group"] button:hover {
   border-color: #2f80c4 !important;
+}
+/* 전체 팩 상태 — 세부산업 selectbox 톤 */
+[data-testid="stExpander"] details {
+  border: 1px solid rgba(49,51,63,0.2) !important;
+  border-radius: 0.5rem !important;
+  background: rgb(240,242,246) !important;
+  overflow: hidden;
+}
+[data-testid="stExpander"] summary {
+  background: rgb(240,242,246) !important;
+  font-size: 0.875rem !important; font-weight: 400 !important;
+  color: #31333f !important;
+  padding: 0.45rem 0.7rem !important;
+}
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  background: #fff !important;
+  border-top: 1px solid rgba(49,51,63,0.12) !important;
 }
 .sot-v2-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 .sot-dot-synced { background:#12b76a; }
