@@ -110,9 +110,6 @@ def related_issues(pack: dict[str, Any], lineage: dict[str, Any]) -> list[dict[s
 
     pack_id = pack.get("pack_id") or ""
     dx_paths = normalize_path_list(pack.get("dx_artifacts"))
-    fragments = {pack_id, *dx_paths}
-    for p in dx_paths:
-        fragments.add(Path(p).stem)
 
     matched: list[dict[str, Any]] = []
     rollup = (lineage.get("issue_rollup") or {}).get("issues") or []
@@ -123,19 +120,23 @@ def related_issues(pack: dict[str, Any], lineage: dict[str, Any]) -> list[dict[s
             str(issue.get(k, ""))
             for k in ("issue_id", "description", "source", "issue_kind")
         )
-        if any(frag and frag in blob for frag in fragments):
+        if pack_id and pack_id in blob:
+            matched.append(issue)
+            continue
+        if any(dx and dx in blob for dx in dx_paths):
             matched.append(issue)
     return matched
 
 
 def status_sort_key(pack: dict[str, Any]) -> tuple[int, str]:
     order = {
-        "legacy_duplicate_unreferenced": 0,
-        "unclassified_candidate": 1,
-        "residual_live": 2,
-        "dx_covered_partial": 3,
-        "tool_fixture": 4,
-        "dx_covered_byte0": 5,
+        "archived": 0,
+        "legacy_duplicate_unreferenced": 1,
+        "unclassified_candidate": 2,
+        "residual_live": 3,
+        "dx_covered_partial": 4,
+        "tool_fixture": 5,
+        "dx_covered_byte0": 6,
     }
     status = pack.get("coverage_status") or ""
     return (order.get(status, 99), pack.get("pack_id") or "")

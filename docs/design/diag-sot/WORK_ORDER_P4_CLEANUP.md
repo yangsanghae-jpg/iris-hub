@@ -1,103 +1,214 @@
-# WORK ORDER — DIAG-SOT P4-cleanup (격리·residual byte-0·generator 은퇴)
+# WORK ORDER — DIAG-SOT P4-cleanup (실행 지시서 v2)
 
 - **발행:** 2026-07-06 · Gatekeeper(Claude) → **실행: M5 Cursor**
-- **선행:** P4-core PASS(`P4_CORE_GATE_VERDICT.md`) · repo `diagnosis-tool` `feat/diag-sot-sync`
-- **성격:** 부차·이연 가능. **각 배치 = proof 제출 → Gatekeeper 승인 → 실행.** wholesale 금지.
-- **원칙:** 격리는 내용 낡음이 아니라 `loader_reference_status=unreferenced` 증명으로만. 이동은 `_archive/`(복원 가능)만, 삭제 금지.
+- **선행:** P4-core PASS · P5 PASS · repo `diagnosis-tool` `feat/diag-sot-sync`, `iris-hub` `feat/diag-sot`
 
 ---
 
-## 공통 규율 (전 배치)
+## ⚠ 실행 규약 (반드시 읽고 그대로)
 
-- ❌ 로더가 (직접·간접) 참조하는 팩 이동 금지. `DIAG_SOT_MANIFEST.json`의 `live_*` 팩 불가침.
-- ❌ generator 위험 실행 금지(출력 경로가 런타임 팩을 덮어쓸 수 있는 실행). hash 비교는 temp 출력으로만.
-- ❌ prod(C-Server) 무접촉. `DIAG_SOT_DEV=1` flag-off = baseline 동일 유지.
-- ✅ 모든 이동은 아래 형식의 archive manifest row 동반:
-  ```json
-  {"path":"server/data/system_catalog.json",
-   "archive_path":"_archive/diag-sot/2026-07-06/server/data/system_catalog.json",
-   "archive_reason":"legacy_duplicate_unreferenced",
-   "loader_reference_proof":"grep server+client (tool/test 제외) 매치 0; 재현 명령 포함",
-   "live_replacement":"server/data/ch2/catalog/systems_catalog.json",
-   "restorable":true}
+**이 문서는 실행 지시다. 단계마다 사람 승인을 기다리지 마라.**
+
+1. 아래 **A, M1~M4를 순서대로 끝까지 실행**한다. (B, C는 §다음-사이클 — 이번엔 손대지 마라.)
+2. 각 단계 끝의 **self-test를 네가 직접 실행**한다.
+   - **GREEN이면 다음 단계로 즉시 진행.** 승인 대기 없음.
+   - **FAIL이면 그 단계에서 멈추고**, 실패한 명령의 실제 출력과 함께 보고한다. (임의 우회·추정 수정 금지.)
+3. A·M1~M4 전부 GREEN이면 → **네가 커밋·푸시·sync까지 수행** → **§제출 형식**대로 완료 패키지 1건 제출.
+4. 판정(PASS)은 Gatekeeper가 제출 패키지로 post-hoc 검증한다. archive는 `_archive/` 이동이라 문제 시 복원 가능 = 사전 승인 불필요.
+
+**절대 금지:** self-test 없이 진행 · FAIL 은폐 · 지정 외 파일 이동 · loader 코드 편집 · generator 위험 실행 · prod(C-Server) 접촉.
+
+---
+
+## 배치 A — archive 3후보 격리 (실행)
+
+**대상 (P4-core에서 런타임 무참조 확정):**
+1. `server/data/system_catalog.json`
+2. `server/data/ch1/catalog/drivers.json`
+3. `server/data/tools/diagnose_req_ch2.json`
+
+### A-1. 무참조 재증명 (self-test ST-A1)
+```bash
+cd <repo>/diagnosis-tool
+for b in system_catalog.json drivers.json diagnose_req_ch2.json; do
+  echo "== $b =="
+  grep -rn "$b" server client --include=*.py --include=*.js --include=*.mjs \
+    | grep -viE "_backup|/archives/|/tests/|test_|/data/tools/|/_legacy|/scripts/|/_archive/"
+done
+```
+**GREEN 조건:** 3개 모두 매치 0줄. (한 줄이라도 나오면 STOP + 보고.)
+
+### A-2. 이동 (git mv)
+```bash
+D=_archive/diag-sot/2026-07-06
+mkdir -p $D/server/data/ch1/catalog $D/server/data/tools
+git mv server/data/system_catalog.json          $D/server/data/system_catalog.json
+git mv server/data/ch1/catalog/drivers.json      $D/server/data/ch1/catalog/drivers.json
+git mv server/data/tools/diagnose_req_ch2.json   $D/server/data/tools/diagnose_req_ch2.json
+```
+
+### A-3. ARCHIVE_MANIFEST 작성
+`_archive/diag-sot/2026-07-06/ARCHIVE_MANIFEST.json` 를 아래 내용으로 생성:
+```json
+{
+  "archived_on": "2026-07-06",
+  "reason_policy": "loader_reference_status=unreferenced (P4-core 확정, 재-grep 0)",
+  "restorable": true,
+  "rows": [
+    {"path": "server/data/system_catalog.json",
+     "archive_path": "_archive/diag-sot/2026-07-06/server/data/system_catalog.json",
+     "archive_reason": "legacy_duplicate_unreferenced",
+     "live_replacement": "server/data/ch2/catalog/systems_catalog.json",
+     "loader_reference_proof": "ST-A1 grep 0 matches"},
+    {"path": "server/data/ch1/catalog/drivers.json",
+     "archive_path": "_archive/diag-sot/2026-07-06/server/data/ch1/catalog/drivers.json",
+     "archive_reason": "legacy_duplicate_unreferenced",
+     "live_replacement": "server/data/ch1/catalog/drivers_catalog.json",
+     "loader_reference_proof": "ST-A1 grep 0 matches"},
+    {"path": "server/data/tools/diagnose_req_ch2.json",
+     "archive_path": "_archive/diag-sot/2026-07-06/server/data/tools/diagnose_req_ch2.json",
+     "archive_reason": "tool_fixture",
+     "live_replacement": null,
+     "loader_reference_proof": "ST-A1 grep 0 matches"}
+  ]
+}
+```
+
+### A-4. builder에 archived 반영 (정확한 수정)
+`scripts/data_poc/p4_build_manifest_lineage.py` 를 수정해, 이동으로 member가 사라진 3 legacy GROUP이 **빈 팩으로 증발하지 않고** `archived`로 남게 한다.
+
+- 파일 상단(ARCHIVE 로드): `dxpacks` 로드 직후에 추가
+  ```python
+  ARCHIVE_MF = "_archive/diag-sot/2026-07-06/ARCHIVE_MANIFEST.json"
+  archived = {}
+  if os.path.isfile(ARCHIVE_MF):
+      for r in json.load(open(ARCHIVE_MF))["rows"]:
+          archived[r["path"]] = r
   ```
-- ✅ 각 배치 후 golden 회귀 + flag-off delta test 무변경 확인.
+- 팩 루프(약 L188 `members = [m for m in members if m in rows]` 직전)에서, 원본 members 중 archived에 있는 건 보존:
+  ```python
+  orig_members = list(members)
+  members = [m for m in orig_members if m in rows]
+  arch_hit = [m for m in orig_members if m in archived]
+  ```
+- row 조립부에서, `arch_hit`가 있고 `members`가 비면:
+  ```python
+  if arch_hit and not members:
+      row["coverage_status"] = "archived"
+      row["member_paths"] = [archived[m]["archive_path"] for m in arch_hit]
+      row["member_count"] = len(arch_hit)
+      row["loader_reference_status"] = "archived_unreferenced"
+      row["lineage_status"] = "archived"
+      row["archive_reason"] = archived[arch_hit[0]]["archive_reason"]
+      row["runtime_loader_paths"] = []
+  ```
+  (기존 `covered_paths.update(members)` 는 `members` 기준 유지 — archived는 live coverage에서 제외되어 인벤토리 109와 정합.)
+
+### A-5. self-test ST-A2 (재생성·게이트)
+```bash
+python3 scripts/data_poc/p4_loader_scan.py
+python3 scripts/data_poc/p4_build_manifest_lineage.py
+python3 - <<'PY'
+import json
+inv=json.load(open('docs/diag-sot/reports/P4_INVENTORY.json'))
+man=json.load(open('scripts/data_poc/DIAG_SOT_MANIFEST.json'))
+assert inv['meta']['runtime_candidate_count']==109, inv['meta']['runtime_candidate_count']
+assert man['meta']['orphan_live_packs']==[], man['meta']['orphan_live_packs']
+arch=[p['pack_id'] for p in man['packs'] if p['coverage_status']=='archived']
+assert set(arch)=={'system_catalog_root_legacy','ch1_drivers_legacy','tools_diagnose_req_fixture'}, arch
+# live coverage 100% for remaining 109
+assert man['meta']['covered_runtime_paths']==109, man['meta']['covered_runtime_paths']
+print('ST-A2 GREEN: inventory 109, archived 3, orphan 0, covered 109')
+PY
+```
+**GREEN 조건:** 스크립트가 `ST-A2 GREEN` 출력.
+
+### A-6. 회귀 self-test ST-A3
+```bash
+# golden 회귀 + flag-off delta (레포의 기존 게이트 러너 사용 — P3b에서 쓰던 것)
+<golden/delta test 명령>   # 예: python3 -m pytest server/tests -k "golden or flag_off" -q
+```
+**GREEN 조건:** 무변경/통과. (러너 경로 불명확하면 P3b_GATE_VERDICT의 명령을 그대로 재사용. 그래도 없으면 STOP + 보고.)
 
 ---
 
-## 배치 A — archive 3후보 격리 (최소·저위험)
+## M1 — q1/q5 generated_path null 보강
 
-**대상 (P4-core 무참조 확정):**
-1. `server/data/system_catalog.json` (live 대체=`ch2/catalog/systems_catalog.json`)
-2. `server/data/ch1/catalog/drivers.json` (live 대체=`ch1/catalog/drivers_catalog.json`)
-3. `server/data/tools/diagnose_req_ch2.json` (tool fixture)
+`scripts/data_poc/p4_build_manifest_lineage.py`:
+- `DX_ARTIFACTS = {` 정의 근처에 추가:
+  ```python
+  CLIENT_GENERATED = {
+      "q1_industry_product_taxonomy": "client/data/step1_5/industry_product_taxonomy_v3.json",
+      "q5_recommendation_by_subindustry": "client/data/q5/recommendation_by_subindustry_v1.json",
+  }
+  ```
+- L213 `row["generated_path"] = (dp or {}).get("generated_path")` →
+  ```python
+  row["generated_path"] = (dp or {}).get("generated_path") or CLIENT_GENERATED.get(pid)
+  ```
+**self-test:** 재생성 후 두 팩 `generated_path`가 non-null.
+```bash
+python3 -c "import json;m=json.load(open('scripts/data_poc/DIAG_SOT_MANIFEST.json'));print([(p['pack_id'],p.get('generated_path')) for p in m['packs'] if p['pack_id'] in ('q1_industry_product_taxonomy','q5_recommendation_by_subindustry')])"
+```
 
-**방법:**
-1. 각 파일 무참조 재증명:
-   ```bash
-   grep -rn "<basename>" server client --include=*.py --include=*.js --include=*.mjs \
-     | grep -viE "_backup|/archives/|/tests/|test_|/data/tools/|/_legacy|/scripts/"
-   # 결과 0줄 확인 (증거로 첨부)
-   ```
-2. `_archive/diag-sot/2026-07-06/<원경로>`로 **이동**(git mv), archive manifest row 추가.
-3. golden 회귀 + flag-off delta test 실행 → 무변경 확인.
-4. **proof(무참조 grep 출력 + 회귀 결과)를 Gatekeeper에 제출 → 승인 후 커밋.**
+## M2 — related_issues 과매칭 축소 (iris-hub)
 
-**금지:** 3건 외 어떤 파일도 이 배치에 포함 금지. `ch1_industries`/`stack_library` 등 오해 금지(live_indirect).
+`iris-hub/src/store/diag_sot.py` `related_issues`:
+- `fragments = {pack_id, *dx_paths}` 아래 **`fragments.add(Path(p).stem)` 루프(L114-115) 삭제.** (stem 부분매칭이 ch3/ch6 교차오염 유발.)
+- 매칭을 pack_id **정확 일치** 또는 dx artifact **전체 경로** 포함으로 한정(이미 `dx_paths`가 full path이므로 stem만 제거하면 됨).
+**self-test:** `python3 -m py_compile src/store/diag_sot.py` OK. (기능 회귀는 M3 스크린샷 때 SoT 탭 육안.)
 
-**Exit:** 3파일 `_archive/` 이동, 런타임 로드 경로에서 사라짐, 회귀 green, archive manifest 갱신.
+## M3 — P5 UI 스크린샷 1장
 
----
+라이브 `http://127.0.0.1:8765` → 🔧 진단툴 → **진실원(SoT) 관리** 라디오 → dx 그리드 + lineage 패널이 보이는 상태로 스크린샷 → `iris-hub/docs/design/diag-sot/assets/p5_sot_tab.png` 저장.
+(M2 반영 반영 위해 저장 전 `sync-iris-hub.sh` 후 브라우저 새로고침.)
 
-## 배치 B — residual byte-0 이관 (승인된 residual-live만)
+## M4 — ch1_mgmt_model 주석 정정 (builder)
 
-**우선 후보 (MANIFEST coverage_status=residual_live 중 load-bearing):**
-- `ch4_plan_defaults` (`server/data/ch4/plan_defaults.json`) — Ch4 런타임 콘텐츠.
-- `step5_2_management_analysis` (`management_analysis_v3.json` + `_i18n_zh.json`) — ko-primary + zh 미러, **slug parity risk** 주의.
-- `ch0_exec_subs` (`ch0_exec_subs.json`) — sub_override seed.
-
-**방법 (팩 단위, 독립 diff 게이트):**
-1. dx authoring 산출(`scripts/data_poc/_p4/dx_<pack>.json`) 작성 → P1 방식 재조립.
-2. **byte-0 acid-test**(legacy 숨김·dx-only 재현) + load-bearing 필드는 **mutation test**.
-3. 언어/구조 상이 팩(zh 미러)은 "의도된 diff만" 정책 적용, slug parity 검증.
-4. MANIFEST 해당 팩 `coverage_status` → `dx_covered_byte0`(또는 partial), `dx_artifacts`·`generated_path` 채움. LINEAGE row-level 추가.
-5. **팩별 proof → Gatekeeper 승인 → 커밋.**
-
-**금지:** Ch2 card masters(`10_card*_master*`)·Card1 V3 byte-0 이관 **금지**(Gatekeeper Q3: lineage-only 유지, byte-0는 P3b-6/후속). ch5 team_governance(Python dict)는 §7 확정본 없이 강행 금지.
-
-**Exit:** 승인 팩 byte-0 green, MANIFEST/LINEAGE 갱신, flag-off 무변경.
+`p4_build_manifest_lineage.py` 의 `ch1_mgmt_model_industries` GROUP notes:
+- 현재: `"...needs live/unknown split at migration"`
+- →: `"os.listdir(compose.py:311) 전량 로드 = live_indirect; unknown 없음. 산업 선택별 도달은 런타임 분기이나 파일 자체는 모두 live"`
+**self-test:** 재생성 후 해당 팩 notes 반영 확인.
 
 ---
 
-## 배치 C — generator 은퇴
+## 최종 self-test (커밋 전, 전부 GREEN 필수)
 
-**대상 (실측 7):** `docs/by_step/data/_generate_{ch0_subs,factors,step3_v3,step4_v3,step4_v3_1_repack,sub_pack,sub_profiles}.py`
-(주: `*_generate_*.py` glob 8건 중 1건은 `server/.venv` pydantic 오탐 → 제외.)
+| # | 테스트 | GREEN |
+|---|---|---|
+| ST-A1 | archive 3후보 무참조 grep | 0 매치 |
+| ST-A2 | 재생성 인벤토리 109·archived 3·orphan 0·covered 109 | 스크립트 통과 |
+| ST-A3 | golden+flag-off 회귀 | 무변경 |
+| ST-M1 | q1/q5 generated_path non-null | 확인 |
+| ST-M2 | store py_compile | OK |
+| ST-M3 | SoT 탭 스크린샷 존재 | 파일 저장 |
+| ST-M4 | ch1_mgmt_model notes 정정 | 확인 |
 
-**은퇴 게이트 (generator별):**
-1. 선언된 출력 경로 식별.
-2. temp/격리 출력으로 재생성(런타임 팩 미덮어쓰기) → **hash 비교**로 현재 런타임/SoT 팩과 커버리지 일치 확인.
-3. loader가 generator를 직접 import하지 않음 확인(`grep import _generate`).
-4. 커버리지 공백 0 + no-import 증명 후에만: `_archive/`로 이동 **또는** 파일 상단 `RETIRED_DO_NOT_RUN` 헤더.
-5. **generator별 proof → Gatekeeper 승인.**
+## 커밋·푸시·sync (네가 수행)
 
-**금지:** 커버리지 공백 방치 금지. 증명 전 은퇴 금지. 위험 실행(런타임 팩 덮어쓰기 가능 실행) 금지.
+- **diagnosis-tool** `feat/diag-sot-sync`: A(이동+ARCHIVE_MANIFEST)+A4 builder+M1+M4+재생성 산출물.
+  커밋: `[DIAG-SOT][P4-cleanup] 배치A archive 3후보 격리 + MANIFEST/inventory 재생성(109) + MINOR(generated_path·mgmt_model 주석)`
+- **iris-hub** `feat/diag-sot`: M2(store)+M3(스크린샷).
+  커밋: `[DIAG-SOT][P4-cleanup] related_issues 정밀화 + P5 SoT 탭 스크린샷`
+- 두 repo push + `sync-iris-hub.sh` 실행(:8765 200 확인).
+- 커밋 메시지 끝에: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
 
-**Exit:** 은퇴 generator가 커버리지 공백 안 남김, retired report 작성.
+## 제출 형식 (M5 → Gatekeeper, 1건)
+
+```
+[P4-cleanup 배치A + MINOR 완료]
+- self-test: ST-A1..M4 전부 GREEN (각 핵심 출력 1~2줄)
+- diagnosis-tool: <커밋 해시> / 인벤토리 112→109 / archived 3
+- iris-hub: <커밋 해시> / :8765 <code>
+- 스크린샷: docs/design/diag-sot/assets/p5_sot_tab.png
+- 변경 파일 목록
+```
+FAIL 시: 실패 ST 번호 + 실제 출력만. 진행 중단 상태로 보고.
 
 ---
 
-## 전체 Exit (P4 마감 — `P4_FINAL_REPORT.md`)
+## 다음 사이클 (이번 지시서 범위 아님 — 손대지 마라)
 
-1. 잔여 인벤토리 재조정(unclassified 0).
-2. MANIFEST live=loader 100% 유지 · 고아 0.
-3. 격리 legacy 런타임 미로드 · `data` 수기편집 금지 CI 가드 도입.
-4. Gatekeeper 최종 검증 → DIAG-SOT DoD1~DoD6 대조.
-
-## 롤백
-
-팩·파일 단위 독립. archive는 `_archive/` 이동이라 복원 가능. 각 배치 커밋 분리.
-
-## 보고 형식 (M5 → Gatekeeper)
-
-배치별로: `대상 · 무참조/hash proof · 회귀/mutation 결과 · MANIFEST/LINEAGE diff · 미커밋 경로/해시`. git 막히면 경로·해시 통지(Gatekeeper 대행 커밋).
+- **배치 B (residual byte-0):** ch4_plan_defaults·ch0_exec_subs·step5_2 → **팩별 schema draft가 선행**(Gatekeeper 설계). draft 없이 byte-0 authoring 금지.
+- **배치 C (generator 은퇴):** 7개 generator hash 비교 → **은퇴 지시서 별도 발행** 후.
+- 두 배치는 A+MINOR 제출·PASS 후 Gatekeeper가 다음 지시서를 낸다.
