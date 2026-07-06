@@ -1,0 +1,29 @@
+{
+  "option_sets": {
+    "level_ids": ["L1", "L2", "L3", "L4", "L5"],
+    "axis_weights": ["primary", "secondary", "optional"]
+  },
+  "fields": {
+    "q5_2.recommended_levels.C": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.D": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.Q": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.I": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.P": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.E": { "type": "select", "options_ref": "level_ids" },
+    "q5_2.recommended_levels.R": { "type": "select", "options_ref": "level_ids" },
+    "q5_1.default_axis_weight.C": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.D": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.Q": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.I": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.P": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.E": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.default_axis_weight.R": { "type": "select", "options_ref": "axis_weights" },
+    "q5_1.axis_roles.C": { "type": "textarea" },
+    "q5_1.axis_roles.D": { "type": "textarea" },
+    "q5_1.axis_roles.Q": { "type": "textarea" },
+    "q5_1.axis_roles.I": { "type": "textarea" },
+    "q5_1.axis_roles.P": { "type": "textarea" },
+    "q5_1.axis_roles.E": { "type": "textarea" },
+    "q5_1.axis_roles.R": { "type": "textarea" }
+  }
+}

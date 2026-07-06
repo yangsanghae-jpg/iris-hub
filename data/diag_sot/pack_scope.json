@@ -3,7 +3,8 @@
   "pilot_packs": [
     "q2_routing_product_nature",
     "q3_scale_profile",
-    "q4_automation_profile"
+    "q4_automation_profile",
+    "q5_recommendation_by_subindustry"
   ],
   "q_packs": [
     "q1_industry_product_taxonomy",
@@ -43,6 +44,7 @@
   "manifest_to_dx_pack": {
     "q2_routing_product_nature": "q2_routing_product_nature_server",
     "q3_scale_profile": "q3_scale_profile_server",
-    "q4_automation_profile": "q4_automation_profile_server"
+    "q4_automation_profile": "q4_automation_profile_server",
+    "q5_recommendation_by_subindustry": "q5_recommendation"
   }
 }

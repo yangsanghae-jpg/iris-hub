@@ -112,12 +112,16 @@
   - 수정: 저장 시 dx의 `_server`·`_client` 미러 행 동시 편집 + 두 runtime(server·client) 재생성. `runtime_sync_status`도 두 경로 모두 byte-0 확인 후 "일치".
 - 이 수정을 q3에서 먼저 끝내고 확산(안 그러면 결함을 Q2/Q4에 복제).
 
-### 6-3. 확산 범위 = Q2·Q4 (dx_q_matrix 동일 구조)
-- Q2 routing · Q4 automation은 q3와 **동일 dx_q_matrix 구조 + byte-0 이미 MATCH** → rebuild 그대로 적용.
-- **게이트(팩별):** 편집 열기 전 "무편집 상태 synced"(rebuild==runtime) 확인. mismatch면 열지 마라.
+### 6-3. 확산 Q2·Q4 — ✅ PASS (Gatekeeper 독립 실측 2026-07-06)
+- Q2 routing · Q4 automation은 q3와 동일 dx_q_matrix 구조 → rebuild 재사용.
+- **검증(iris-hub `56bbc87`):** Q2·Q4 server·client 4미러 at-rest byte-0 MATCH · 편집 시 두 미러 동시 갱신(Q2 primary_route, Q4 weights.planning, whitelist 확인) · 키(sub_code·field_path) 잠금 · 쓰기 7경로 고정(dx 1 + 미러 runtime 6) · 편집모드 분리(q2/q3/q4=editable, q1/q5=pilot_wait, 척추=spine, 콘텐츠=deferred).
+- **P5 Q 매트릭스 편집 범위(Q2·Q3·Q4) = 닫힘.**
 
-### 6-4. Q1·Q5 = 별건 (구조 상이)
-- q1(taxonomy)·q5(recommendation)는 **dx_q_matrix에 없음** → `rebuild_q_pack_payload` 미적용. 구조별 rebuild + byte-0 증명 **별도** 후 편집 개방. Q2/Q4 확산에 끼워넣지 마라.
+### 6-4. Q1·Q5 = 비대칭 (인벤토리 2026-07-06)
+- **Q5 → STEP 3 진행** (`WORK_ORDER_P5_Q5_EDIT.md`): per-sub 74행, server·client byte-0 **둘 다 MATCH**, `rebuild_q5_from_dx` 재현. 편집=중첩 leaf(recommended_levels·default_axis_weight enum, axis_roles 텍스트), 리스트(priority_axes) 제외.
+- **Q1 → 이연 (이중 블로커):** ① `metadata`+`industries` 중첩 트리 = 행 그리드 부적합, ② **server runtime이 dx byte-0 재현 안 됨(MISMATCH)** — 원인 규명 선행. 별도 설계 WO.
+- **q5_axes** = residual(비 dx-covered), dx화 선행 별건.
+- 공통: q1/q5는 dx_q_matrix 밖 → q_matrix rebuild 미적용. Q2/Q4 확산에 끼워넣지 마라.
 
 ### 6-5. A1/A2·척추
 - read-only 표시만(편집 미착수). §1-4.

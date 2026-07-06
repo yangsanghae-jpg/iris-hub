@@ -1,4 +1,4 @@
-"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q2/Q3/Q4 편집).
+"""탭: 🔧 진단툴 — DIAG-SOT 진실원 관리 (P5 v2 · Q2/Q3/Q4/Q5 편집).
 
 상단: 상태 스트립 + 가로 팩 선택기 · 본문: 전폭 3컬럼 그리드 + 반영 배너.
 쓰기는 dx JSON만. runtime은 재생성 결과물.
@@ -309,9 +309,7 @@ def _status_strip(manifest: dict, dx_idx: dx_index.DxIndex, packs: list[dict]) -
         if mode != "editable":
             continue
         manifest_pid = pack.get("pack_id", "")
-        status, _ = dx_index.pack_mirror_sync_status(
-            dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
-        )
+        status, _ = dx_index.pack_mirror_sync_status_from_index(dx_idx, manifest_pid)
         if status != "synced":
             pending_n += 1
     repo = resolve_diagnosis_repo()
@@ -327,6 +325,11 @@ def _status_strip(manifest: dict, dx_idx: dx_index.DxIndex, packs: list[dict]) -
 
 def _pack_row_count(pack: dict, dx_idx: dx_index.DxIndex) -> int:
     pid = pack.get("pack_id", "")
+    if dx_index.pack_q_code(pid) == "q5":
+        n = dx_idx.q5_row_count()
+        if n:
+            return n
+        return int(pack.get("member_count") or 0)
     dx_pid = dx_index.resolve_dx_pack_id(pid)
     n = dx_idx.matrix_row_count(dx_pid)
     if n:
@@ -341,9 +344,7 @@ def _sync_dot(pack: dict, dx_idx: dx_index.DxIndex) -> str:
     manifest_pid = pack.get("pack_id", "")
     if not dx_index.pack_mirror_runtime_rels(manifest_pid):
         return "sot-dot-pending"
-    status, _ = dx_index.pack_mirror_sync_status(
-        dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
-    )
+    status, _ = dx_index.pack_mirror_sync_status_from_index(dx_idx, manifest_pid)
     return "sot-dot-synced" if status == "synced" else "sot-dot-pending"
 
 
@@ -373,9 +374,7 @@ def _all_packs_summary_line(packs: list[dict], dx_idx: dx_index.DxIndex) -> str:
     for pack in packs:
         if dx_index.pack_edit_mode(pack.get("pack_id", "")) != "editable":
             continue
-        st_, _ = dx_index.pack_mirror_sync_status(
-            dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, pack.get("pack_id", "")
-        )
+        st_, _ = dx_index.pack_mirror_sync_status_from_index(dx_idx, pack.get("pack_id", ""))
         if st_ != "synced":
             pending += 1
     return f"Q {q_n} · A {a_n} · 전체 {len(packs)}팩 · 미반영 {pending}"
@@ -464,6 +463,20 @@ def _render_all_packs_summary(packs: list[dict], dx_idx: dx_index.DxIndex, selec
     return clicked
 
 
+def _apply_pending_edits(
+    repo: Any,
+    manifest_pid: str,
+    pending: dict[str, Any],
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
+    """Q2~Q4 → q_matrix, Q5 → q5_recommendation."""
+    q = dx_index.pack_q_code(manifest_pid)
+    if q == "q5":
+        q5 = dx_editor.load_q5_recommendation(repo.root)
+        return None, dx_index.apply_q5_grid_edits(q5, pending)
+    qm = dx_editor.load_q_matrix(repo.root)
+    return dx_index.apply_q3_grid_edits(qm, manifest_pid, pending), None
+
+
 def _render_action_bar(
     pack: dict,
     dx_idx: dx_index.DxIndex,
@@ -485,9 +498,10 @@ def _render_action_bar(
             st.rerun()
     with c_val:
         if st.button("검증", type="secondary", use_container_width=True, key="sot_validate"):
-            qm = dx_editor.load_q_matrix(repo.root)
-            qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
-            issues = dx_editor.validate_q_pack_edits(qm, manifest_pid, dx_idx.sub_codes)
+            qm, q5 = _apply_pending_edits(repo, manifest_pid, pending)
+            issues = dx_editor.validate_q_pack_edits(
+                qm or [], manifest_pid, dx_idx.sub_codes, q5_recommendation=q5
+            )
             if not issues:
                 st.success("검증 통과")
             else:
@@ -502,9 +516,10 @@ def _render_action_bar(
             disabled=not can_save,
             key="sot_save",
         ):
-            qm = dx_editor.load_q_matrix(repo.root)
-            qm = dx_index.apply_q3_grid_edits(qm, manifest_pid, pending)
-            result = dx_editor.save_q_pack_and_rebuild(repo, qm, manifest_pid)
+            qm, q5 = _apply_pending_edits(repo, manifest_pid, pending)
+            result = dx_editor.save_q_pack_and_rebuild(
+                repo, qm or [], manifest_pid, q5_recommendation=q5
+            )
             if result.ok:
                 st.session_state.pop("sot_pending_edits", None)
                 st.cache_data.clear()
@@ -554,9 +569,7 @@ def _reflect_banner(
         )
 
     manifest_pid = pack.get("pack_id", "")
-    sync_st, detail = dx_index.pack_mirror_sync_status(
-        dx_idx.repo_root, dx_idx.q_matrix, dx_idx.q_framework, manifest_pid
-    )
+    sync_st, detail = dx_index.pack_mirror_sync_status_from_index(dx_idx, manifest_pid)
     if session_dirty or sync_st != "synced":
         extra = f" · {detail}" if detail and not session_dirty else ""
         return (
@@ -678,6 +691,14 @@ def _render_q3_field_rows(
                         key=widget_key,
                         label_visibility="collapsed",
                     )
+                elif spec.get("type") == "textarea":
+                    new_val = st.text_area(
+                        "값",
+                        value=str(current),
+                        key=widget_key,
+                        label_visibility="collapsed",
+                        height=80,
+                    )
                 else:
                     new_val = st.text_input(
                         "값",
@@ -718,12 +739,16 @@ def _render_q3_grid_block(
 def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
     pid = pack.get("pack_id", "")
     q = dx_index.pack_q_code(pid)
-    dx_pid = dx_index.resolve_dx_pack_id(pid)
-    matrix_rows = dx_idx.matrix_rows(dx_pid)
-    subs = sorted({str(r.get("sub_code", "")) for r in matrix_rows if r.get("sub_code")})
-
     pending: dict[str, Any] = st.session_state.setdefault("sot_pending_edits", {})
     dev = st.session_state.get("sot_dev_mode", False)
+
+    if q == "q5":
+        rec_rows = dx_idx.q5_recommendation_rows()
+        subs = sorted({str(r.get("sub_code", "")) for r in rec_rows if r.get("sub_code")})
+    else:
+        dx_pid = dx_index.resolve_dx_pack_id(pid)
+        matrix_rows = dx_idx.matrix_rows(dx_pid)
+        subs = sorted({str(r.get("sub_code", "")) for r in matrix_rows if r.get("sub_code")})
 
     _render_html('<p class="sot-field-label">세부산업</p>')
     c_sel, c_hint = st.columns(_SOT_SIDE_COLS)
@@ -743,7 +768,11 @@ def _render_q3_editor(pack: dict, dx_idx: dx_index.DxIndex) -> None:
                 "전체 보기는 읽기 전용입니다. 값을 고치려면 세부산업을 하나 고르세요."
                 "</p>"
             )
-    grid_rows = dx_index.flatten_q_grid_rows(matrix_rows, pid, sub_filter=sf)
+    grid_rows = (
+        dx_index.flatten_q5_grid_rows(rec_rows, sub_filter=sf)
+        if q == "q5"
+        else dx_index.flatten_q_grid_rows(dx_idx.matrix_rows(dx_index.resolve_dx_pack_id(pid)), pid, sub_filter=sf)
+    )
 
     if not grid_rows:
         st.info("표시할 편집 항목이 없습니다.")

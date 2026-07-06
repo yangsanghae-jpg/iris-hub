@@ -1,0 +1,107 @@
+{
+  "q5_2.recommended_levels.C": {
+    "label_ko": "권장 수준 · C(원가)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 원가 축 권장 등급"
+  },
+  "q5_2.recommended_levels.D": {
+    "label_ko": "권장 수준 · D(납기)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 납기 축 권장 등급"
+  },
+  "q5_2.recommended_levels.Q": {
+    "label_ko": "권장 수준 · Q(품질)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 품질 축 권장 등급"
+  },
+  "q5_2.recommended_levels.I": {
+    "label_ko": "권장 수준 · I(재고)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 재고 축 권장 등급"
+  },
+  "q5_2.recommended_levels.P": {
+    "label_ko": "권장 수준 · P(생산)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 생산 축 권장 등급"
+  },
+  "q5_2.recommended_levels.E": {
+    "label_ko": "권장 수준 · E(에너지)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 에너지 축 권장 등급"
+  },
+  "q5_2.recommended_levels.R": {
+    "label_ko": "권장 수준 · R(기록·규제)",
+    "hint_ko": "L1~L5",
+    "reflects_ko": "Q5 UI · 기록·규제 축 권장 등급"
+  },
+  "q5_1.default_axis_weight.C": {
+    "label_ko": "축 가중 · C(원가)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 원가 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.D": {
+    "label_ko": "축 가중 · D(납기)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 납기 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.Q": {
+    "label_ko": "축 가중 · Q(품질)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 품질 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.I": {
+    "label_ko": "축 가중 · I(재고)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 재고 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.P": {
+    "label_ko": "축 가중 · P(생산)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 생산 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.E": {
+    "label_ko": "축 가중 · E(에너지)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 에너지 축 기본 가중"
+  },
+  "q5_1.default_axis_weight.R": {
+    "label_ko": "축 가중 · R(기록·규제)",
+    "hint_ko": "primary / secondary / optional",
+    "reflects_ko": "Q5 분석 · 기록·규제 축 기본 가중"
+  },
+  "q5_1.axis_roles.C": {
+    "label_ko": "축 역할 · C(원가)",
+    "hint_ko": "세부산업별 원가 축 설명",
+    "reflects_ko": "Q5 UI · 원가 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.D": {
+    "label_ko": "축 역할 · D(납기)",
+    "hint_ko": "세부산업별 납기 축 설명",
+    "reflects_ko": "Q5 UI · 납기 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.Q": {
+    "label_ko": "축 역할 · Q(품질)",
+    "hint_ko": "세부산업별 품질 축 설명",
+    "reflects_ko": "Q5 UI · 품질 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.I": {
+    "label_ko": "축 역할 · I(재고)",
+    "hint_ko": "세부산업별 재고 축 설명",
+    "reflects_ko": "Q5 UI · 재고 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.P": {
+    "label_ko": "축 역할 · P(생산)",
+    "hint_ko": "세부산업별 생산 축 설명",
+    "reflects_ko": "Q5 UI · 생산 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.E": {
+    "label_ko": "축 역할 · E(에너지)",
+    "hint_ko": "세부산업별 에너지 축 설명",
+    "reflects_ko": "Q5 UI · 에너지 축 역할 텍스트"
+  },
+  "q5_1.axis_roles.R": {
+    "label_ko": "축 역할 · R(기록·규제)",
+    "hint_ko": "세부산업별 기록·규제 축 설명",
+    "reflects_ko": "Q5 UI · 기록·규제 축 역할 텍스트"
+  }
+}

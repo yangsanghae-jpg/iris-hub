@@ -39,6 +39,47 @@
       ]
     }
   },
+  "dx_q5_recommendation": {
+    "row_lock": {
+      "fields": [
+        "sub_code",
+        "pack_id",
+        "recommendation_index",
+        "source_json_pointer",
+        "source_index"
+      ],
+      "reason_ko": "행 식별 — 바꾸면 참조 깨짐"
+    },
+    "value_json_lock": {
+      "fields": ["subindustry_code", "subindustry_name", "notes", "q5_1.priority_axes", "q5_2.indicator_overrides"],
+      "reason_ko": "참조·식별 키·리스트·구조 필드(v1 제외)"
+    },
+    "value_json_edit_patterns": {
+      "q5": [
+        "q5_2.recommended_levels.C",
+        "q5_2.recommended_levels.D",
+        "q5_2.recommended_levels.Q",
+        "q5_2.recommended_levels.I",
+        "q5_2.recommended_levels.P",
+        "q5_2.recommended_levels.E",
+        "q5_2.recommended_levels.R",
+        "q5_1.default_axis_weight.C",
+        "q5_1.default_axis_weight.D",
+        "q5_1.default_axis_weight.Q",
+        "q5_1.default_axis_weight.I",
+        "q5_1.default_axis_weight.P",
+        "q5_1.default_axis_weight.E",
+        "q5_1.default_axis_weight.R",
+        "q5_1.axis_roles.C",
+        "q5_1.axis_roles.D",
+        "q5_1.axis_roles.Q",
+        "q5_1.axis_roles.I",
+        "q5_1.axis_roles.P",
+        "q5_1.axis_roles.E",
+        "q5_1.axis_roles.R"
+      ]
+    }
+  },
   "dx_q_framework": {
     "row_lock": {
       "fields": ["q", "block", "pack_id", "source_json_pointer", "source_index"],

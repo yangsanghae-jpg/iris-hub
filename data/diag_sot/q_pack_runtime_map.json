@@ -42,6 +42,20 @@
           "runtime_rel": "client/data/step4/automation_profile_v3.json"
         }
       ]
+    },
+    "q5_recommendation_by_subindustry": {
+      "q": "q5",
+      "edit_primary_dx_pack_id": "q5_recommendation",
+      "mirrors": [
+        {
+          "dx_pack_id": "q5_recommendation",
+          "runtime_rel": "server/data/q5/recommendation_by_subindustry_v1.json"
+        },
+        {
+          "dx_pack_id": "q5_recommendation",
+          "runtime_rel": "client/data/q5/recommendation_by_subindustry_v1.json"
+        }
+      ]
     }
   }
 }
