@@ -3,8 +3,8 @@
 - **발행:** 2026-07-06 (rev.2 — scope 소비측 확인 반영)
 - **Gatekeeper:** Claude → **실행: M5 Cursor**
 - **대상:** `diagnosis-tool` `server/data/step3/process_detail_v1.json` (+ client mirror)
-- **소스 MD:** `diagnosis-tool/docs/by_step/data/a1_ch3_B_process_detail_runtime_datapack_ko_zh_2026-07-06.md` (v0.2)
-- **진실원 사본:** `iris-hub/docs/design/diag-sot/sources/a1_ch3_B_process_detail_runtime_datapack_ko_zh_v0_2_2026-07-06.md`
+- **소스 MD:** `diagnosis-tool/docs/by_step/data/a1_ch3_B_process_detail_runtime_datapack_ko_zh_v0_3_2026-07-06.md` (v0.3; v0.2는 `*_v0_2_*` 보관)
+- **진실원 사본:** `iris-hub/docs/design/diag-sot/sources/a1_ch3_B_process_detail_runtime_datapack_ko_zh_v0_3_2026-07-06.md` (A~I 9팩 동일 경로)
 - **변환 스크립트:** `diagnosis-tool/scripts/build_a1_ch3_b_process_detail_backfill.py` (**R1 수정 필수**)
 
 ---

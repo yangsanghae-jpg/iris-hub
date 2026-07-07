@@ -71,6 +71,7 @@ loader 분류: `live_loader_referenced` 71 · `live_indirect_referenced` 38(os.l
 ## 보류·백로그 (P4 이후 결정)
 
 - **process_detail_v1** (`server/client/data/step3/process_detail_v1.json`) = **residual_live, 미dx화 부채·후속 dx화 대상**. 2026-07-06 B01~B08 A1 Ch3 백필 **L1 스크립트 stopgap** (`scripts/build_a1_ch3_b_process_detail_backfill.py`, 소스 v0.2, R1 industry 보존) — 관리탭 편집 미부착.
+- **A1.3 Ch3 MD 데이터팩 v0.3 (A~I, 74카드)** — 2026-07-07 진실원 반영: `docs/design/diag-sot/sources/a1_ch3_{A..I}_*_v0_3_2026-07-06.md` (9파일). diagnosis-tool 실데이터팩 동기: `docs/by_step/data/` 동경로. **JSON 백필·v0.3 변환 스크립트는 미적용**(MD authoring 정본 단계).
 - **런타임 팩 구조 전환(스키마 v4)** = **보류.** authoring(dx)은 재설계됨·런타임은 byte-0 유지가 현 방향. 전환 시 엔진 결합도: Ch2 🔴(~5,500줄+DB mode, 별건) / Ch1 🟠(~1,570줄) / Q4 flat·Q3 🟢(~450줄, 선별전환 가성비 최고). 필요 시 "챕터별 전환 비용·순서표(v4 로드맵)" 작성.
 - **A1/A2 재설계** = **향후 고려 가능성**(사장 플래그, 2026-07-06). P3는 A1/A2 *콘텐츠*를 system→module→sub_override로 세분화. A1(리포트)/A2(제안) 자체의 구조·UX 재설계는 별도 검토 대상 — P4 마무리 후 판단.
 
