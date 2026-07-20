@@ -119,7 +119,7 @@
 
 ### 6-4. Q1·Q5 = 비대칭 (인벤토리 2026-07-06)
 - **Q5 → STEP 3 진행** (`WORK_ORDER_P5_Q5_EDIT.md`): per-sub 74행, server·client byte-0 **둘 다 MATCH**, `rebuild_q5_from_dx` 재현. 편집=중첩 leaf(recommended_levels·default_axis_weight enum, axis_roles 텍스트), 리스트(priority_axes) 제외.
-- **Q1 → 이연 (이중 블로커):** ① `metadata`+`industries` 중첩 트리 = 행 그리드 부적합, ② **server runtime이 dx byte-0 재현 안 됨(MISMATCH)** — 원인 규명 선행. 별도 설계 WO.
+- **Q1 → ✅ PASS** (`WORK_ORDER_P5_Q1_EDIT.md`, iris-hub `3b6995e`): STEP A 1회 server 수렴(`1bc1a41`, sha `a6e27f48`=client/dx canonical) + STEP B pointer 라벨 에디터(36 leaf, `version_badge`×2·industries 트리 잠금, server·client 미러 byte-0, 서버측 문자열 검증, Q2~Q5 무회귀). server MISMATCH는 stale mirror(10개 metadata UI 라벨)로 규명·해소.
 - **q5_axes** = residual(비 dx-covered), dx화 선행 별건.
 - 공통: q1/q5는 dx_q_matrix 밖 → q_matrix rebuild 미적용. Q2/Q4 확산에 끼워넣지 마라.
 

@@ -10,7 +10,7 @@ from pypdf import PdfReader, PdfWriter
 from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 TEMPLATES_DIR = REPO_ROOT / "data" / "templates" / "slides"
 
 
