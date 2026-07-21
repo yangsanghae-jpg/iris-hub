@@ -1,0 +1,560 @@
+<!doctype html>
+<!--
+  Task: "진단툴 UI 디자인 + 컬러" comparison mockup for iris-hub's PPT tab.
+  Standalone, plain HTML/CSS only — no library, no CDN, no build step.
+  Visual language (card bg/border/radius/type sizes/selected-state ring) copied
+  faithfully from /Users/iris/0Dev/diagnosis-tool/client/assets/styles.css
+  (:root tokens L188-199, #q1 .s1-* card rules L1290-1440) — same look as the
+  "산업 진단 Pro" Q1 screenshot the user showed earlier.
+  Color change: that file already defines a 7-hue "챕터별 컬러" set for A1 report
+  chapters only (assets/styles.css L3849-3867: blue/green/indigo/amber/red/cyan/purple).
+  This mockup extends that SAME existing palette to the whole PPT tab instead of the
+  single blue (#2563eb) the Q1/Q2 wizard currently uses everywhere — nothing invented.
+  Open directly in a browser: file:///Users/iris/0Dev/iris-hub/client/dev/diagnosistool_pptx_mock.html
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PPT 탭 — 진단툴 스타일 + 컬러 목업</title>
+<style>
+  :root {
+    /* diagnosis-tool assets/styles.css :root, unchanged */
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --text: #1f2a37;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    --radius: 16px;
+    --s1-border: #eeeeee;
+    --s1-text-main: #111827;
+    --s1-text-sub: #6b7280;
+
+    /* diagnosis-tool assets/styles.css L3849-3867 — chapter accent set,
+       currently scoped to #a1 report sections only. Reused verbatim here. */
+    --ch-1: #3b82f6; /* execSection blue */
+    --ch-2: #22c55e; /* ch1 green */
+    --ch-3: #6366f1; /* systemSection indigo */
+    --ch-4: #f59e0b; /* scopeSection amber */
+    --ch-5: #ef4444; /* planSection red */
+    --ch-6: #06b6d4; /* teamSection cyan */
+    --ch-7: #a855f7; /* roiSection purple */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+  body { padding: 28px 32px 60px; }
+  .note {
+    font-size: 11px; color: var(--muted); margin-bottom: 18px;
+    border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; background: #fff;
+  }
+
+  /* ── top bar (diagnosis-tool style: white bar, thin border, small badge) ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 16px; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .topbar .crumbs { font-size: 12px; color: var(--muted); }
+  .topbar .crumbs b { color: var(--text); font-weight: 700; }
+  .topbar .title { font-size: 15px; font-weight: 800; margin-top: 2px; }
+  .topbar .badge {
+    background: #111; color: #fff; font-size: 11px; font-weight: 800;
+    padding: 4px 9px; border-radius: 6px;
+  }
+
+  /* ── live pipeline monitor: each stage reflects real generation state ── */
+  .flow-strip {
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04); overflow: visible; margin-bottom: 6px;
+  }
+  .flow-seg {
+    display: flex; align-items: center; gap: 9px; padding: 11px 14px; flex: 1 1 0; min-width: 0;
+    position: relative;
+  }
+  .flow-seg:first-child { border-radius: 12px 0 0 12px; }
+  .flow-seg.active:last-child { border-radius: 0 12px 12px 0; }
+  /* stage states */
+  .flow-seg .ic {
+    width: 18px; height: 18px; border-radius: 50%; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900;
+    border: 1.5px solid var(--hue);
+  }
+  .flow-seg.done .ic { background: var(--hue); color: #fff; border-color: var(--hue); }
+  .flow-seg.done .ic::before { content: "✓"; }
+  .flow-seg.pending .ic { border-color: var(--s1-border); color: transparent; }
+  .flow-seg.active .ic {
+    border-color: var(--hue); color: var(--hue);
+    animation: spin 0.9s linear infinite; border-right-color: transparent; border-top-color: transparent;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .flow-seg .lab { font-size: 10.5px; font-weight: 800; color: var(--hue); letter-spacing: 0.02em; flex: 0 0 auto; }
+  .flow-seg.pending .lab { color: var(--muted); }
+  .flow-seg .val { font-size: 12.5px; font-weight: 650; color: var(--s1-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-seg.pending .val { color: #b8c0cc; font-weight: 500; }
+  .flow-seg .val .u { font-size: 10.5px; color: var(--muted); font-weight: 600; margin-left: 3px; }
+  .flow-seg.active { background: var(--tint); }
+  .flow-seg { cursor: default; }
+  .flow-seg .caret { margin-left: 4px; color: #cbd5e1; font-size: 9px; flex: 0 0 auto; }
+  .flow-arrow { display: flex; align-items: center; color: #cbd5e1; font-size: 12px; padding: 0 2px; flex: 0 0 auto; }
+
+  /* ── hover popover: full stage detail on demand, strip stays 1 line ── */
+  .flow-seg .detail {
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 280px;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15,23,42,0.14); padding: 12px 13px;
+    opacity: 0; visibility: hidden; transform: translateY(-4px);
+    transition: opacity .15s ease, transform .15s ease; pointer-events: none;
+  }
+  .flow-seg:hover .detail, .flow-seg.detail-open .detail { opacity: 1; visibility: visible; transform: translateY(0); }
+  .flow-seg .detail::before {
+    content: ""; position: absolute; top: -5px; left: 20px; width: 9px; height: 9px;
+    background: #fff; border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg);
+  }
+  .detail .d-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .detail .d-lab { font-size: 10.5px; font-weight: 800; color: var(--hue); }
+  .detail .d-meta { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+  .detail .d-stat { font-size: 15px; font-weight: 800; color: var(--s1-text-main); margin-bottom: 8px; }
+  .detail .d-stat .u { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 3px; }
+  .detail .d-list { display: flex; flex-direction: column; gap: 4px; }
+  .detail .d-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--s1-text-main); }
+  .detail .d-item .n { color: #b8c0cc; font-variant-numeric: tabular-nums; width: 15px; flex: 0 0 auto; }
+  .detail .d-item .pat { font-weight: 700; color: var(--hue); flex: 0 0 auto; }
+  .detail .d-item .tt { color: var(--s1-text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .detail .d-more { font-size: 10.5px; color: var(--muted); margin-top: 6px; }
+  .detail .d-code {
+    margin-top: 8px; padding: 8px 9px; background: #f8fafc; border: 1px solid var(--s1-border);
+    border-radius: 7px; font-family: ui-monospace, "SF Mono", monospace; font-size: 10.5px;
+    color: var(--s1-text-sub); line-height: 1.5; white-space: pre-wrap; max-height: 88px; overflow: hidden;
+  }
+  /* progress sub-bar under the strip (live during render) */
+  .flow-progress { height: 4px; border-radius: 999px; background: #eef2f7; overflow: hidden; margin: 0 2px 18px; }
+  .flow-progress > span { display: block; height: 100%; background: var(--ch-2); transition: width .4s ease; }
+  .flow-caption { font-size: 11px; color: var(--muted); margin: -2px 2px 16px; display: flex; align-items: center; gap: 6px; }
+  .flow-caption .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ch-2); animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .section-title {
+    font-size: 13px; font-weight: 800; color: var(--text); margin: 22px 0 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ch-1); }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
+  }
+
+  /* ── source section: left rail (4 modes) + right info area (ㅏ자) ── */
+  .source-layout { display: grid; grid-template-columns: 176px 1fr; gap: 16px; }
+  .source-rail { display: flex; flex-direction: column; gap: 8px; }
+  .source-rail .opt-row { padding: 9px 11px; }
+  .source-rail .opt-row .icon-badge { width: 28px; height: 28px; font-size: 13px; }
+  @media (max-width: 720px) {
+    .source-layout { grid-template-columns: 1fr; }
+    .source-rail { flex-direction: row; flex-wrap: wrap; }
+    .source-rail .opt-row { flex: 1 1 46%; }
+  }
+
+  /* ── industry-grid-style option rows, colorized by category instead of all-blue ── */
+  .opt-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+  .opt-row {
+    display: flex; align-items: center; gap: 11px; padding: 11px 13px;
+    background: #ffffff; border: 1px solid var(--s1-border); border-radius: 10px;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .opt-row.selected {
+    background: var(--tint); border-color: var(--hue);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 35%, transparent);
+  }
+  .opt-row .icon-badge {
+    width: 32px; height: 32px; border-radius: 9px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; background: var(--tint); border: 1px solid color-mix(in srgb, var(--hue) 30%, transparent);
+  }
+  .opt-row .text { min-width: 0; flex: 1 1 auto; }
+  .opt-row .t { font-size: 13.5px; font-weight: 650; color: var(--s1-text-main); line-height: 1.3; }
+  .opt-row .d { margin-top: 2px; font-size: 11px; color: var(--s1-text-sub); line-height: 1.3; }
+  .opt-row .d b { color: var(--hue); font-weight: 800; }
+  .opt-row .d.muted { color: #b8c0cc; }
+  .opt-row .check { color: var(--hue); font-weight: 800; font-size: 13px; flex: 0 0 auto; }
+  .source-layout { align-items: start; }
+  .source-body { min-width: 0; }
+  /* right info area is capped to the height of the 4-button rail (~204px) */
+  .doc-pick { display: grid; grid-template-columns: 1.05fr 1fr; gap: 14px; height: 204px; }
+  .doc-search {
+    width: 100%; background: #fff; border: 1px solid var(--s1-border); border-radius: 8px;
+    color: var(--s1-text-main); font-size: 12.5px; padding: 8px 11px; margin-bottom: 9px;
+  }
+  .doc-list { display: flex; flex-direction: column; gap: 6px; max-height: 165px; overflow-y: auto; }
+  .doc-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--s1-border); background: #fff; cursor: default;
+  }
+  .doc-item.sel { border-color: var(--hue); background: var(--tint); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 30%, transparent); }
+  .doc-item .di-ic { width: 26px; height: 26px; border-radius: 7px; background: var(--tint); display:flex; align-items:center; justify-content:center; font-size: 13px; flex: 0 0 auto; }
+  .doc-item .di-t { flex: 1 1 auto; min-width: 0; }
+  .doc-item .di-name { font-size: 12.5px; font-weight: 650; color: var(--s1-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-item .di-meta { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+  .doc-item .di-check { color: var(--hue); font-weight: 800; font-size: 12px; flex: 0 0 auto; }
+  .doc-preview {
+    border: 1px solid var(--s1-border); border-radius: 10px; background: #fbfcfe; padding: 11px 13px;
+    display: flex; flex-direction: column; min-width: 0; height: 204px; overflow: hidden;
+  }
+  .doc-preview .dp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .doc-preview .dp-name { font-size: 12.5px; font-weight: 750; color: var(--s1-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-preview .dp-badge { margin-left: auto; font-size: 10.5px; font-weight: 800; color: var(--hue); background: var(--tint); border-radius: 999px; padding: 2px 9px; flex: 0 0 auto; }
+  .doc-preview .dp-body {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11px; color: var(--s1-text-sub);
+    line-height: 1.55; white-space: pre-wrap; flex: 1 1 auto; overflow: hidden;
+  }
+  .doc-preview .dp-foot { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--s1-border); font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .doc-preview .dp-foot b { color: var(--ch-6); font-weight: 800; }
+
+  textarea.mock {
+    width: 100%; min-height: 130px; resize: vertical;
+    background: #fbfcfe; border: 1px solid var(--s1-border); border-radius: 10px;
+    color: var(--s1-text-main); font-family: ui-monospace, "SF Mono", monospace; font-size: 12.5px;
+    padding: 10px 12px; line-height: 1.5;
+  }
+
+  label.field { display: block; font-size: 11.5px; color: var(--s1-text-sub); font-weight: 700; margin: 0 0 6px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  input.mock, select.mock {
+    width: 100%; background: #fff; border: 1px solid var(--s1-border);
+    border-radius: 8px; color: var(--s1-text-main); font-size: 13px; padding: 8px 10px;
+  }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--s1-text-main); margin: 8px 0; }
+  .checkbox-row .box {
+    width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--s1-border);
+    background: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--ch-2);
+  }
+  .checkbox-row .box.checked { border-color: var(--ch-2); background: #f0fdf4; }
+
+  hr.div { border: none; border-top: 1px solid var(--s1-border); margin: 14px 0; }
+  .two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+
+  .btn {
+    display: block; width: 100%; text-align: center; padding: 11px 16px; border-radius: 10px;
+    font-size: 13.5px; font-weight: 800; cursor: default; margin-bottom: 10px; border: 1px solid transparent;
+  }
+  .btn.primary { background: var(--ch-1); color: #fff; }
+  .btn.secondary { background: #fff; color: var(--s1-text-main); border-color: var(--s1-border); }
+
+  .caption { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .caption strong { color: var(--s1-text-main); }
+  h3.sub { font-size: 12.5px; font-weight: 750; color: var(--s1-text-main); margin: 0 0 10px; }
+
+  /* ── 변환 설정: button-style controls ── */
+  .set-group { border: 1px solid var(--s1-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .set-group.design { border-color: color-mix(in srgb, var(--ch-5) 32%, transparent); background: #fffafa; }
+  .set-glabel { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+  .set-glabel .g-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hue); }
+  .set-row { display: flex; align-items: center; gap: 14px; margin-bottom: 13px; flex-wrap: wrap; }
+  .set-row:last-child { margin-bottom: 0; }
+  .set-row > .rlab { font-size: 12px; font-weight: 700; color: var(--s1-text-sub); width: 96px; flex: 0 0 auto; display: flex; align-items: center; }
+  .new-tag { font-size: 8.5px; font-weight: 800; color: #b25e09; background: #fef3e2; border-radius: 4px; padding: 1px 5px; margin-left: 6px; letter-spacing: 0.02em; }
+
+  .seg-btns { display: inline-flex; border: 1px solid var(--s1-border); border-radius: 9px; overflow: hidden; background: #fff; }
+  .seg-btns .sb { padding: 7px 14px; font-size: 12.5px; font-weight: 650; color: var(--s1-text-sub); border-right: 1px solid var(--s1-border); cursor: default; white-space: nowrap; }
+  .seg-btns .sb:last-child { border-right: none; }
+  .seg-btns .sb.on { background: var(--tint); color: var(--hue); font-weight: 800; }
+  .seg-btns.sm .sb { padding: 6px 11px; font-size: 12px; }
+
+  .set-select {
+    background: #fff; border: 1px solid var(--s1-border); border-radius: 8px;
+    color: var(--s1-text-main); font-size: 12.5px; padding: 7px 11px; min-width: 190px;
+  }
+
+  /* 디자인 샘플 썸네일 */
+  .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex: 1 1 auto; }
+  .sample-card { border: 1px solid var(--s1-border); border-radius: 10px; overflow: hidden; background: #fff; cursor: default; }
+  .sample-card.sel { border-color: var(--ch-5); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ch-5) 40%, transparent); }
+  .sample-thumb { height: 58px; display: flex; flex-direction: column; padding: 8px 9px; gap: 4px; }
+  .sample-thumb .bar { height: 6px; border-radius: 2px; }
+  .sample-thumb .bar.t { width: 62%; }
+  .sample-thumb .row { display: flex; gap: 4px; margin-top: auto; }
+  .sample-thumb .row i { flex: 1; height: 14px; border-radius: 3px; display: block; }
+  .sample-name { padding: 6px 9px; font-size: 11.5px; font-weight: 700; color: var(--s1-text-main); border-top: 1px solid var(--s1-border); display: flex; align-items: center; justify-content: space-between; }
+  .sample-name .chk { color: var(--ch-5); font-weight: 800; }
+
+  /* 컬러 스와치 */
+  .swatches { display: flex; gap: 8px; }
+  .swatch { width: 26px; height: 26px; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--s1-border); cursor: default; }
+  .swatch.sel { box-shadow: 0 0 0 2px var(--s1-text-main); }
+
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--s1-text-main); font-weight: 600; }
+  .toggle .sw { width: 34px; height: 19px; border-radius: 999px; background: #d1d5db; position: relative; flex: 0 0 auto; }
+  .toggle.on .sw { background: var(--ch-2); }
+  .toggle .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: left .15s ease; }
+  .toggle.on .sw::after { left: 17px; }
+</style>
+</head>
+<body>
+  <div class="note">"진단툴 UI 디자인 + 컬러" 목업 (diagnosistool_pptx_mock.html) — 카드/타이포/보더는 diagnosis-tool assets/styles.css의 실제 #q1 톤을 그대로 이식. 색상은 그 파일이 이미 갖고 있는 A1 챕터 7색(L3849-3867)을 Q1/Q2 전체로 확장 적용. 데코레이션 전용, Streamlit 미연결.</div>
+
+  <div class="topbar">
+    <div>
+      <div class="crumbs">진단 · 진단 단계 / <b>PPT · Deck Console</b></div>
+      <div class="title">📊 PPT 생성</div>
+    </div>
+    <span class="badge">Export Ready</span>
+  </div>
+
+  <div class="flow-strip">
+    <div class="flow-seg done" style="--hue: var(--ch-1); --tint:#eff6ff">
+      <span class="ic"></span><span class="lab">① 소스</span>
+      <span class="val">archive<span class="u">4,120자</span></span>
+      <span class="caret">▼</span>
+      <div class="detail">
+        <div class="d-head"><span class="d-lab">① 소스</span><span class="d-meta">archive</span></div>
+        <div class="d-stat">4,120<span class="u">chars · b2b_진단_2026Q2</span></div>
+        <div class="d-code"># B2B 제조 진단 보고
+## 2026 Q2
+## 1. 현황 요약
+- 라인 가동률 78% (목표 90%) …</div>
+      </div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-seg done" style="--hue: var(--ch-6); --tint:#ecfeff">
+      <span class="ic"></span><span class="lab">② 확장</span>
+      <span class="val">4,120 → 12,400<span class="u">자</span></span>
+      <span class="caret">▼</span>
+      <div class="detail">
+        <div class="d-head"><span class="d-lab">② 입력 확장 · Stage 1</span><span class="d-meta">42.3s</span></div>
+        <div class="d-stat">4,120 → 12,400<span class="u">자 · 3.0×</span></div>
+        <div class="d-code">## 1. 배경 및 목적
+제조 현장의 실시간 진단 체계 …
+## 2. 현황 진단
+- 라인 가동률 78% / 불량률 2.4% …</div>
+        <div class="d-more">모델 qwen3.6-35b-a3b · timeout 900s</div>
+      </div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-seg done" style="--hue: var(--ch-4); --tint:#fffbeb">
+      <span class="ic"></span><span class="lab">③ 설계</span>
+      <span class="val">24<span class="u">장 설계됨</span></span>
+      <span class="caret">▼</span>
+      <div class="detail">
+        <div class="d-head"><span class="d-lab">③ 슬라이드 설계 · Stage 2</span><span class="d-meta">48.1s</span></div>
+        <div class="d-stat">24<span class="u">장 · 9개 패턴</span></div>
+        <div class="d-list">
+          <div class="d-item"><span class="n">1</span><span class="pat">cover</span><span class="tt">IRIS 시스템 구축 제안</span></div>
+          <div class="d-item"><span class="n">2</span><span class="pat">agenda</span><span class="tt">목차 [items=5]</span></div>
+          <div class="d-item"><span class="n">3</span><span class="pat">section</span><span class="tt">현황 진단</span></div>
+          <div class="d-item"><span class="n">4</span><span class="pat">metrics</span><span class="tt">처리 현황 [metrics=4]</span></div>
+          <div class="d-item"><span class="n">5</span><span class="pat">cards</span><span class="tt">3대 과제 [cards=3]</span></div>
+        </div>
+        <div class="d-more">+19장 더 · model qwen3.6-35b-a3b</div>
+      </div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-seg active" style="--hue: var(--ch-2); --tint:#f0fdf4">
+      <span class="ic"></span><span class="lab">④ 렌더</span>
+      <span class="val">PDF 14 / 24<span class="u">장</span></span>
+      <span class="caret">▼</span>
+      <div class="detail">
+        <div class="d-head"><span class="d-lab">④ PDF 렌더 · Stage 3</span><span class="d-meta">02:47 경과</span></div>
+        <div class="d-stat">14 / 24<span class="u">장 · 58%</span></div>
+        <div class="d-list">
+          <div class="d-item"><span class="n">12</span><span class="pat">✓</span><span class="tt">ROI 분석 렌더됨</span></div>
+          <div class="d-item"><span class="n">13</span><span class="pat">✓</span><span class="tt">추진 일정 렌더됨</span></div>
+          <div class="d-item"><span class="n">14</span><span class="pat" style="color:var(--ch-2)">▸</span><span class="tt">조직 구성 렌더 중…</span></div>
+        </div>
+        <div class="d-more">슬라이드당 ~2초 · 예상 잔여 ~20초</div>
+      </div>
+    </div>
+  </div>
+  <div class="flow-progress"><span style="width:58%"></span></div>
+  <div class="flow-caption"><span class="live-dot"></span>③ PDF 렌더 중… 슬라이드 14/24 · 경과 02:47 · qwen3.6-35b-a3b</div>
+
+  <div class="section-title"><span class="dot" style="background:var(--ch-4)"></span>소스 선택</div>
+  <div class="panel">
+    <div class="source-layout">
+      <div class="source-rail">
+        <div class="opt-row" style="--hue:var(--ch-1); --tint:#eff6ff">
+          <div class="icon-badge">✍️</div>
+          <div class="text"><div class="t">직접 입력</div><div class="d">textarea · <b>402자</b></div></div>
+        </div>
+        <div class="opt-row" style="--hue:var(--ch-6); --tint:#ecfeff">
+          <div class="icon-badge">📂</div>
+          <div class="text"><div class="t">파일 업로드</div><div class="d muted">.md · 미선택</div></div>
+        </div>
+        <div class="opt-row selected" style="--hue:var(--ch-4); --tint:#fffbeb">
+          <div class="icon-badge">📦</div>
+          <div class="text"><div class="t">archive 자료</div><div class="d"><b>33건</b></div></div>
+          <div class="check">✓</div>
+        </div>
+        <div class="opt-row" style="--hue:var(--ch-3); --tint:#eef2ff">
+          <div class="icon-badge">📄</div>
+          <div class="text"><div class="t">docs/system</div><div class="d"><b>12건</b></div></div>
+        </div>
+      </div>
+      <div class="source-body">
+      <div class="doc-pick" style="--hue:var(--ch-4); --tint:#fffbeb">
+        <div>
+          <input class="doc-search" placeholder="🔍 archive 자료 검색 (33건)" />
+          <div class="doc-list">
+            <div class="doc-item sel">
+              <div class="di-ic">📦</div>
+              <div class="di-t"><div class="di-name">b2b_진단_2026Q2</div><div class="di-meta">4,120자 · 2026-06-18</div></div>
+              <div class="di-check">✓</div>
+            </div>
+            <div class="doc-item">
+              <div class="di-ic">📦</div>
+              <div class="di-t"><div class="di-name">스마트팩토리_현황분석</div><div class="di-meta">7,880자 · 2026-06-12</div></div>
+            </div>
+            <div class="doc-item">
+              <div class="di-ic">📦</div>
+              <div class="di-t"><div class="di-name">공정자동화_로드맵</div><div class="di-meta">3,540자 · 2026-06-05</div></div>
+            </div>
+            <div class="doc-item">
+              <div class="di-ic">📦</div>
+              <div class="di-t"><div class="di-name">품질관리_KPI_정의서</div><div class="di-meta">2,210자 · 2026-05-29</div></div>
+            </div>
+            <div class="doc-item">
+              <div class="di-ic">📦</div>
+              <div class="di-t"><div class="di-name">설비_예지보전_제안</div><div class="di-meta">5,660자 · 2026-05-21</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="doc-preview">
+          <div class="dp-head"><span class="dp-name">b2b_진단_2026Q2 / content.md</span><span class="dp-badge">4,120자</span></div>
+          <div class="dp-body"># B2B 제조 진단 보고
+## 2026 Q2
+
+## 1. 현황 요약
+- 라인 가동률 78% (목표 90%)
+- 불량률 2.4% / 재작업 5.1%
+
+## 2. 핵심 이슈
+- 설비 예지보전 미도입 …</div>
+          <div class="dp-foot">→ <b>② 원문으로 4,120자 전달</b> · 진실원: archive DB 인덱스</div>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="dot" style="background:var(--ch-4)"></span>변환 설정</div>
+  <div class="panel">
+    <div class="caption">소스: <strong>archive · b2b_진단_2026Q2</strong> · 본문 <strong>4,120</strong> chars</div>
+
+    <h3 class="sub">🛠️ PPT 엔진</h3>
+    <div class="opt-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="opt-row" style="--hue:var(--ch-4); --tint:#fffbeb">
+        <div class="icon-badge">📄</div>
+        <div class="text"><div class="t">Marp (단순·빠름)</div><div class="d">3~10초</div></div>
+      </div>
+      <div class="opt-row selected" style="--hue:var(--ch-5); --tint:#fef2f2">
+        <div class="icon-badge">🎨</div>
+        <div class="text"><div class="t">디자인 (컨설팅급)</div><div class="d">LLM 슬라이드 설계, 30~120초</div></div>
+        <div class="check">✓</div>
+      </div>
+    </div>
+
+    <!-- 공통 설정 (Marp · 디자인 공통) — 버튼식 -->
+    <div class="set-group" style="--hue:var(--ch-4); --tint:#fffbeb">
+      <div class="set-glabel"><span class="g-dot"></span>공통 설정 · Marp · 디자인</div>
+      <div class="set-row">
+        <span class="rlab">출력 형식</span>
+        <div class="seg-btns" style="--hue:var(--ch-5); --tint:#fef2f2">
+          <span class="sb on">📄 PDF</span><span class="sb">📊 PPTX</span>
+        </div>
+        <span class="rlab" style="width:auto">페이지 번호</span>
+        <div class="seg-btns sm" style="--hue:var(--ch-2); --tint:#f0fdf4">
+          <span class="sb on">ON</span><span class="sb">OFF</span>
+        </div>
+        <span class="rlab" style="width:auto">exports 저장</span>
+        <div class="seg-btns sm" style="--hue:var(--ch-2); --tint:#f0fdf4">
+          <span class="sb on">ON</span><span class="sb">OFF</span>
+        </div>
+      </div>
+      <div class="set-row">
+        <span class="rlab">🧠 LLM 모델</span>
+        <select class="set-select" style="min-width:230px"><option>qwen3.6-35b-a3b (3개 설치)</option></select>
+      </div>
+    </div>
+
+    <!-- 디자인 엔진 상세 설정 -->
+    <div class="set-group design" style="--hue:var(--ch-5); --tint:#fef2f2">
+      <div class="set-glabel"><span class="g-dot"></span>디자인 엔진 상세</div>
+
+      <div class="set-row" style="align-items:flex-start">
+        <span class="rlab" style="margin-top:6px">📐 디자인 샘플<span class="new-tag">NEW</span></span>
+        <div class="sample-grid">
+          <div class="sample-card sel">
+            <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#f4f8ff)">
+              <div class="bar t" style="background:#1a3a6b"></div><div class="bar" style="background:#c9d6ea;width:82%"></div>
+              <div class="row"><i style="background:#2563eb"></i><i style="background:#1a3a6b"></i><i style="background:#3b82f6"></i></div>
+            </div>
+            <div class="sample-name">블루 (기본) <span class="chk">✓</span></div>
+          </div>
+          <div class="sample-card">
+            <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#f6f6f6)">
+              <div class="bar t" style="background:#1a1a1a"></div><div class="bar" style="background:#d4d4d4;width:82%"></div>
+              <div class="row"><i style="background:#404040"></i><i style="background:#737373"></i><i style="background:#a3a3a3"></i></div>
+            </div>
+            <div class="sample-name">흑백</div>
+          </div>
+          <div class="sample-card">
+            <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#fef6ff)">
+              <div class="bar t" style="background:#7c3aed"></div><div class="bar" style="background:#e9d5ff;width:82%"></div>
+              <div class="row"><i style="background:#e89324"></i><i style="background:#15803d"></i><i style="background:#dc2626"></i></div>
+            </div>
+            <div class="sample-name">컬러풀</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-row">
+        <span class="rlab">🌐 언어<span class="new-tag">NEW</span></span>
+        <div class="seg-btns" style="--hue:var(--ch-5); --tint:#fef2f2">
+          <span class="sb on">한국어</span><span class="sb">中文</span><span class="sb">자동 (소스)</span>
+        </div>
+      </div>
+
+      <div class="set-row">
+        <span class="rlab">🎨 컬러 (액센트)<span class="new-tag">NEW</span></span>
+        <div class="swatches">
+          <span class="swatch sel" style="background:#1a3a6b"></span>
+          <span class="swatch" style="background:#2563eb"></span>
+          <span class="swatch" style="background:#e89324"></span>
+          <span class="swatch" style="background:#15803d"></span>
+          <span class="swatch" style="background:#7c3aed"></span>
+          <span class="swatch" style="background:#dc2626"></span>
+        </div>
+        <span class="caption" style="margin:0">슬라이드 항목 강조색 · _base.html.j2 팔레트</span>
+      </div>
+
+      <div class="set-row">
+        <span class="rlab">🎯 슬라이드 수</span>
+        <div class="seg-btns sm" style="--hue:var(--ch-5); --tint:#fef2f2">
+          <span class="sb on">auto</span><span class="sb">10</span><span class="sb">15</span><span class="sb">20</span><span class="sb">25</span><span class="sb">30</span>
+        </div>
+        <div class="toggle on" style="--ch-2:var(--ch-2)"><span class="sw"></span>🚀 2단 파이프라인 (품질 ↑↑)</div>
+      </div>
+
+      <div class="set-row" style="align-items:flex-start">
+        <span class="rlab" style="margin-top:6px">📝 메타 정보</span>
+        <div class="field-row" style="flex:1 1 auto; margin:0; grid-template-columns:1fr 1fr 1fr 1fr;">
+          <div><label class="field">회사명</label><input class="mock" value="휴메딧" /></div>
+          <div><label class="field">보고서 제목</label><input class="mock" value="IRIS 시스템 구축 제안" /></div>
+          <div><label class="field">부제</label><input class="mock" value="IRIS 주간 보고" /></div>
+          <div><label class="field">날짜·버전</label><input class="mock" value="2026-07-21 · v1" /></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn primary" style="background:#e5e7eb; color:#94a3b8; cursor:progress;">⏳ 생성 중… (③ 렌더 14/24)</div>
+  </div>
+</body>
+</html>

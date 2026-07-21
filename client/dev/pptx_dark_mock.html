@@ -1,0 +1,266 @@
+<!doctype html>
+<!--
+  Task: dark + high-saturation-accent theme mockup for iris-hub's PPT tab (src/tabs/pptx.py).
+  Standalone, plain HTML/CSS only — no React, no AntD, no CDN imports, no build step.
+  Tokens (--pptx-*) sourced from external/claude-code-agent-monitor's working dark theme
+  (client/tailwind.config.js), not invented. Scoped separately from --hub-* (hub_ui.css)
+  so real integration later doesn't collide with the light theme used by other tabs.
+  Open directly in a browser: file:///Users/iris/0Dev/iris-hub/client/dev/pptx_dark_mock.html
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PPT 탭 — 다크 테마 목업</title>
+<style>
+  :root {
+    --pptx-bg: #0c0c14;
+    --pptx-surface: #1a1a28;
+    --pptx-surface-2: #222233;
+    --pptx-border: #2a2a3d;
+    --pptx-border-hi: #363650;
+    --pptx-ink: #e4e4ed;
+    --pptx-muted: #9ca3af;
+    --pptx-accent-fill: #6366f1;
+    --pptx-accent: #818cf8;
+    --pptx-info: #06b6d4;
+    --pptx-warn: #f59e0b;
+    --pptx-success: #10b981;
+    --pptx-danger: #ef4444;
+    --pptx-radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--pptx-bg);
+    color: var(--pptx-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+  body { padding: 28px 32px 60px; }
+  .note {
+    font-size: 11px; color: var(--pptx-muted); margin-bottom: 18px;
+    border: 1px dashed var(--pptx-border-hi); border-radius: 8px; padding: 8px 12px;
+  }
+
+  /* ── pagebar ── */
+  .pagebar {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px;
+    padding: 14px 18px; border: 1px solid var(--pptx-border); border-radius: 14px;
+    background: var(--pptx-surface); margin-bottom: 16px;
+  }
+  .pagebar-title-row { display: flex; align-items: baseline; gap: 10px; }
+  .pagebar-title { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+  .pagebar-label {
+    font-size: 11px; font-weight: 800; color: var(--pptx-accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .pagebar-desc { margin: 5px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--pptx-muted); }
+  .pill {
+    display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px;
+    background: rgba(16,185,129,0.14); color: var(--pptx-success);
+    font-size: 11px; font-weight: 800; white-space: nowrap;
+  }
+
+  /* ── pipeline flow cards (categorical hue per stage) ── */
+  .flow-row {
+    display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px;
+    margin: 16px 0 18px;
+  }
+  .flow-card {
+    position: relative; min-height: 116px; border-radius: var(--pptx-radius);
+    padding: 14px 15px 13px; background: var(--pptx-surface);
+    border: 1px solid var(--pptx-border); border-top: 3px solid var(--hue);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .flow-card .stage { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; color: var(--hue); }
+  .flow-card .title { font-size: 11px; color: var(--pptx-muted); font-weight: 650; }
+  .flow-card .big { font-size: 21px; font-weight: 800; color: var(--pptx-ink); line-height: 1.15; }
+  .flow-card .big .unit { font-size: 11px; color: var(--pptx-muted); font-weight: 700; margin-left: 3px; }
+  .flow-card .sub { font-size: 10.5px; color: var(--pptx-muted); margin-top: auto; }
+  .flow-arrow {
+    display: none;
+  }
+  @media (min-width: 720px) {
+    .flow-row { grid-template-columns: 1fr 20px 1fr 20px 1fr 20px 1fr; align-items: stretch; }
+    .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--pptx-border-hi); font-size: 14px; }
+  }
+
+  /* ── section headers ── */
+  .section {
+    font-size: 12.5px; font-weight: 800; color: var(--pptx-accent);
+    letter-spacing: 0.02em; margin: 20px 0 8px; padding: 6px 10px;
+    border-left: 3px solid var(--pptx-accent-fill); border-radius: 0 6px 6px 0;
+    background: rgba(99,102,241,0.10);
+  }
+
+  /* ── panels ── */
+  .panel {
+    border: 1px solid var(--pptx-border); border-radius: var(--pptx-radius);
+    background: var(--pptx-surface); padding: 16px 18px; margin-bottom: 14px;
+  }
+  .console-note {
+    font-size: 12px; color: var(--pptx-info); background: rgba(6,182,212,0.10);
+    border: 1px solid rgba(6,182,212,0.25); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px;
+  }
+  .console-note strong { color: var(--pptx-ink); }
+
+  /* ── radio / segmented (decorative, not wired) ── */
+  .seg-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .seg {
+    padding: 8px 14px; border-radius: 9px; border: 1px solid var(--pptx-border);
+    background: var(--pptx-surface-2); color: var(--pptx-muted); font-size: 12.5px; font-weight: 650;
+    cursor: default;
+  }
+  .seg.active {
+    border-color: var(--pptx-accent-fill); background: rgba(99,102,241,0.16); color: var(--pptx-accent);
+  }
+  .seg.vertical-group { display: flex; flex-direction: column; gap: 8px; }
+  .seg-block { padding: 10px 14px; }
+
+  textarea.mock {
+    width: 100%; min-height: 150px; resize: vertical;
+    background: var(--pptx-surface-2); border: 1px solid var(--pptx-border); border-radius: 9px;
+    color: var(--pptx-ink); font-family: ui-monospace, "SF Mono", monospace; font-size: 12.5px;
+    padding: 10px 12px; line-height: 1.5;
+  }
+
+  label.field { display: block; font-size: 11.5px; color: var(--pptx-muted); font-weight: 700; margin: 0 0 6px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  input.mock, select.mock {
+    width: 100%; background: var(--pptx-surface-2); border: 1px solid var(--pptx-border);
+    border-radius: 8px; color: var(--pptx-ink); font-size: 13px; padding: 8px 10px;
+  }
+
+  .two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 8px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--pptx-ink); margin: 8px 0; }
+  .checkbox-row .box {
+    width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--pptx-border-hi);
+    background: var(--pptx-surface-2); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--pptx-success);
+  }
+  .checkbox-row .box.checked { border-color: var(--pptx-success); background: rgba(16,185,129,0.15); }
+
+  hr.div { border: none; border-top: 1px solid var(--pptx-border); margin: 14px 0; }
+
+  .btn {
+    display: block; width: 100%; text-align: center; padding: 11px 16px; border-radius: 10px;
+    font-size: 13.5px; font-weight: 800; cursor: default; margin-bottom: 10px;
+  }
+  .btn.primary { background: var(--pptx-accent-fill); color: #fff; border: 1px solid var(--pptx-accent-fill); }
+  .btn.secondary { background: var(--pptx-surface-2); color: var(--pptx-ink); border: 1px solid var(--pptx-border-hi); }
+
+  .caption { font-size: 12px; color: var(--pptx-muted); margin-bottom: 10px; }
+  .caption strong { color: var(--pptx-ink); }
+
+  h3.sub { font-size: 12.5px; font-weight: 750; color: var(--pptx-ink); margin: 0 0 10px; }
+</style>
+</head>
+<body>
+  <div class="note">다크 + 고채도 액센트 테마 목업 (Task, pptx_dark_mock.html) — 실제 라벨/구조는 src/tabs/pptx.py 기준. 데코레이션 전용, Streamlit에 연결 안 됨.</div>
+
+  <div class="pagebar">
+    <div>
+      <div class="pagebar-title-row">
+        <h1 class="pagebar-title">📊 PPT</h1>
+        <span class="pagebar-label">Deck Console</span>
+      </div>
+      <p class="pagebar-desc">마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</p>
+    </div>
+    <span class="pill">Export Ready</span>
+  </div>
+
+  <div class="flow-row">
+    <div class="flow-card" style="--hue: var(--pptx-accent)">
+      <div class="stage">① 소스</div>
+      <div class="title">입력 선택</div>
+      <div class="big">직접<span class="unit">textarea</span></div>
+      <div class="sub">직접 작성</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-card" style="--hue: var(--pptx-info)">
+      <div class="stage">② 원문</div>
+      <div class="title">마크다운</div>
+      <div class="big">402<span class="unit">chars</span></div>
+      <div class="sub">슬라이드 원본</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-card" style="--hue: var(--pptx-warn)">
+      <div class="stage">③ 엔진</div>
+      <div class="title">변환 방식</div>
+      <div class="big">Marp<span class="unit">Fast</span></div>
+      <div class="sub">단순·빠름</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-card" style="--hue: var(--pptx-success)">
+      <div class="stage">④ 산출</div>
+      <div class="title">다운로드</div>
+      <div class="big">PPTX</div>
+      <div class="sub">exports 저장 선택</div>
+    </div>
+  </div>
+
+  <div class="section">소스 선택</div>
+  <div class="panel">
+    <div class="seg-row">
+      <div class="seg active">✍️ 직접 입력 (textarea)</div>
+      <div class="seg">📂 파일 업로드 (.md)</div>
+      <div class="seg">📦 archive 자료 (content.md)</div>
+      <div class="seg">📄 docs/system 보고서</div>
+    </div>
+    <label class="field">마크다운 입력</label>
+    <textarea class="mock"># IRIS 주간 보고
+## 2026-06-20
+
+---
+
+## 처리 현황
+- documents 1,304 행
+- chunks 5,331 청크
+- archive 33 자료
+
+> 진실원: archive의 마크다운 파일, DB는 인덱스</textarea>
+  </div>
+
+  <div class="section">변환 설정</div>
+  <div class="console-note">소스: <strong>직접 입력</strong> · 본문 <strong>402</strong> chars</div>
+
+  <div class="panel">
+    <h3 class="sub">🛠️ PPT 엔진</h3>
+    <div class="seg-row vertical-group">
+      <div class="seg seg-block active">📄 Marp (단순·빠름)</div>
+      <div class="seg seg-block">🎨 디자인 (컨설팅급, LLM 슬라이드 설계 → HTML 템플릿)</div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="caption">📥 소스: <strong>직접 입력</strong> · 본문 <strong>402</strong> chars</div>
+      </div>
+      <div>
+        <h3 class="sub">🎨 옵션</h3>
+        <label class="field">🧠 LLM 모델 (3개 설치)</label>
+        <select class="mock"><option>qwen3.6-35b-a3b</option></select>
+        <hr class="div" />
+        <label class="field">테마</label>
+        <select class="mock"><option>iris (다크)</option></select>
+        <div class="checkbox-row"><span class="box checked">✓</span> 페이지 번호</div>
+        <div class="checkbox-row"><span class="box">·</span> 🤖 LLM 재구조화 (품질 ↑)</div>
+        <div class="checkbox-row"><span class="box checked">✓</span> exports/ 에 영구 저장</div>
+        <hr class="div" />
+        <div class="btn primary">📊 PPT 생성</div>
+        <div class="btn secondary">📄 PDF 생성 (보너스)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div>
+      <label class="field">회사명</label>
+      <input class="mock" value="휴메딧" />
+    </div>
+    <div>
+      <label class="field">부제</label>
+      <input class="mock" value="IRIS 주간 보고" />
+    </div>
+  </div>
+</body>
+</html>

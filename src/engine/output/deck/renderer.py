@@ -1,16 +1,19 @@
-"""V2.7.6 — Deck JSON → HTML → Playwright PDF."""
+"""V2.8.3 — Deck JSON → HTML → Playwright PDF. per-slide progress callback."""
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pypdf import PdfReader, PdfWriter
 
 from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES
 
+ProgressFn = Callable[[int, int, str], None]
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 TEMPLATES_DIR = REPO_ROOT / "data" / "templates" / "slides"
 
 
@@ -40,7 +43,10 @@ def render_slide_html(slide_pattern: str, slide_data: dict, deck: Deck,
     return tpl.render(**ctx)
 
 
-def render_deck_to_pdf(deck: Deck, out_path: Path | None = None) -> Path:
+def render_deck_to_pdf(
+    deck: Deck, out_path: Path | None = None,
+    *, on_progress: ProgressFn | None = None,
+) -> Path:
     if out_path is None:
         out_path = Path(tempfile.mkdtemp(prefix="iris_deck_")) / "deck.pdf"
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +78,9 @@ def render_deck_to_pdf(deck: Deck, out_path: Path | None = None) -> Path:
                 margin={"top": "0", "bottom": "0", "left": "0", "right": "0"},
             )
             pdf_paths.append(pdf_path)
+            if on_progress is not None:
+                label = str(slide.data.get("title", slide.data.get("company", slide.pattern)))[:40]
+                on_progress(i, total, label)
         browser.close()
 
     writer = PdfWriter()

@@ -1,0 +1,571 @@
+<!doctype html>
+<!--
+  Path: client/dev/antd_pptx_mock.html
+  Purpose: Task A visual-identity mockup — side-by-side comparison of (left) the
+  current iris-hub look, approximated with plain CSS using iris-hub's existing
+  color tokens, versus (right) the same 📊 PPT tab content rendered with real
+  AntD v5 components under AntD's OWN default design tokens (default primary
+  blue #1677ff, default radius/shadow/spacing/type scale — NOT recolored to
+  match iris-hub). The goal of this comparison is to show what AntD looks like
+  out of the box, as a visually distinct alternative to the current plain look.
+
+  This file is a standalone proof-of-concept. It does NOT touch src/tabs/pptx.py,
+  app.py, src/ui_kit.py, or data/themes/hub_ui.css. The left "현재 iris-hub" panel
+  is static plain HTML/CSS (no import of the real hub_ui.css — colors are just
+  copied literal values). The right "AntD 기본 테마" panel's interactive-looking
+  controls (Radio/Select/Upload/Button) are decorative only — not wired to any
+  Python session state or generation pipeline.
+
+  Open directly: `open client/dev/antd_pptx_mock.html` (file://) or serve via any
+  static file server. No npm/pip install, no build step.
+
+  esm.sh loading notes (verified 2026-07-21 — CDN/iframe technical gate PASSED,
+  do not re-verify):
+    - https://esm.sh/antd@5.21.2?external=react,react-dom (WITHOUT ?bundle)
+      fails at module-link time in the browser because esm.sh's es2022 build of
+      @ant-design/colors@7.2.1 only statically re-exports {__esModule, default,
+      generate}; its other named exports (blue, presetPrimaryColors, red, ...)
+      are attached at runtime via a dynamic Object.defineProperty loop that
+      esm.sh's static export-list generator cannot see. antd's core bundle and
+      @ant-design/icons both import those missing named bindings, so this
+      breaks module linking for antd itself, unconditionally.
+    - Fix: request esm.sh's `?bundle` mode for antd and @ant-design/icons.
+      Bundling inlines @ant-design/colors' source directly, so the dynamic
+      property-assignment pattern executes normally instead of failing static
+      export-list resolution. Confirmed via curl that the resulting
+      antd.bundle.mjs / icons.bundle.mjs have zero external imports to
+      @ant-design/colors and still only import bare "react"/"react-dom".
+    - antd v5 no longer needs Less/webpack — styles are injected at runtime via
+      @ant-design/cssinjs when components mount under <ConfigProvider>. We still
+      load antd's reset.css for baseline box-sizing/normalize.
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iris-hub vs AntD 기본 테마 — side-by-side (Task A)</title>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "antd": "https://esm.sh/antd@5.21.2?bundle&external=react,react-dom",
+      "@ant-design/icons": "https://esm.sh/@ant-design/icons@5.5.1?bundle&external=react,react-dom",
+      "htm": "https://esm.sh/htm@3.1.1"
+    }
+  }
+  </script>
+
+  <!-- antd v5 reset/baseline stylesheet (box-sizing, default margins etc). -->
+  <link rel="stylesheet" href="https://esm.sh/antd@5.21.2/dist/reset.css" />
+
+  <style>
+    html, body { margin: 0; padding: 0; background: #e9edf2; }
+    #antd-root { min-height: 100%; }
+
+    .mock-gate-banner {
+      padding: 8px 20px 0;
+      font: 600 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #667085;
+    }
+
+    /* ── comparison shell ─────────────────────────────────────────────── */
+    .compare-shell { max-width: 1520px; margin: 0 auto; padding: 20px 20px 60px; }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+    .panel-label {
+      font: 700 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.01em;
+      margin: 0 0 10px;
+      padding: 7px 14px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .panel-label .sub { font-weight: 500; opacity: 0.85; margin-left: 6px; }
+    .panel-label.is-hub { background: #172033; color: #fff; }
+    .panel-label.is-antd { background: #1677ff; color: #fff; }
+
+    /* ── LEFT panel: "현재 iris-hub" — plain CSS approximation only,       */
+    /*   literal color values copied from data/themes/hub_ui.css, no import */
+    .hub-pane {
+      background: #f6f8fb;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Noto Sans KR", sans-serif;
+      color: #172033;
+    }
+    .hub-panel {
+      background: #ffffff;
+      border: 1px solid #d9e2ec;
+      border-radius: 10px;
+      box-shadow: none;
+      padding: 14px 16px;
+    }
+    .hub-panel + .hub-panel { margin-top: 14px; }
+    .hub-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .hub-title { margin: 0; font-size: 19px; font-weight: 700; color: #101828; }
+    .hub-sub { font-size: 12.5px; color: #667085; margin: 2px 0 0; }
+    .hub-desc { font-size: 12.5px; color: #667085; margin: 8px 0 0; max-width: 480px; line-height: 1.5; }
+    .hub-tag {
+      display: inline-block; font-size: 11px; font-weight: 700; color: #fff;
+      background: #12b76a; border-radius: 999px; padding: 3px 11px; white-space: nowrap;
+    }
+    .hub-flow-row { display: flex; gap: 8px; margin: 14px 0 0; }
+    .hub-kpi-card {
+      flex: 1; background: #ffffff; border: 1px solid #d9e2ec; border-radius: 8px;
+      padding: 10px 12px; min-height: 96px; box-shadow: none;
+    }
+    .hub-kpi-stage {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: #2f80c4;
+      background: rgba(47,128,196,0.08); border-radius: 4px; padding: 2px 6px; display: inline-block;
+    }
+    .hub-kpi-title { font-size: 12.5px; font-weight: 600; color: #172033; margin-top: 6px; }
+    .hub-kpi-big { font-size: 21px; font-weight: 700; color: #101828; letter-spacing: -0.01em; }
+    .hub-kpi-unit { font-size: 11px; color: #667085; margin-left: 4px; font-weight: 600; }
+    .hub-kpi-sub { font-size: 11px; color: #667085; margin-top: 2px; }
+    .hub-arrow { display: flex; align-items: center; color: #98a2b3; font-size: 14px; padding: 0 2px; }
+    .hub-section-title { font-size: 13px; font-weight: 700; color: #172033; margin: 0 0 10px; }
+    .hub-btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .hub-btn {
+      font-size: 11.5px; border: 1px solid #d9e2ec; background: #fff; color: #344054;
+      border-radius: 6px; padding: 5px 10px; font-weight: 600;
+    }
+    .hub-btn.active { background: #2f80c4; border-color: #2f80c4; color: #fff; }
+    .hub-field-label { font-size: 11px; color: #667085; font-weight: 600; margin-bottom: 3px; display: block; }
+    .hub-input, .hub-select, .hub-textarea {
+      width: 100%; box-sizing: border-box; border: 1px solid #d9e2ec; border-radius: 6px;
+      padding: 6px 9px; font-size: 12px; color: #172033; background: #fff; font-family: inherit;
+    }
+    .hub-textarea { font-family: ui-monospace, monospace; font-size: 11.5px; resize: none; }
+    .hub-checkbox-row { font-size: 12px; color: #344054; margin: 5px 0; display: flex; align-items: center; gap: 6px; }
+    .hub-primary-btn {
+      width: 100%; background: #2f80c4; color: #fff; border: none; border-radius: 6px;
+      padding: 8px 10px; font-size: 12.5px; font-weight: 700; margin-top: 6px;
+    }
+    .hub-secondary-btn {
+      width: 100%; background: #fff; color: #2f80c4; border: 1px solid #2f80c4; border-radius: 6px;
+      padding: 8px 10px; font-size: 12.5px; font-weight: 700; margin-top: 6px;
+    }
+    .hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .hub-divider { height: 1px; background: #d9e2ec; margin: 14px 0; border: none; }
+
+    /* ── RIGHT panel: AntD-native — no custom overrides, just a neutral    */
+    /*   wrapper so its own colorBgLayout (#f5f5f5) reads clearly */
+    .antd-pane { border-radius: 8px; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div class="mock-gate-banner">
+    Task A visual-identity check — left = 현재 iris-hub (plain CSS approximation), right = same content in
+    real AntD v5 components under AntD's own default theme (unmodified colorPrimary/#1677ff, default radius/shadow/type
+    scale). Decorative controls only, not wired to Streamlit.
+  </div>
+
+  <div class="compare-shell">
+    <div class="compare-grid">
+
+      <!-- ══════════════ LEFT: 현재 iris-hub (static, plain CSS) ══════════════ -->
+      <div>
+        <span class="panel-label is-hub">현재 iris-hub<span class="sub">— data/themes/hub_ui.css 톤 근사치</span></span>
+        <div class="hub-pane">
+
+          <div class="hub-panel">
+            <div class="hub-header-row">
+              <div>
+                <h3 class="hub-title">📊 PPT · Deck Console</h3>
+                <p class="hub-desc">마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</p>
+              </div>
+              <span class="hub-tag">Export Ready</span>
+            </div>
+
+            <div class="hub-flow-row">
+              <div class="hub-kpi-card">
+                <span class="hub-kpi-stage">① 소스</span>
+                <div class="hub-kpi-title">입력 선택</div>
+                <div><span class="hub-kpi-big">직접</span><span class="hub-kpi-unit">textarea</span></div>
+                <div class="hub-kpi-sub">직접 작성</div>
+              </div>
+              <div class="hub-arrow">→</div>
+              <div class="hub-kpi-card">
+                <span class="hub-kpi-stage">② 원문</span>
+                <div class="hub-kpi-title">마크다운</div>
+                <div><span class="hub-kpi-big">402</span><span class="hub-kpi-unit">chars</span></div>
+                <div class="hub-kpi-sub">슬라이드 원본</div>
+              </div>
+              <div class="hub-arrow">→</div>
+              <div class="hub-kpi-card">
+                <span class="hub-kpi-stage">③ 엔진</span>
+                <div class="hub-kpi-title">변환 방식</div>
+                <div><span class="hub-kpi-big">Marp</span><span class="hub-kpi-unit">Fast</span></div>
+                <div class="hub-kpi-sub">단순·빠름</div>
+              </div>
+              <div class="hub-arrow">→</div>
+              <div class="hub-kpi-card">
+                <span class="hub-kpi-stage">④ 산출</span>
+                <div class="hub-kpi-title">다운로드</div>
+                <div><span class="hub-kpi-big">PPTX</span></div>
+                <div class="hub-kpi-sub">exports 저장 선택</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hub-panel">
+            <h4 class="hub-section-title">소스 선택</h4>
+            <div class="hub-btn-group">
+              <span class="hub-btn active">✍️ 직접 입력 (textarea)</span>
+              <span class="hub-btn">📂 파일 업로드 (.md)</span>
+              <span class="hub-btn">📦 archive 자료 (content.md)</span>
+              <span class="hub-btn">📄 docs/system 보고서</span>
+            </div>
+            <label class="hub-field-label" style="margin-top:12px;">마크다운 입력</label>
+            <textarea class="hub-textarea" rows="5" readonly># IRIS 주간 보고
+## 2026-06-20
+
+- documents 1,304 행
+- chunks 5,331 청크
+- archive 33 자료</textarea>
+          </div>
+
+          <div class="hub-panel">
+            <h4 class="hub-section-title">변환 설정</h4>
+            <label class="hub-field-label">🛠️ PPT 엔진</label>
+            <div class="hub-checkbox-row"><input type="radio" checked readonly /> 📄 Marp (단순·빠름)</div>
+            <div class="hub-checkbox-row"><input type="radio" readonly /> 🎨 디자인 (컨설팅급, LLM 슬라이드 설계 → HTML 템플릿)</div>
+            <hr class="hub-divider" />
+            <div class="hub-grid-2">
+              <div>
+                <label class="hub-field-label">회사명</label>
+                <input class="hub-input" value="赛美特" readonly />
+              </div>
+              <div>
+                <label class="hub-field-label">부제</label>
+                <input class="hub-input" placeholder="IRIS 주간 보고" readonly />
+              </div>
+            </div>
+            <div class="hub-grid-2">
+              <div>
+                <label class="hub-field-label">🧠 LLM 모델</label>
+                <select class="hub-select" disabled><option>qwen3.6-35b-a3b</option></select>
+              </div>
+              <div>
+                <label class="hub-field-label">테마</label>
+                <select class="hub-select" disabled><option>iris (다크)</option></select>
+              </div>
+            </div>
+            <div class="hub-checkbox-row" style="margin-top:12px;"><input type="checkbox" checked readonly /> 페이지 번호</div>
+            <div class="hub-checkbox-row"><input type="checkbox" readonly /> 🤖 LLM 재구조화 (품질 ↑)</div>
+            <div class="hub-checkbox-row"><input type="checkbox" checked readonly /> exports/ 에 영구 저장</div>
+            <hr class="hub-divider" />
+            <button class="hub-primary-btn">📊 PPT 생성</button>
+            <button class="hub-secondary-btn">📄 PDF 생성 (보너스)</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════════ RIGHT: AntD 기본 테마 (real AntD components) ══════════════ -->
+      <div>
+        <span class="panel-label is-antd">AntD 기본 테마<span class="sub">— ConfigProvider 미커스터마이즈, colorPrimary #1677ff</span></span>
+        <div class="antd-pane">
+          <div id="antd-root"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import React from "react";
+    import { createRoot } from "react-dom/client";
+    import htm from "htm";
+    import {
+      ConfigProvider, Layout, Typography, Tag, Card, Row, Col, Space, Divider,
+      Radio, Select, Input, Checkbox, Button, Alert, Upload,
+    } from "antd";
+    import {
+      UploadOutlined, PlayCircleOutlined, FilePdfOutlined, DownloadOutlined,
+    } from "@ant-design/icons";
+
+    const html = htm.bind(React.createElement);
+    const { Title, Text, Paragraph } = Typography;
+
+    // NOTE: no `theme` prop is passed to ConfigProvider below — this panel is
+    // intentionally left on AntD's own default seed tokens (colorPrimary
+    // #1677ff, default borderRadius/boxShadow/font stack/type scale). Do NOT
+    // add token overrides here; that would recreate the "looks the same as
+    // iris-hub" problem this file was rewritten to fix.
+
+    // ── ① 소스 → ② 원문 → ③ 엔진 → ④ 산출 pipeline row ──────────────────────
+    // Mirrors _render_deck_flow() in src/tabs/pptx.py — values below are a
+    // snapshot for the default state (직접 입력 / Marp).
+    function FlowCard({ stageId, title, big, unit, sub }) {
+      return html`
+        <${Card} size="small">
+          <${Tag} color="blue">${stageId}<//>
+          <div style=${{ marginTop: 6 }}><${Text} strong>${title}<//></div>
+          <div style=${{ marginTop: 6 }}>
+            <${Title} level=${4} style=${{ display: "inline", margin: 0 }}>${big}<//>
+            ${unit ? html`<${Text} type="secondary" style=${{ marginLeft: 5 }}>${unit}<//>` : null}
+          </div>
+          ${sub ? html`<div><${Text} type="secondary">${sub}<//></div>` : null}
+        <//>
+      `;
+    }
+
+    function PipelineFlow() {
+      return html`
+        <${Row} gutter=${12} align="stretch" wrap=${false} style=${{ margin: "12px 0 6px" }}>
+          <${Col} flex="1"><${FlowCard} stageId="① 소스" title="입력 선택" big="직접" unit="textarea" sub="직접 작성" /><//>
+          <${Col} flex="none" style=${{ display: "flex", alignItems: "center" }}>→<//>
+          <${Col} flex="1"><${FlowCard} stageId="② 원문" title="마크다운" big="402" unit="chars" sub="슬라이드 원본" /><//>
+          <${Col} flex="none" style=${{ display: "flex", alignItems: "center" }}>→<//>
+          <${Col} flex="1"><${FlowCard} stageId="③ 엔진" title="변환 방식" big="Marp" unit="Fast" sub="단순·빠름" /><//>
+          <${Col} flex="none" style=${{ display: "flex", alignItems: "center" }}>→<//>
+          <${Col} flex="1"><${FlowCard} stageId="④ 산출" title="다운로드" big="PPTX" sub="exports 저장 선택" /><//>
+        <//>
+      `;
+    }
+
+    // ── Header ────────────────────────────────────────────────────────────
+    function PageHeader() {
+      return html`
+        <${Card} style=${{ marginBottom: 4 }}>
+          <${Row} justify="space-between" align="middle" wrap=${false}>
+            <${Col}>
+              <${Space} align="center" size=${10}>
+                <${Title} level=${3} style=${{ margin: 0 }}>📊 PPT<//>
+                <${Text} type="secondary">Deck Console<//>
+              <//>
+              <${Paragraph} style=${{ margin: "6px 0 0", maxWidth: 560 }}>
+                마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.
+              <//>
+            <//>
+            <${Col}>
+              <${Tag} color="success">Export Ready<//>
+            <//>
+          <//>
+        <//>
+      `;
+    }
+
+    // ── 소스 선택 section ─────────────────────────────────────────────────
+    function SourceSection() {
+      return html`
+        <${Card} title="소스 선택" style=${{ marginTop: 16 }}>
+          <${Radio.Group}
+            defaultValue="write"
+            optionType="button"
+            buttonStyle="solid"
+            options=${[
+              { label: "✍️ 직접 입력 (textarea)", value: "write" },
+              { label: "📂 파일 업로드 (.md)", value: "upload" },
+              { label: "📦 archive 자료 (content.md)", value: "archive" },
+              { label: "📄 docs/system 보고서", value: "docs" },
+            ]}
+          />
+
+          <div style=${{ marginTop: 14 }}>
+            <${Text} strong>마크다운 입력<//>
+            <${Input.TextArea}
+              defaultValue=${"# IRIS 주간 보고\n## 2026-06-20\n\n---\n\n## 📊 처리 현황\n\n- documents 1,304 행\n- chunks 5,331 청크\n- archive 33 자료\n\n> 진실원: archive의 마크다운 파일, DB는 인덱스"}
+              autoSize=${{ minRows: 6, maxRows: 6 }}
+              style=${{ marginTop: 6, fontFamily: "ui-monospace, monospace" }}
+            />
+          </div>
+
+          <${Divider} />
+          <${Text} type="secondary">
+            다른 소스 모드 미리보기 (선택 시 실제로는 이 자리에 아래 위젯 하나만 표시됨) — 데코레이션
+          <//>
+          <${Row} gutter=${12} style=${{ marginTop: 10 }}>
+            <${Col} span=${8}>
+              <${Upload.Dragger} disabled height=${88} showUploadList=${false}>
+                <p style=${{ margin: 0 }}><${UploadOutlined} /><//>
+                <p style=${{ margin: "4px 0 0" }}>.md 파일 선택<//>
+              <//>
+            <//>
+            <${Col} span=${8}>
+              <${Text} type="secondary">archive 자료 (33건)<//>
+              <${Select}
+                disabled
+                style=${{ width: "100%", marginTop: 4 }}
+                defaultValue="(선택)"
+                options=${[{ value: "(선택)", label: "(선택)" }]}
+              />
+            <//>
+            <${Col} span=${8}>
+              <${Text} type="secondary">docs/system 보고서<//>
+              <${Select}
+                disabled
+                style=${{ width: "100%", marginTop: 4 }}
+                defaultValue="(선택)"
+                options=${[{ value: "(선택)", label: "(선택)" }]}
+              />
+            <//>
+          <//>
+        <//>
+      `;
+    }
+
+    // ── 변환 설정 section ─────────────────────────────────────────────────
+    function ConvertSection() {
+      return html`
+        <${Card} title="변환 설정" style=${{ marginTop: 16 }}>
+          <${Alert}
+            type="info"
+            showIcon
+            message=${html`소스: <b>직접 입력</b> · 본문 <b>402</b> chars`}
+            style=${{ marginBottom: 16 }}
+          />
+
+          <${Text} strong>🛠️ PPT 엔진<//>
+          <div style=${{ marginTop: 6 }}>
+            <${Radio.Group} defaultValue="marp">
+              <${Space} direction="vertical">
+                <${Radio} value="marp">📄 Marp (단순·빠름)<//>
+                <${Radio} value="design">🎨 디자인 (컨설팅급, LLM 슬라이드 설계 → HTML 템플릿)<//>
+              <//>
+            <//>
+          </div>
+
+          <${Divider} />
+
+          <${Row} gutter=${24}>
+            <${Col} span=${13}>
+              <${Text} type="secondary">📥 소스: <b>직접 입력</b> · 본문 <b>402</b> chars<//>
+
+              <div style=${{ marginTop: 14 }}>
+                <${Text} strong>📝 메타 정보 (디자인 엔진용)<//>
+                <${Row} gutter=${10} style=${{ marginTop: 8 }}>
+                  <${Col} span=${12}>
+                    <${Text} type="secondary">회사명<//>
+                    <${Input} defaultValue="赛美特" style=${{ marginTop: 4 }} />
+                  <//>
+                  <${Col} span=${12}>
+                    <${Text} type="secondary">부제<//>
+                    <${Input} placeholder="IRIS 주간 보고" style=${{ marginTop: 4 }} />
+                  <//>
+                <//>
+                <${Row} gutter=${10} style=${{ marginTop: 8 }}>
+                  <${Col} span=${12}>
+                    <${Text} type="secondary">보고서 제목<//>
+                    <${Input} placeholder="IRIS 주간 보고" style=${{ marginTop: 4 }} />
+                  <//>
+                  <${Col} span=${12}>
+                    <${Text} type="secondary">날짜·버전<//>
+                    <${Input} defaultValue="2026.07.21 | v1.0" style=${{ marginTop: 4 }} />
+                  <//>
+                <//>
+              </div>
+            <//>
+
+            <${Col} span=${11}>
+              <${Text} strong>🎨 옵션<//>
+
+              <div style=${{ marginTop: 8 }}>
+                <${Text} type="secondary">🧠 LLM 모델 (3개 설치)<//>
+                <${Select}
+                  defaultValue="qwen3.6-35b-a3b"
+                  style=${{ width: "100%", marginTop: 4 }}
+                  options=${[
+                    { value: "qwen3.6-35b-a3b", label: "qwen3.6-35b-a3b" },
+                    { value: "llama3.1-8b", label: "llama3.1-8b" },
+                    { value: "deepseek-v3", label: "deepseek-v3" },
+                  ]}
+                />
+              </div>
+
+              <${Divider} />
+
+              <${Row} gutter=${10}>
+                <${Col} span=${12}>
+                  <${Text} type="secondary">테마<//>
+                  <${Select}
+                    defaultValue="iris"
+                    style=${{ width: "100%", marginTop: 4 }}
+                    options=${[
+                      { value: "iris", label: "iris (다크)" },
+                      { value: "default", label: "default (기본)" },
+                      { value: "gaia", label: "gaia (밝음)" },
+                      { value: "uncover", label: "uncover (미니멀)" },
+                    ]}
+                  />
+                <//>
+                <${Col} span=${12}>
+                  <${Text} type="secondary">🎯 목표 슬라이드 수<//>
+                  <${Select}
+                    defaultValue="auto"
+                    style=${{ width: "100%", marginTop: 4 }}
+                    options=${[
+                      { value: "auto", label: "auto (입력 크기에 따라)" },
+                      { value: "10", label: "10장" },
+                      { value: "15", label: "15장" },
+                      { value: "20", label: "20장" },
+                      { value: "25", label: "25장" },
+                      { value: "30", label: "30장" },
+                    ]}
+                  />
+                <//>
+              <//>
+
+              <${Space} direction="vertical" style=${{ marginTop: 12 }}>
+                <${Checkbox} defaultChecked>페이지 번호<//>
+                <${Checkbox}>🤖 LLM 재구조화 (품질 ↑)<//>
+                <${Checkbox} defaultChecked>exports/ 에 영구 저장<//>
+              <//>
+
+              <${Divider} />
+
+              <${Text} type="secondary">출력 형식<//>
+              <div style=${{ marginTop: 4 }}>
+                <${Radio.Group} defaultValue="pdf">
+                  <${Radio} value="pdf">PDF (벡터, 편집 불가)<//>
+                  <${Radio} value="pptx">PPTX (이미지 임베드)<//>
+                <//>
+              </div>
+
+              <${Divider} />
+
+              <${Space} direction="vertical" style=${{ width: "100%" }} size=${8}>
+                <${Button} type="primary" icon=${html`<${PlayCircleOutlined} />`} block>
+                  📊 PPT 생성
+                <//>
+                <${Button} icon=${html`<${FilePdfOutlined} />`} block>
+                  📄 PDF 생성 (보너스)
+                <//>
+                <${Button} icon=${html`<${DownloadOutlined} />`} block disabled>
+                  💾 다운로드 (slides_2026-07-21_120000.pptx)
+                <//>
+              <//>
+            <//>
+          <//>
+        <//>
+      `;
+    }
+
+    function App() {
+      return html`
+        <${ConfigProvider}>
+          <${Layout} style=${{ minHeight: "100%" }}>
+            <${Layout.Content} style=${{ padding: 20 }}>
+              <${PageHeader} />
+              <${PipelineFlow} />
+              <${SourceSection} />
+              <${ConvertSection} />
+            <//>
+          <//>
+        <//>
+      `;
+    }
+
+    createRoot(document.getElementById("antd-root")).render(html`<${App} />`);
+  </script>
+</body>
+</html>
