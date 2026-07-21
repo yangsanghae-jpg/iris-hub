@@ -31,6 +31,19 @@ _PPTX_CSS = """
   --pptx-ch-5:#ef4444; --pptx-ch-6:#06b6d4; --pptx-ch-7:#a855f7;
 }
 
+/* ── hub_ui.css가 전탭 공통으로 .block-container를 1180px로 캡핑 — 진단툴(별도
+   standalone 앱)엔 이 캡이 없어 PC 화면에서 상대적으로 좁아 보임. 이 CSS는
+   pptx.render() 안에서만 주입되므로 PPT 탭에 있을 때만 넓어지고, 다른 탭으로
+   가면 이 <style>이 DOM에서 빠져 원래 1180px로 돌아감(다른 탭 무영향). ── */
+.block-container {
+  max-width: 1800px !important;
+}
+/* 소스 레일은 목업처럼 고정 폭 유지 — 페이지가 넓어져도 st.columns 비율대로
+   같이 늘어나면 아이콘 행이 불필요하게 뚱뚱해짐. */
+[data-testid="stColumn"]:has(> div .pptx-rail-anchor) {
+  flex: 0 0 220px !important; max-width: 220px !important; min-width: 220px !important;
+}
+
 /* ── hub_pagebar을 진단툴 topbar 톤으로 (PPT 탭 전용, 다른 탭 무영향) ── */
 .hub-pagebar {
   border-color: var(--pptx-line) !important;
@@ -545,6 +558,7 @@ def render() -> None:
         docs_items = _list_docs_md()
 
         with rail_col:
+            st.markdown("<div class='pptx-rail-anchor'></div>", unsafe_allow_html=True)
             upload_name = st.session_state.get("pptx_upload_name")
             # 옵션 정체성(_SOURCE_MODES)과 표시 라벨(실시간 카운트)을 분리 —
             # 라벨에 매 rerun마다 바뀌는 글자수를 그대로 넣으면 위젯 상태 매칭이 깨짐.
