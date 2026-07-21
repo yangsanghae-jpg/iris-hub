@@ -129,13 +129,16 @@ _PPTX_CSS = """
 .st-key-pptx_source_mode_v2 div[data-testid="stRadio"] label:nth-of-type(3):has(input:checked) { background:#fffbeb !important; border-color:var(--pptx-ch-4) !important; }
 .st-key-pptx_source_mode_v2 div[data-testid="stRadio"] label:nth-of-type(4):has(input:checked) { background:#eef2ff !important; border-color:var(--pptx-ch-3) !important; }
 
-/* ── 엔진 선택 라디오도 같은 카드 톤 ── */
+/* ── 엔진 선택 라디오: 컴팩트 카드 2개 나란히. display:flex만으로는
+   Streamlit 자체 emotion 클래스의 flex-direction:column이 이겨서
+   세로로 쌓였음(실측 확인) — row를 명시로 강제. ── */
 .st-key-pptx_engine div[data-testid="stRadio"] > div[role="radiogroup"] {
-  display:flex !important; gap:10px !important;
+  display:flex !important; flex-direction:row !important; gap:10px !important;
 }
 .st-key-pptx_engine div[data-testid="stRadio"] label {
   border:1px solid var(--pptx-s1-border) !important; border-radius:10px !important;
   padding:11px 13px !important; background:#fff !important; flex:1 1 0 !important;
+  min-width:0 !important;
 }
 .st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(1) { border-left:3px solid var(--pptx-ch-4) !important; }
 .st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(2) { border-left:3px solid var(--pptx-ch-5) !important; }
@@ -617,13 +620,18 @@ def render() -> None:
                 )
 
     st.markdown("<div class='pptx-section-title'><span class='dot' style='background:var(--pptx-ch-4)'></span>변환 설정</div>", unsafe_allow_html=True)
-    with st.container(border=True):
-        st.markdown(f"<div class='pptx-caption'>소스: <strong>{_esc(source_label or '미선택')}</strong> · 본문 <strong>{len(md_text):,}</strong> chars</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='pptx-caption'>소스: <strong>{_esc(source_label or '미선택')}</strong> · 본문 <strong>{len(md_text):,}</strong> chars</div>", unsafe_allow_html=True)
 
+    # 좌(엔진선택+공통설정+생성버튼, 고정폭) / 우(엔진별 상세, 나머지 전체) —
+    # 폭만 넓힌 1열 스택이 아니라 실제로 폭을 나눠 쓰도록 재구성 (와이드 목업 이식).
+    left_col, right_col = st.columns([1, 3], gap="medium")
+
+    with left_col:
+        st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>PPT 엔진</div>", unsafe_allow_html=True)
         engine = st.radio(
             "🛠️ PPT 엔진",
             options=["📄 Marp (단순·빠름)", "🎨 디자인 (컨설팅급, LLM 슬라이드 설계 → HTML 템플릿)"],
-            index=0, key="pptx_engine",
+            index=0, key="pptx_engine", label_visibility="collapsed",
             help="Marp = 마크다운을 슬라이드로 그대로 박음 (3~10초). "
                  "디자인 = LLM이 패턴 결정 → HTML 렌더 (30~120초, playwright 필요).",
         )
@@ -632,18 +640,18 @@ def render() -> None:
         with st.container(border=True, key="pptx_common_box"):
             st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>공통 설정 · Marp · 디자인</div>", unsafe_allow_html=True)
 
-            r1c1, r1c2, r1c3 = st.columns(3)
+            if "pptx_output_format_pills" not in st.session_state:
+                st.session_state["pptx_output_format_pills"] = "📄 PDF"
+            out_choice = st.pills("출력 형식", options=["📄 PDF", "📊 PPTX"], selection_mode="single",
+                                  key="pptx_output_format_pills", width="stretch")
+
+            r1c1, r1c2 = st.columns(2)
             with r1c1:
-                if "pptx_output_format_pills" not in st.session_state:
-                    st.session_state["pptx_output_format_pills"] = "📄 PDF"
-                out_choice = st.pills("출력 형식", options=["📄 PDF", "📊 PPTX"], selection_mode="single",
-                                      key="pptx_output_format_pills", width="stretch")
-            with r1c2:
                 if "pptx_paginate_pills" not in st.session_state:
                     st.session_state["pptx_paginate_pills"] = "ON"
                 pag_choice = st.pills("페이지 번호", options=["ON", "OFF"], selection_mode="single",
                                      key="pptx_paginate_pills", width="stretch")
-            with r1c3:
+            with r1c2:
                 if "pptx_save_disk_pills" not in st.session_state:
                     st.session_state["pptx_save_disk_pills"] = "ON" if is_design else "OFF"
                 save_choice = st.pills("exports 저장", options=["ON", "OFF"], selection_mode="single",
@@ -670,27 +678,39 @@ def render() -> None:
                     help=f"Ollama 설치 모델. 기본 env IRIS_LLM_DEEP=`{IRIS_LLM_DEEP}`.",
                 )
 
-        theme_name = None
-        use_llm_restructure = False
-        use_2stage = False
-        slide_target = "auto (입력 크기에 따라)"
-        deck_company = st.session_state.get("pptx_deck_company", _DEFAULT_DECK_COMPANY)
-        deck_title = st.session_state.get("pptx_deck_title", "")
-        deck_subtitle = st.session_state.get("pptx_deck_subtitle", "")
-        deck_date = st.session_state.get("pptx_deck_date", "")
+        if is_design:
+            gen_btn = st.button("🎨 디자인 PPT 생성", type="primary", use_container_width=True,
+                               disabled=not md_text.strip(), key="pptx_gen_design")
+        else:
+            gen_pdf = "PDF" in str(output_format)
+            gen_btn = st.button("📄 PDF 생성" if gen_pdf else "📊 PPT 생성", type="primary",
+                               use_container_width=True, disabled=not md_text.strip(), key="pptx_gen_marp")
 
+    theme_name = None
+    use_llm_restructure = False
+    use_2stage = False
+    slide_target = "auto (입력 크기에 따라)"
+    deck_company = st.session_state.get("pptx_deck_company", _DEFAULT_DECK_COMPANY)
+    deck_title = st.session_state.get("pptx_deck_title", "")
+    deck_subtitle = st.session_state.get("pptx_deck_subtitle", "")
+    deck_date = st.session_state.get("pptx_deck_date", "")
+
+    with right_col:
         if not is_design:
-            c1, c2 = st.columns(2)
-            with c1:
-                theme_name = st.selectbox(
-                    "테마", options=["iris (다크)", "default (기본)", "gaia (밝음)", "uncover (미니멀)"],
-                    index=0, key="pptx_theme", help="iris는 IRIS 전용 다크 테마. 다른 테마는 Marp 내장.",
-                )
-            with c2:
-                use_llm_restructure = st.checkbox(
-                    "🤖 LLM 재구조화 (품질 ↑)", value=False, key="pptx_use_llm",
-                    help="Marp 변환 *전*에 LLM이 마크다운을 프레젠테이션용으로 재구조화.",
-                )
+            with st.container(border=True):
+                st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>Marp 옵션</div>", unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    theme_name = st.selectbox(
+                        "테마", options=["iris (다크)", "default (기본)", "gaia (밝음)", "uncover (미니멀)"],
+                        index=0, key="pptx_theme", help="iris는 IRIS 전용 다크 테마. 다른 테마는 Marp 내장.",
+                    )
+                with c2:
+                    st.markdown("<div style='height:1.6rem'></div>", unsafe_allow_html=True)
+                    use_llm_restructure = st.checkbox(
+                        "🤖 LLM 재구조화 (품질 ↑)", value=False, key="pptx_use_llm",
+                        help="Marp 변환 *전*에 LLM이 마크다운을 프레젠테이션용으로 재구조화.",
+                    )
         else:
             with st.container(border=True, key="pptx_design_box"):
                 st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-5)'></span>디자인 엔진 상세</div>", unsafe_allow_html=True)
@@ -725,19 +745,21 @@ def render() -> None:
                         key="pptx_sample_pills", label_visibility="collapsed", width="stretch")
                 st.markdown("<div class='wire-note'>현재 <code>_base.html.j2</code>가 테마 1개뿐이라서, 흑백/컬러풀용 base 변형 CSS 2개 추가 배선이 필요합니다.</div>", unsafe_allow_html=True)
 
-                st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🌐 언어</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
-                if "pptx_lang_pills" not in st.session_state:
-                    st.session_state["pptx_lang_pills"] = "한국어"
-                st.pills("언어 선택", options=["한국어", "中文", "자동 (소스)"], selection_mode="single",
-                        key="pptx_lang_pills", label_visibility="collapsed", width="stretch")
-                st.markdown("<div class='wire-note'>지금은 소스 언어를 따라가서, designer 프롬프트에 한국어/중국어 강제 지시 배선이 필요합니다.</div>", unsafe_allow_html=True)
-
-                st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🎨 컬러 (액센트)</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
-                if "pptx_color_pills" not in st.session_state:
-                    st.session_state["pptx_color_pills"] = "⬛ 네이비"
-                st.pills("컬러 선택", options=["⬛ 네이비", "🔵 블루", "🟧 오렌지", "🟩 그린", "🟪 퍼플", "🟥 레드"],
-                        selection_mode="single", key="pptx_color_pills", label_visibility="collapsed", width="stretch")
-                st.markdown("<div class='wire-note'><code>_base.html.j2</code>의 팔레트는 고정이라서, 선택 색을 <code>--accent</code>에 주입하는 배선이 필요합니다.</div>", unsafe_allow_html=True)
+                lc1, lc2 = st.columns(2)
+                with lc1:
+                    st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🌐 언어</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
+                    if "pptx_lang_pills" not in st.session_state:
+                        st.session_state["pptx_lang_pills"] = "한국어"
+                    st.pills("언어 선택", options=["한국어", "中文", "자동"], selection_mode="single",
+                            key="pptx_lang_pills", label_visibility="collapsed", width="stretch")
+                    st.markdown("<div class='wire-note'>소스 언어를 따라감 — designer 프롬프트 강제 지시 배선 필요.</div>", unsafe_allow_html=True)
+                with lc2:
+                    st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🎨 컬러 (액센트)</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
+                    if "pptx_color_pills" not in st.session_state:
+                        st.session_state["pptx_color_pills"] = "⬛ 네이비"
+                    st.pills("컬러 선택", options=["⬛ 네이비", "🔵 블루", "🟧 오렌지", "🟩 그린", "🟪 퍼플", "🟥 레드"],
+                            selection_mode="single", key="pptx_color_pills", label_visibility="collapsed", width="stretch")
+                    st.markdown("<div class='wire-note'><code>--accent</code> 주입 배선 필요.</div>", unsafe_allow_html=True)
 
                 st.markdown("<hr style='margin:14px 0;border:none;border-top:1px solid #eee'>", unsafe_allow_html=True)
 
@@ -751,6 +773,7 @@ def render() -> None:
                         selection_mode="single", key="pptx_slide_target_pills", width="stretch",
                     )
                 with sc2:
+                    st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
                     use_2stage = st.checkbox("🚀 2단 파이프라인 (품질 ↑↑)", value=True, key="pptx_use_2stage",
                                             help="① LLM 입력 확장 → ② 슬라이드 패턴 매칭. OFF면 단일-패스.")
 
@@ -764,14 +787,6 @@ def render() -> None:
                     deck_subtitle = st.text_input("부제", key="pptx_deck_subtitle")
                 with mc3:
                     deck_date = st.text_input("날짜·버전", key="pptx_deck_date")
-
-        if is_design:
-            gen_btn = st.button("🎨 디자인 PPT 생성", type="primary", use_container_width=True,
-                               disabled=not md_text.strip(), key="pptx_gen_design")
-        else:
-            gen_pdf = "PDF" in str(output_format)
-            gen_btn = st.button("📄 PDF 생성" if gen_pdf else "📊 PPT 생성", type="primary",
-                               use_container_width=True, disabled=not md_text.strip(), key="pptx_gen_marp")
 
     # ─── 스트립 그리기 (생성 전: 현재 선택 상태 그대로) ──────────────────
     engine_label = "Design" if is_design else "Marp"
