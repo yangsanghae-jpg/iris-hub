@@ -119,3 +119,8 @@ LLM_MODELS = {
     "fast":  IRIS_LLM_FAST,
     "embed": IRIS_LLM_EMBED,
 }
+
+# ─── Claude API (PPT 확장/설계 전용 — 로컬 모델 품질 미달로 임시 전환) ──────────
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+ANTHROPIC_MODELS = ["claude-sonnet-5", "claude-haiku-4-5-20251001"]
+IRIS_PPTX_MODEL = os.getenv("IRIS_PPTX_MODEL", ANTHROPIC_MODELS[0])

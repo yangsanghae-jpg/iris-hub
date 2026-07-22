@@ -237,14 +237,6 @@ def _save_to_exports(pptx_path: Path, prefix: str = "slides") -> Path:
     return target
 
 
-def _ollama_models() -> list[str]:
-    """Ollama 설치 모델 목록 — embed 전용은 제외."""
-    from src import llm
-    names = llm.list_models()
-    return [n for n in names
-            if not any(k in n.lower() for k in ("bge-m3", "nomic-embed", "embed"))]
-
-
 def _list_archive_content_md() -> list[tuple[str, Path]]:
     """3-archive/<date>/<doc_id>/content.md 목록 — (라벨, 경로)."""
     from src.config import IRIS_KNOWLEDGE_ARCHIVE
@@ -532,21 +524,15 @@ def _render_side(step: int) -> None:
         key="pptx_page_count_sel",
     )
 
-    from src.config import IRIS_LLM_DEEP
-    installed = _ollama_models()
-    if not installed:
-        st.warning("⚠️ Ollama에 모델 0개 또는 미가동")
-    else:
-        default_idx = 0
-        for i, n in enumerate(installed):
-            if n == IRIS_LLM_DEEP or n.startswith(IRIS_LLM_DEEP + ":"):
-                default_idx = i
-                break
-        cur_model = st.session_state.get("pptx_model")
-        idx = installed.index(cur_model) if cur_model in installed else default_idx
-        st.session_state["pptx_model"] = st.selectbox(
-            f"LLM 모델 ({len(installed)}개 설치)", installed, index=idx, key="pptx_model_sel",
-        )
+    from src.config import ANTHROPIC_API_KEY, ANTHROPIC_MODELS, IRIS_PPTX_MODEL
+    if not ANTHROPIC_API_KEY:
+        st.warning("⚠️ ANTHROPIC_API_KEY 미설정 — 확장/설계 단계가 실패합니다")
+    default_idx = ANTHROPIC_MODELS.index(IRIS_PPTX_MODEL) if IRIS_PPTX_MODEL in ANTHROPIC_MODELS else 0
+    cur_model = st.session_state.get("pptx_model")
+    idx = ANTHROPIC_MODELS.index(cur_model) if cur_model in ANTHROPIC_MODELS else default_idx
+    st.session_state["pptx_model"] = st.selectbox(
+        "LLM 모델 (Claude)", ANTHROPIC_MODELS, index=idx, key="pptx_model_sel",
+    )
     st.markdown(
         "<div class='src-settings-note'>여기서 정한 값이 ②확장의 LLM 변환에 그대로 적용됩니다.</div>",
         unsafe_allow_html=True,
@@ -819,11 +805,10 @@ def _step_design() -> None:
             key="pptx_other_llm_chk",
         )
         if st.session_state["pptx_use_other_llm_design"]:
-            installed = _ollama_models()
-            if installed:
-                st.session_state["pptx_design_model_override"] = st.selectbox(
-                    "설계용 모델", installed, key="pptx_design_model_sel",
-                )
+            from src.config import ANTHROPIC_MODELS
+            st.session_state["pptx_design_model_override"] = st.selectbox(
+                "설계용 모델", ANTHROPIC_MODELS, key="pptx_design_model_sel",
+            )
 
     # ── 설계 실행 ──
     st.markdown("<hr style='margin:14px 0;border:none;border-top:1px dashed var(--pptx-s1-border)'>",
