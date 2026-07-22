@@ -20,7 +20,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from src import llm_claude as llm
+from src import llm
 
 
 class ExpansionError(Exception):
