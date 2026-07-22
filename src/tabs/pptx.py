@@ -477,18 +477,26 @@ def _render_stepper(step: int) -> None:
     css_parts = []
     for i in range(4):
         hue = _STEP_HUES[i]
+        # 선택자 특이도(specificity) 주의: 위 static 규칙
+        # `.st-key-pptx_stepper_box [data-testid="stButton"] button`은
+        # 클래스/속성 2개 + 태그 1개(0,2,1) — 여기서 `.st-key-pptx_step_btn_N button`만
+        # 쓰면(0,1,1) 특이도가 낮아 static 규칙에 밀려 활성 단계 강조색이 통째로
+        # 무효화된다(실사용 스크린샷에서 스텝퍼가 항상 "무채색"으로 보이던 원인).
+        # `[data-testid="stButton"]`까지 포함해 static 규칙과 같은 형태로 맞춰
+        # 특이도를 동일 이상으로 올린다.
+        sel = f".st-key-pptx_stepper_box .st-key-pptx_step_btn_{i} [data-testid=\"stButton\"] button"
         if i == step:
             css_parts.append(
-                f".st-key-pptx_step_btn_{i} button {{ background:#fafbfd !important; "
+                f"{sel} {{ background:#fafbfd !important; "
                 f"border-bottom:3px solid {hue} !important; color:{hue} !important; }}"
             )
         elif i < step:
             css_parts.append(
-                f".st-key-pptx_step_btn_{i} button {{ color:var(--pptx-s1-text-main) !important; }}"
+                f"{sel} {{ color:var(--pptx-s1-text-main) !important; }}"
             )
         else:
             css_parts.append(
-                f".st-key-pptx_step_btn_{i} button {{ color:var(--pptx-muted) !important; }}"
+                f"{sel} {{ color:var(--pptx-muted) !important; }}"
             )
     st.markdown("<style>" + "\n".join(css_parts) + "</style>", unsafe_allow_html=True)
 
