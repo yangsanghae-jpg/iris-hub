@@ -1,0 +1,551 @@
+<!doctype html>
+<!--
+  PPT tab redesign — wizard layout mockup (live iteration draft).
+  Visual language (card bg/border/radius/shadow, chapter hue set) kept
+  identical to the approved diagnosistool_pptx_mock.html baseline.
+  Structural change: replaces the 2-column "4 cards at once" layout with
+  a single top stepper (소스→확장→설계→렌더) + one focused panel + a
+  right-side running summary, so only one step is visible at a time.
+  Open directly: file:///Users/iris/0Dev/iris-hub/client/dev/pptx_wizard_mock.html
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PPT 탭 — 위저드 레이아웃 목업</title>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --text: #1f2a37;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    --radius: 16px;
+    --s1-border: #eeeeee;
+    --s1-text-main: #111827;
+    --s1-text-sub: #6b7280;
+
+    --ch-1: #3b82f6;
+    --ch-2: #22c55e;
+    --ch-3: #6366f1;
+    --ch-4: #f59e0b;
+    --ch-5: #ef4444;
+    --ch-6: #06b6d4;
+    --ch-7: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+  body { padding: 28px 32px 60px; max-width: 1400px; margin: 0 auto; }
+  .note {
+    font-size: 11px; color: var(--muted); margin-bottom: 18px;
+    border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; background: #fff;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .topbar .title { font-size: 16px; font-weight: 800; }
+  .topbar .sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .topbar .badge {
+    background: #16a34a; color: #fff; font-size: 11px; font-weight: 800;
+    padding: 5px 10px; border-radius: 6px;
+  }
+
+  /* ── stepper ── */
+  .stepper {
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04); margin-bottom: 18px; overflow: hidden;
+  }
+  .step {
+    flex: 1 1 0; display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; cursor: pointer; position: relative; border-right: 1px solid var(--line);
+    transition: background .12s ease;
+  }
+  .step:last-child { border-right: none; }
+  .step:hover { background: #fafbfd; }
+  .step .num {
+    width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; border: 1.5px solid var(--s1-border); color: var(--muted);
+  }
+  .step .lab { font-size: 13px; font-weight: 800; color: var(--s1-text-sub); }
+  .step .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .step.done .num { background: var(--hue); border-color: var(--hue); color: #fff; }
+  .step.done .num::before { content: "✓"; }
+  .step.active { background: var(--tint); }
+  .step.active .num { border-color: var(--hue); color: var(--hue); background: #fff; }
+  .step.active .lab { color: var(--hue); }
+  .step.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--hue);
+  }
+
+  /* ── main grid ── */
+  .grid { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 18px; align-items: start; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px 22px; min-height: 420px;
+  }
+  .panel h3 { font-size: 14px; font-weight: 800; margin: 0 0 14px; color: var(--s1-text-main); }
+
+  .side {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .side h4 { font-size: 12px; font-weight: 800; color: var(--muted); margin: 0; text-transform: uppercase; letter-spacing: .03em; }
+  .side .row { border-bottom: 1px solid var(--s1-border); padding-bottom: 10px; }
+  .side .row:last-of-type { border-bottom: none; padding-bottom: 0; }
+  .side .row .k { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--muted); font-weight: 700; }
+  .side .row .k a { color: #3b82f6; text-decoration: none; font-weight: 700; }
+  .side .row .v { font-size: 12.5px; color: var(--s1-text-main); margin-top: 3px; font-weight: 600; }
+  .side .v.muted { color: #b8c0cc; font-weight: 500; }
+
+  .status-mini { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .status-mini .r { display: flex; justify-content: space-between; font-size: 11px; }
+  .status-mini .ok { color: #16a34a; font-weight: 700; }
+
+  /* ── step 1: source ── */
+  .src-grid { display: grid; grid-template-columns: minmax(0,1fr) 200px; gap: 20px; align-items: start; }
+  .src-settings { display: flex; flex-direction: column; gap: 14px; background: #f9fafb; border: 1px solid var(--s1-border); border-radius: 10px; padding: 14px; }
+  .src-settings-note { font-size: 11px; color: var(--muted); line-height: 1.5; border-top: 1px dashed var(--s1-border); padding-top: 10px; }
+  .src-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .src-tabs button {
+    border: 1px solid var(--s1-border); background: #fff; border-radius: 8px; padding: 7px 12px;
+    font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
+  }
+  .src-tabs button.on { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+  textarea, select {
+    width: 100%; border: 1px solid var(--s1-border); border-radius: 8px; padding: 10px 12px;
+    font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, monospace; color: var(--s1-text-main);
+  }
+  select { font-family: inherit; padding: 9px 10px; }
+
+  /* ── step 2: expand preview ── */
+  .expand-note { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .expand-box {
+    background: #f9fafb; border: 1px solid var(--s1-border); border-radius: 10px; padding: 14px;
+    font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.7; white-space: pre-wrap;
+    max-height: 320px; overflow: auto; color: var(--s1-text-main);
+  }
+
+  .harness-rules { display: flex; flex-direction: column; gap: 8px; background: #f9fafb; border: 1px solid var(--s1-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .rule { display: flex; align-items: center; gap: 12px; }
+  .rule .rk { font-size: 11px; font-weight: 800; color: var(--muted); width: 74px; flex: 0 0 auto; }
+  .rule .rv { font-size: 12px; font-weight: 700; color: var(--s1-text-main); display: flex; gap: 6px; flex-wrap: wrap; }
+  .bt { font-size: 10.5px; font-weight: 700; color: var(--muted); background: #fff; border: 1px solid var(--s1-border); border-radius: 6px; padding: 2px 8px; }
+  .bt.on { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .rule-hint { font-size: 10.5px; font-weight: 500; color: var(--muted); }
+
+  .llm-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .llm-row .field { flex: 1; margin: 0; }
+  .btn-sm { padding: 9px 14px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .spin { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #cbd5e1; border-top-color: #3b82f6; display: inline-block; }
+  .llm-status { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 14px; }
+  .llm-status .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .llm-status .dot.done { background: #16a34a; }
+  .expand-split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .expand-sub { font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
+  .expand-box.small { max-height: 220px; font-size: 11.5px; }
+  .expand-box.accent { background: #eff6ff; border-color: #bfdbfe; }
+
+  /* ── step 3: design ── */
+  .engine-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .engine-card {
+    flex: 1; border: 1.5px solid var(--s1-border); border-radius: 10px; padding: 12px 14px; cursor: pointer;
+  }
+  .engine-card.on { border-color: #3b82f6; background: #eff6ff; }
+  .engine-card .t { font-size: 13px; font-weight: 800; }
+  .engine-card .d { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .field-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 240px)); gap: 14px 24px; margin-bottom: 14px; }
+  .field label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .field select, .field .toggle { width: 100%; }
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; }
+  .toggle-row .lab { font-size: 12px; color: var(--muted); font-weight: 700; }
+  .toggle { display: flex; border: 1px solid var(--s1-border); border-radius: 7px; overflow: hidden; }
+  .toggle button { border: none; background: #fff; padding: 5px 12px; font-size: 11.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .toggle button.on { background: #16a34a; color: #fff; }
+
+  .tpl-section { margin-bottom: 16px; }
+  .tpl-section > label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+  .tpl-import { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tpl-import input { flex: 1; border: 1px solid var(--s1-border); border-radius: 8px; padding: 9px 12px; font-size: 12.5px; color: var(--s1-text-main); }
+  .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 150px)); gap: 10px; }
+  .tpl-card { cursor: pointer; border: 1.5px solid var(--s1-border); border-radius: 10px; padding: 6px; position: relative; }
+  .tpl-card.on { border-color: #3b82f6; }
+  .tpl-thumb { width: 100%; aspect-ratio: 16/10; border-radius: 6px; }
+  .tpl-name { font-size: 10.5px; font-weight: 700; color: var(--s1-text-main); margin-top: 6px; text-align: center; }
+  .tpl-card.imported .tpl-thumb { border: 1px dashed #cbd5e1; }
+  .tpl-badge { display: block; font-size: 9px; font-weight: 800; color: #16a34a; }
+
+  .master-section { background: #f9fafb; border: 1px solid var(--s1-border); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .master-section > label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 12px; }
+  .master-section > label .hint { font-weight: 500; color: var(--muted); font-size: 10.5px; }
+  .master-section .field-row:last-child { margin-bottom: 0; }
+  .swatch-row { display: flex; gap: 6px; align-items: center; height: 36px; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--s1-border); cursor: pointer; }
+  .swatch.on { box-shadow: 0 0 0 2px #3b82f6; border-color: #fff; }
+
+  .model-override { border-top: 1px dashed var(--s1-border); padding-top: 12px; margin-top: 2px; }
+  .model-override .hint { font-weight: 500; color: var(--muted); font-size: 11px; }
+
+  .compact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; margin-bottom: 14px; }
+  .compact-field { display: flex; align-items: center; gap: 8px; }
+  .compact-field .lab { font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .compact-field .lab .hint { font-weight: 500; color: var(--muted); font-size: 10.5px; }
+  .compact-field select { width: auto; min-width: 108px; }
+
+  /* ── step 4: render ── */
+  .render-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 340px; }
+  .render-icon { font-size: 34px; }
+  .render-bar { width: 60%; height: 8px; background: #f0f1f3; border-radius: 99px; overflow: hidden; }
+  .render-bar .fill { height: 100%; width: 62%; background: #3b82f6; }
+
+  .render-status { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 16px; }
+  .render-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; }
+  .render-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .render-card { border: 1.5px solid var(--s1-border); border-radius: 10px; padding: 10px; cursor: pointer; position: relative; }
+  .render-card.selected { border-color: #3b82f6; }
+  .render-check { position: absolute; top: 16px; left: 16px; z-index: 2; }
+  .render-check input { width: 16px; height: 16px; cursor: pointer; }
+  .render-thumb {
+    aspect-ratio: 16/10; border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    color: #fff; overflow: hidden;
+  }
+  .render-thumb-title { font-size: 13px; font-weight: 800; }
+  .render-thumb-body { font-size: 10px; line-height: 1.6; opacity: .85; white-space: pre-line; }
+  .render-thumb-table { font-size: 9.5px; opacity: .85; border-top: 1px solid rgba(255,255,255,.25); padding-top: 6px; margin-top: 2px; }
+  .render-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: var(--muted); font-weight: 700; }
+  .render-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px dashed var(--s1-border); padding-top: 14px; }
+  .render-actions .lab { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-right: auto; }
+
+  .issue-legend { display: flex; flex-direction: column; gap: 12px; }
+  .issue-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--s1-text-main); cursor: pointer; }
+  .issue-check input { width: 15px; height: 15px; margin-top: 1px; cursor: pointer; flex: 0 0 auto; }
+  .issue-check .hint { display: block; font-size: 10.5px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+
+  .progress-strip {
+    display: flex; gap: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    margin-top: 16px; overflow: hidden;
+  }
+  .progress-strip .p-item {
+    flex: 1; padding: 10px 14px; border-right: 1px solid var(--s1-border); cursor: pointer;
+  }
+  .progress-strip .p-item:last-child { border-right: none; cursor: default; }
+  .progress-strip .p-item .p-k { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: var(--muted); font-weight: 700; }
+  .progress-strip .p-item .p-k a { color: #3b82f6; text-decoration: none; font-weight: 700; }
+  .progress-strip .p-item .p-v { font-size: 12px; font-weight: 700; color: var(--s1-text-main); margin-top: 3px; }
+  .progress-strip .p-item .p-v.muted { color: #b8c0cc; font-weight: 500; }
+
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .actions button { border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 800; cursor: pointer; }
+  .btn-ghost { background: #fff; border: 1px solid var(--s1-border); color: var(--muted); }
+  .btn-primary { background: #111; border: none; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  LIVE DRAFT — 요청대로 실시간 수정용 파일. 구조: 상단 4단계 스텝퍼(클릭 시 해당 단계로 이동) + 단일 포커스 패널 + 우측 진행 요약.
+  이전 "카드 2열 나열" 방식 폐기. 색/타입 스케일은 승인된 diagnosistool_pptx_mock.html 그대로.
+</div>
+
+<div class="topbar">
+  <div>
+    <div class="title">PPT · DECK CONSOLE</div>
+    <div class="sub">마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</div>
+  </div>
+  <span class="badge">EXPORT READY</span>
+</div>
+
+<div class="stepper" id="stepper"></div>
+
+<div class="grid">
+  <div class="panel" id="panel"></div>
+
+  <div class="side" id="side"></div>
+</div>
+
+<!-- 진행 요약: 자리만 아래로 옮김 — 팝업으로 뺄지는 나중에 결정 -->
+<div class="progress-strip" id="progress-strip"></div>
+
+<div class="actions">
+  <button class="btn-ghost" id="prev-btn" onclick="prevStep()">이전</button>
+  <button class="btn-primary" id="next-btn" onclick="nextStep()">다음: 확장</button>
+</div>
+
+<script>
+const HUES = ['--ch-1','--ch-3','--ch-4','--ch-6'];
+const TITLES = [
+  {lab:'소스', sub:'직접 입력 · 402자'},
+  {lab:'확장', sub:'LLM으로 마크다운 변환'},
+  {lab:'설계', sub:'템플릿 · 밀도 · 형식'},
+  {lab:'렌더', sub:'결과 리뷰 · 재생성'}
+];
+const NEXT_LABELS = ['다음: 확장','다음: 설계','다음: 렌더','PDF 생성'];
+
+let step = 0;
+
+function buildStepper() {
+  const el = document.getElementById('stepper');
+  el.innerHTML = TITLES.map((t,i) => `
+    <div class="step" id="step-${i}" style="--hue:var(${HUES[i]});--tint:color-mix(in srgb, var(${HUES[i]}) 8%, white)" onclick="setStep(${i})">
+      <div class="num">${i+1}</div>
+      <div><div class="lab">${t.lab}</div><div class="sub">${t.sub}</div></div>
+    </div>
+  `).join('');
+}
+
+const PANELS = [
+`<h3>① 소스 선택</h3>
+<div class="expand-note">PPT로 만들 원본을 고릅니다. 직접 입력하거나, 파일을 올리거나, archive · docs/system에 이미 있는 자료를 골라도 됩니다. 오른쪽에서 정한 언어 · 페이지 수 · 모델이 다음 단계 LLM 변환에 그대로 쓰입니다.</div>
+<div class="src-tabs">
+  <button class="on">직접 입력</button>
+  <button>파일 업로드</button>
+  <button>archive · 56건</button>
+  <button>docs/system · 0건</button>
+</div>
+<textarea rows="13"># IRIS 주간 보고
+## 2026-06-20
+
+---
+
+## 처리 현황
+
+- documents **1,304** 행
+- chunks **5,231** 청크</textarea>`,
+
+`<h3>② 확장 · LLM 변환</h3>
+<div class="expand-note">①에서 정한 언어 · 페이지 수 · 모델로 LLM이 소스를 읽고, 페이지마다 제목 · 설명 · 본문을 채운 마크다운을 생성합니다. 본문은 서술식 · 요약식 · 표형식 · 도형형식 중 내용에 맞는 형식을 페이지별로 LLM이 스스로 판단해 지정합니다.</div>
+<div class="llm-row">
+  <div class="llm-status" style="margin:0">
+    <span class="dot done"></span>gemma4:e4b · 변환 완료 · 1.2초 · 소스 402자 → 2페이지
+  </div>
+  <button class="btn-ghost btn-sm"><span class="spin"></span>재생성</button>
+</div>
+<div class="expand-sub">출력 · 하네스 스키마를 따르는 마크다운 (본문 형식은 페이지마다 다르게 지정됨)</div>
+<div class="expand-box accent">lang: ko
+
+## page 1
+title: IRIS 주간 보고
+description: 2026-06-20 주간 처리 현황 요약
+body_type: 요약식
+---
+- documents **1,304** 행 처리
+- chunks **5,231** 청크 생성
+
+## page 2
+title: 처리 현황 상세
+description: 문서 · 청크 처리량 비교
+body_type: 표형식
+---
+| 항목 | 값 |
+|---|---|
+| documents | 1,304 행 |
+| chunks | 5,231 청크 |</div>`,
+
+`<h3>③ 변환 설정</h3>
+<div class="expand-note">②에서 나온 마크다운을 슬라이드로 렌더링합니다. 페이지별 본문형식(서술식·요약식·표형식·도형형식)에 맞는 레이아웃을 LLM이 골라 템플릿에 맞춰 그려냅니다.</div>
+
+<div class="tpl-section">
+  <label>템플릿</label>
+  <div class="tpl-import">
+    <input type="text" placeholder="URL 또는 검색어로 템플릿 가져오기 (예: notion, 컨설팅 제안서 다크)" />
+    <button class="btn-ghost btn-sm">가져오기</button>
+  </div>
+  <div class="tpl-grid">
+    <div class="tpl-card on">
+      <div class="tpl-thumb" style="background:#111827"></div>
+      <div class="tpl-name">iris (다크)</div>
+    </div>
+    <div class="tpl-card">
+      <div class="tpl-thumb" style="background:#f3f4f6"></div>
+      <div class="tpl-name">iris (라이트)</div>
+    </div>
+    <div class="tpl-card">
+      <div class="tpl-thumb" style="background:#e5e7eb"></div>
+      <div class="tpl-name">미니멀</div>
+    </div>
+    <div class="tpl-card imported">
+      <div class="tpl-thumb" style="background:linear-gradient(135deg,#1e293b,#334155)"></div>
+      <div class="tpl-name">consulting-dark <span class="tpl-badge">가져옴</span></div>
+    </div>
+    <div class="tpl-card imported">
+      <div class="tpl-thumb" style="background:linear-gradient(135deg,#fef3c7,#fde68a)"></div>
+      <div class="tpl-name">notion-warm <span class="tpl-badge">가져옴</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="master-section">
+  <label>마스터 스타일 <span class="hint">— 모든 페이지에 고정 적용, 템플릿을 바꿔도 여기서 손댄 값은 유지됩니다</span></label>
+  <div class="field-row">
+    <div class="field">
+      <label>제목 폰트</label>
+      <select><option>Pretendard</option><option>SUIT</option><option>Noto Sans KR</option></select>
+    </div>
+    <div class="field">
+      <label>제목 크기</label>
+      <select><option>32pt</option><option>28pt</option><option>24pt</option></select>
+    </div>
+    <div class="field">
+      <label>제목 색상</label>
+      <div class="swatch-row">
+        <span class="swatch on" style="background:#f8fafc"></span>
+        <span class="swatch" style="background:#3b82f6"></span>
+        <span class="swatch" style="background:#f59e0b"></span>
+      </div>
+    </div>
+  </div>
+  <div class="compact-row">
+    <div class="compact-field">
+      <span class="lab">페이지 번호 위치</span>
+      <select><option>우측 하단</option><option>좌측 하단</option><option>중앙 하단</option></select>
+    </div>
+    <div class="compact-field">
+      <span class="lab">로고 고정 표시</span>
+      <div class="toggle"><button>ON</button><button class="on">OFF</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="compact-row">
+  <div class="compact-field">
+    <span class="lab">출력 형식</span>
+    <select><option>PDF</option><option>PPTX</option></select>
+  </div>
+  <div class="compact-field">
+    <span class="lab">레이아웃 밀도</span>
+    <select><option>보통</option><option>여유 (텍스트 적게)</option><option>빽빽 (텍스트 많이)</option></select>
+  </div>
+  <div class="compact-field">
+    <span class="lab">페이지 번호</span>
+    <div class="toggle"><button class="on">ON</button><button>OFF</button></div>
+  </div>
+  <div class="compact-field">
+    <span class="lab">exports 저장</span>
+    <div class="toggle"><button>ON</button><button class="on">OFF</button></div>
+  </div>
+  <div class="compact-field">
+    <span class="lab">설계에서 다른 LLM 쓰기 <span class="hint">(기본: ②와 동일)</span></span>
+    <div class="toggle"><button>ON</button><button class="on">OFF</button></div>
+  </div>
+</div>`,
+
+`<h3>④ 렌더 · 결과 리뷰</h3>
+<div class="expand-note">생성된 페이지를 확인하고, 마음에 안 드는 페이지만 선택해서 부분 재생성할 수 있습니다.</div>
+<div class="render-status"><span class="dot"></span>PDF 생성 완료 · 2페이지 · iris(다크) 템플릿</div>
+<div class="render-grid" id="render-grid">
+  <div class="render-card selected" data-page="1" onclick="toggleRenderCard(this)">
+    <div class="render-check"><input type="checkbox" checked onclick="event.stopPropagation()"></div>
+    <div class="render-thumb" style="background:#111827">
+      <div class="render-thumb-title">IRIS 주간 보고</div>
+      <div class="render-thumb-body">• documents 1,304행 처리
+• chunks 5,231청크 생성</div>
+    </div>
+    <div class="render-meta"><span>page 1 · 요약식</span><span>편집</span></div>
+  </div>
+  <div class="render-card" data-page="2" onclick="toggleRenderCard(this)">
+    <div class="render-check"><input type="checkbox" onclick="event.stopPropagation()"></div>
+    <div class="render-thumb" style="background:#111827">
+      <div class="render-thumb-title">처리 현황 상세</div>
+      <div class="render-thumb-table">항목 · 값<br/>documents · 1,304행<br/>chunks · 5,231청크</div>
+    </div>
+    <div class="render-meta"><span>page 2 · 표형식</span><span>편집</span></div>
+  </div>
+</div>
+<div class="render-actions">
+  <span class="lab" id="render-sel-count">1개 페이지 선택됨</span>
+  <button class="btn-ghost btn-sm">표시한 문제로 재생성</button>
+  <button class="btn-ghost btn-sm">전체 재생성</button>
+  <button class="btn-primary" style="border-radius:8px;padding:9px 16px;font-size:12px;font-weight:800;border:none">PDF 다운로드</button>
+</div>`
+];
+
+const GEN_SETTINGS_SIDE = `
+<h4>생성 설정</h4>
+<div class="field">
+  <label>언어</label>
+  <select><option>한국어</option><option>English</option><option>중국어</option></select>
+</div>
+<div class="field">
+  <label>페이지 수</label>
+  <select><option>자동 (LLM 판단)</option><option>5장</option><option>10장</option><option>15장</option></select>
+</div>
+<div class="field">
+  <label>LLM 모델</label>
+  <select><option>gemma4:e4b · 빠름</option><option>Qwen3.6-35B-A3B</option></select>
+</div>
+<div class="src-settings-note">여기서 정한 값이 ②확장의 LLM 변환에 그대로 적용됩니다.</div>
+`;
+
+const SIDES = [
+  GEN_SETTINGS_SIDE,
+  GEN_SETTINGS_SIDE,
+  GEN_SETTINGS_SIDE,
+  `
+<h4>문제 유형</h4>
+<div class="issue-legend">
+  <label class="issue-check"><input type="checkbox">언어 선택 오류</label>
+  <label class="issue-check"><input type="checkbox">내용 밀도 오류</label>
+  <label class="issue-check"><input type="checkbox" checked>글자 겹침 오류</label>
+  <label class="issue-check"><input type="checkbox">페이지 형식 오류</label>
+</div>
+<div class="src-settings-note">왼쪽에서 선택한 페이지에 표시된 문제만 골라 그 부분에 집중해서 다시 생성합니다.</div>
+`
+];
+
+const PROGRESS = [
+  {lab:'① 소스', v:'직접 입력 · 402자', editable:true},
+  {lab:'② 확장', v:'gemma4:e4b · 완료', editable:true},
+  {lab:'③ 설계', v:'iris(다크) · PDF', editable:true},
+  {lab:'④ 렌더', v:'대기 중', editable:false}
+];
+
+function buildProgress() {
+  const el = document.getElementById('progress-strip');
+  el.innerHTML = PROGRESS.map((p,i) => `
+    <div class="p-item" ${p.editable ? `onclick="setStep(${i})"` : ''}>
+      <div class="p-k"><span>${p.lab}</span>${p.editable ? `<a href="#" onclick="event.stopPropagation();setStep(${i});return false">편집</a>` : ''}</div>
+      <div class="p-v${i > step ? ' muted' : ''}">${p.v}</div>
+    </div>
+  `).join('');
+}
+
+function toggleRenderCard(el) {
+  el.classList.toggle('selected');
+  el.querySelector('input[type=checkbox]').checked = el.classList.contains('selected');
+  const n = document.querySelectorAll('.render-card.selected').length;
+  const out = document.getElementById('render-sel-count');
+  if (out) out.textContent = n === 0 ? '선택된 페이지 없음' : n + '개 페이지 선택됨';
+}
+
+function render() {
+  document.getElementById('panel').innerHTML = PANELS[step];
+  document.getElementById('side').innerHTML = SIDES[step];
+  for (let i = 0; i < 4; i++) {
+    const s = document.getElementById('step-' + i);
+    s.classList.remove('done','active');
+    if (i < step) s.classList.add('done');
+    if (i === step) s.classList.add('active');
+  }
+  document.getElementById('prev-btn').style.visibility = step === 0 ? 'hidden' : 'visible';
+  document.getElementById('next-btn').textContent = NEXT_LABELS[step];
+  buildProgress();
+}
+function setStep(i) { step = i; render(); }
+function nextStep() { if (step < 3) { step++; render(); } }
+function prevStep() { if (step > 0) { step--; render(); } }
+
+buildStepper();
+render();
+</script>
+</body>
+</html>
