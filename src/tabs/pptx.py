@@ -41,6 +41,12 @@ _PPTX_CSS = """
   --pptx-ch-5:#ef4444; --pptx-ch-6:#06b6d4; --pptx-ch-7:#a855f7;
 }
 
+/* ── 배경 대비: --pptx-bg 토큰이 정의만 되고 미적용이던 문제 수정. PPT 탭에
+   있을 때만 <style>이 DOM에 존재하므로 다른 탭 배경엔 영향 없음. ── */
+.stApp, [data-testid="stAppViewContainer"] {
+  background: var(--pptx-bg) !important;
+}
+
 /* ── hub_ui.css가 전탭 공통으로 .block-container를 1180px로 캡핑 — 진단툴(별도
    standalone 앱)엔 이 캡이 없어 PC 화면에서 상대적으로 좁아 보임. 이 CSS는
    pptx.render() 안에서만 주입되므로 PPT 탭에 있을 때만 넓어지고, 다른 탭으로
@@ -79,10 +85,23 @@ _PPTX_CSS = """
   border-color: var(--pptx-line) !important; box-shadow: var(--pptx-shadow) !important;
   border-radius: var(--pptx-radius) !important;
 }
+.st-key-pptx_panel_box { padding:20px 22px !important; min-height:420px !important; }
 .st-key-pptx_progress_box { border-radius: 12px !important; box-shadow:none !important; margin-top:8px !important; }
+/* ── 진행 요약 스트립 "편집" 버튼 — 캡션처럼 작아 클릭 어포던스가 없던 문제
+   수정: 실제 버튼처럼 보이는 배경·라운드·패딩 부여 (목업 링크색 #3b82f6 톤). ── */
 .st-key-pptx_progress_box [data-testid="stButton"] button {
-  border:none !important; background:transparent !important; color:#3b82f6 !important;
-  font-size:10.5px !important; font-weight:800 !important; padding:2px 0 !important; min-height:0 !important;
+  border:none !important; background:#eff6ff !important; color:#3b82f6 !important;
+  font-size:11px !important; font-weight:800 !important; padding:3px 8px !important;
+  min-height:24px !important; border-radius:6px !important;
+}
+
+/* ── 하단 다음/이전 액션 버튼 시인성 ── */
+.st-key-pptx_next_btn button {
+  background:#111 !important; color:#fff !important; border:none !important; font-weight:800 !important;
+}
+.st-key-pptx_prev_btn button {
+  background:#fff !important; border:1px solid var(--pptx-line) !important;
+  color:var(--pptx-muted) !important; font-weight:700 !important;
 }
 
 .expand-note { font-size:12px; color:var(--pptx-muted); margin-bottom:14px; line-height:1.6; }
@@ -393,6 +412,7 @@ def _current_meta() -> dict:
         "title": st.session_state.get("pptx_deck_title", ""),
         "subtitle": st.session_state.get("pptx_deck_subtitle", ""),
         "date": st.session_state.get("pptx_deck_date", ""),
+        "lang": st.session_state.get("pptx_lang", "한국어"),
     }
 
 
@@ -616,7 +636,10 @@ def _run_expand(md_text: str, meta: dict, model: str | None) -> None:
     from src.engine.output.deck import expander
     try:
         with st.spinner("① LLM 입력 확장 중… (30~180초, 모델·입력 크기 따라)"):
-            er = expander.expand_for_slides(md_text, meta, model=model, timeout=900)
+            er = expander.expand_for_slides(
+                md_text, meta, model=model, timeout=900,
+                lang=st.session_state.get("pptx_lang", "한국어"),
+            )
         st.session_state["pptx_expand_result"] = {
             "md": er.md, "elapsed": er.elapsed_ms / 1000, "model": er.model,
             "in": er.original_chars, "out": er.output_chars,

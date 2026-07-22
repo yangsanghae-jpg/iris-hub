@@ -39,6 +39,10 @@ class ExpandedResult:
 _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박은 마크다운 보고서를
 *컨설팅급 PPT 25~30장 분량의 풍부한 슬라이드용 마크다운*으로 재구조화하세요.
 
+## 출력 언어
+반드시 모든 슬라이드를 {lang}로 작성한다. 추론 과정·설명·메타텍스트를 절대
+출력하지 말고 마크다운 슬라이드 내용만 출력한다.
+
 ## 메타
 회사명: {company}
 보고서명: {title}
@@ -134,6 +138,7 @@ def expand_for_slides(
     timeout: float = 600.0,
     model: str | None = None,
     max_input_chars: int = 24000,
+    lang: str | None = None,
 ) -> ExpandedResult:
     """LLM이 사용자 마크다운을 풍부한 슬라이드용 마크다운으로 확장.
 
@@ -143,6 +148,7 @@ def expand_for_slides(
       timeout: 80b는 5~10분 가능 → 기본 10분
       model: 사용자가 UI에서 박은 모델 (None이면 deep)
       max_input_chars: 원본 입력 자르기 (기본 24k, 80b 컨텍스트 여유)
+      lang: 출력 언어 지시 (예: "한국어"). None이면 "입력과 동일한 언어".
 
     반환: ExpandedResult
     """
@@ -155,6 +161,7 @@ def expand_for_slides(
         truncated += f"\n\n[... 이하 {len(md_text) - max_input_chars:,}자 생략 ...]"
 
     prompt = _PROMPT.format(
+        lang=lang or meta.get("lang") or "입력과 동일한 언어",
         company=meta.get("company", ""),
         title=meta.get("title", ""),
         subtitle=meta.get("subtitle", ""),
@@ -173,6 +180,7 @@ def expand_for_slides(
         raise ExpansionError(f"LLM 실패: {resp.get('error', 'unknown')}")
 
     out = resp.get("text", "")
+    out = _strip_think(out)
     out = _strip_frontmatter(out)
     out = _strip_code_fence(out)
 
@@ -186,6 +194,32 @@ def expand_for_slides(
         original_chars=original_chars,
         output_chars=len(out),
     )
+
+
+def _strip_think(text: str) -> str:
+    """추론 모델의 <think>...</think> 블록 및 그 이전 산문 프리앰블 제거.
+
+    관측된 실제 증상: `/no_think` 지시에도 일부 모델이 "Wait, that's 30
+    slides. Need to check if all content is covered..." 같은 영어 사고과정을
+    마크다운 앞에 그대로 흘려보냄. 명시적 <think> 태그가 있으면 태그째 제거하고,
+    없더라도 첫 마크다운 헤더/구분자(`#`, `##`, `---`) 이전에 산문이 섞여 있으면
+    그 앞부분을 잘라낸다.
+    """
+    import re
+
+    s = text
+    # 1) 명시적 <think>...</think> 블록 제거 (닫는 태그 없이 끝나는 경우도 처리)
+    s = re.sub(r"<think>.*?(</think>|$)", "", s, flags=re.DOTALL | re.IGNORECASE)
+    s = s.strip()
+
+    # 2) 첫 마크다운 헤더/구분자 이전의 산문 프리앰블 제거.
+    #    이미 마크다운 헤더로 시작하면 손대지 않음.
+    if s and not re.match(r"^(#{1,6}\s|---)", s):
+        m = re.search(r"^(#{1,6}\s|---)", s, flags=re.MULTILINE)
+        if m and m.start() > 0:
+            s = s[m.start():]
+
+    return s.strip()
 
 
 def _strip_frontmatter(md: str) -> str:
