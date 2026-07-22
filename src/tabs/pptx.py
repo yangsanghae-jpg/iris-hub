@@ -69,7 +69,11 @@ _PPTX_CSS = """
 .hub-pagebar-title { color: var(--pptx-text) !important; }
 
 /* ── 스텝퍼 ── */
-.st-key-pptx_stepper_box { padding:0 !important; overflow:hidden !important; margin-bottom:6px !important; }
+.st-key-pptx_stepper_box {
+  padding:0 !important; overflow:hidden !important; margin-bottom:6px !important;
+  border-radius: 12px !important; background: var(--pptx-card) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04) !important; border-color: var(--pptx-line) !important;
+}
 .st-key-pptx_stepper_box [data-testid="stVerticalBlock"] { gap:0 !important; }
 .st-key-pptx_stepper_box [data-testid="stButton"] button {
   border:none !important; border-radius:0 !important; background:#fff !important;
@@ -83,9 +87,31 @@ _PPTX_CSS = """
 /* ── panel / side / progress ── */
 .st-key-pptx_panel_box, .st-key-pptx_side_box, .st-key-pptx_progress_box {
   border-color: var(--pptx-line) !important; box-shadow: var(--pptx-shadow) !important;
-  border-radius: var(--pptx-radius) !important;
+  border-radius: var(--pptx-radius) !important; background: var(--pptx-card) !important;
 }
 .st-key-pptx_panel_box { padding:20px 22px !important; min-height:420px !important; }
+
+/* ── 네이티브 위젯 폰트: Streamlit 기본(16px 안팎)이 목업(11.5~13px) 대비 커서
+   전체가 확대된 것처럼 보이던 핵심 원인. PPT 탭 콘텐츠 영역에서만 축소. ── */
+.st-key-pptx_panel_box [data-testid="stWidgetLabel"] p,
+.st-key-pptx_side_box [data-testid="stWidgetLabel"] p {
+  font-size: 12px !important; font-weight: 700 !important; color: var(--pptx-muted) !important;
+}
+.st-key-pptx_panel_box textarea,
+.st-key-pptx_panel_box [data-baseweb="select"] *,
+.st-key-pptx_side_box [data-baseweb="select"] *,
+.st-key-pptx_panel_box [data-testid="stMarkdownContainer"] p,
+.st-key-pptx_side_box [data-testid="stMarkdownContainer"] p {
+  font-size: 13px !important;
+}
+.st-key-pptx_panel_box [data-testid="stRadio"] label p,
+.st-key-pptx_side_box [data-testid="stRadio"] label p {
+  font-size: 12.5px !important;
+}
+.st-key-pptx_panel_box [data-testid="stBaseButton-secondary"] p,
+.st-key-pptx_side_box [data-testid="stBaseButton-secondary"] p {
+  font-size: 12.5px !important;
+}
 .st-key-pptx_progress_box { border-radius: 12px !important; box-shadow:none !important; margin-top:8px !important; }
 /* ── 진행 요약 스트립 "편집" 버튼 — 캡션처럼 작아 클릭 어포던스가 없던 문제
    수정: 실제 버튼처럼 보이는 배경·라운드·패딩 부여 (목업 링크색 #3b82f6 톤). ── */
