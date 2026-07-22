@@ -115,6 +115,39 @@ _PPTX_CSS = """
 .st-key-pptx_side_box [data-testid="stBaseButton-secondary"] p {
   font-size: 12.5px !important;
 }
+/* ── Streamlit 기본 포커스 링 무력화: 셀렉트박스·버튼·텍스트에어리어를 클릭할
+   때마다 파란 아웃라인/보더가 뜨는 건 Streamlit(BaseWeb) 기본 동작이지 목업
+   디자인이 아니다. 이걸 한 번도 꺼준 적이 없어서 상호작용할 때마다 "커스텀
+   안 된 기본 UI"처럼 보였다. 실제 선택/활성 상태(스텝퍼 활성, 라디오 선택,
+   템플릿 선택 카드 등)만 목업이 정한 파란색을 쓰고, 나머지 포커스는 중립. ── */
+.st-key-pptx_panel_box button:focus,
+.st-key-pptx_panel_box button:focus-visible,
+.st-key-pptx_side_box button:focus,
+.st-key-pptx_side_box button:focus-visible,
+.st-key-pptx_progress_box button:focus,
+.st-key-pptx_progress_box button:focus-visible,
+.st-key-pptx_stepper_box button:focus,
+.st-key-pptx_stepper_box button:focus-visible {
+  outline: none !important; box-shadow: none !important; border-color: var(--pptx-s1-border) !important;
+}
+.st-key-pptx_panel_box [data-baseweb="select"] > div,
+.st-key-pptx_side_box [data-baseweb="select"] > div,
+.st-key-pptx_panel_box [data-baseweb="base-input"],
+.st-key-pptx_side_box [data-baseweb="base-input"] {
+  border-color: var(--pptx-s1-border) !important; box-shadow: none !important;
+}
+.st-key-pptx_panel_box [data-baseweb="select"]:focus-within > div,
+.st-key-pptx_side_box [data-baseweb="select"]:focus-within > div {
+  border-color: var(--pptx-s1-border) !important; box-shadow: none !important;
+}
+.st-key-pptx_panel_box textarea:focus,
+.st-key-pptx_panel_box textarea:focus-visible {
+  border-color: var(--pptx-s1-border) !important; box-shadow: none !important; outline: none !important;
+}
+.st-key-pptx_panel_box [data-testid="stRadio"] label:has(input:checked) div:first-child {
+  border-color: #3b82f6 !important;
+}
+
 .st-key-pptx_progress_box { border-radius: 12px !important; box-shadow:none !important; margin-top:8px !important; }
 /* ── 진행 요약 스트립 "편집" 버튼 — 캡션처럼 작아 클릭 어포던스가 없던 문제
    수정: 실제 버튼처럼 보이는 배경·라운드·패딩 부여 (목업 링크색 #3b82f6 톤). ── */
