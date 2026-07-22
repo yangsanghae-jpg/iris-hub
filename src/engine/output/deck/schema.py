@@ -36,4 +36,20 @@ class Deck:
     slides: list[Slide] = field(default_factory=list)
 
 
-__all__ = ["Slide", "Deck", "PatternId", "PATTERN_TEMPLATES"]
+def detect_deck_lang(deck: Deck) -> str:
+    """덱 콘텐츠 언어 감지("ko"/"zh"/"en") — pptx/PDF 렌더러가 공유.
+
+    한글 음절이 하나라도 있으면 ko (한자가 섞여도 한글이 압도적으로 함께
+    나타나므로 ko 우선 판정), 없고 한자(CJK)만 있으면 zh, 그 외 en.
+    """
+    text = deck.title + deck.company_name + " ".join(
+        str(v) for sl in deck.slides for v in sl.data.values() if isinstance(v, str)
+    )[:2000]
+    if any("가" <= ch <= "힣" for ch in text):
+        return "ko"
+    if any("一" <= ch <= "鿿" for ch in text):
+        return "zh"
+    return "en"
+
+
+__all__ = ["Slide", "Deck", "PatternId", "PATTERN_TEMPLATES", "detect_deck_lang"]

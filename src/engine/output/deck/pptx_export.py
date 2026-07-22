@@ -5,7 +5,7 @@ import math
 import tempfile
 from pathlib import Path
 
-from src.engine.output.deck.schema import Deck
+from src.engine.output.deck.schema import Deck, detect_deck_lang
 
 SLIDE_W_IN = 20.0
 SLIDE_H_IN = 11.25
@@ -15,7 +15,17 @@ CONTENT_TOP = 1.5
 FOOTER_TOP = 10.75
 CONTENT_BOTTOM = 10.55
 CONTENT_W = SLIDE_W_IN - 2 * MARGIN
-FONT = "Malgun Gothic"
+
+_FONT_BY_LANG = {"ko": "Malgun Gothic", "zh": "Microsoft YaHei", "en": "Segoe UI"}
+_COVER_LABELS = {
+    "ko": ("보고 대상", "보고 일자 / 버전", "Confidential — 사내 한정 사용"),
+    "zh": ("报告对象", "报告日期 / 版本", "Confidential — 内部使用"),
+    "en": ("Target Audience", "Date / Version", "Confidential — Internal Use Only"),
+}
+# 렌더 시작 시 _detect_lang()로 한 번 정해서 여기 담아둠 — 전체 슬라이드가 같은
+# 폰트/라벨 언어를 쓰게. 모듈 전역이라 render_deck_to_pptx 호출마다 재설정됨.
+FONT = _FONT_BY_LANG["ko"]
+_cover_labels = _COVER_LABELS["ko"]
 
 
 def _px_pt(px: float) -> float:
@@ -190,7 +200,7 @@ def _build_cover(prs, d, deck, pageno, total_pages):
     box_y = SLIDE_H_IN - 2.15
     box_w = (SLIDE_W_IN - 2 * 1.05 - 0.4) / 2
     for i, (label, value) in enumerate(
-        [("보고 대상", d.get("target", "")), ("보고 일자 / 버전", d.get("date_version", ""))]
+        [(_cover_labels[0], d.get("target", "")), (_cover_labels[1], d.get("date_version", ""))]
     ):
         bx = 1.05 + i * (box_w + 0.4)
         _add_rect(slide, bx, box_y, box_w, 1.0, colors["cover_box"])
@@ -201,7 +211,7 @@ def _build_cover(prs, d, deck, pageno, total_pages):
 
     _add_textbox(
         slide, SLIDE_W_IN - 1.05 - 4.5, SLIDE_H_IN - 0.65, 4.5, 0.35,
-        "Confidential — 사내 한정 사용", size=_px_pt(14), color=colors["cover_box_label"],
+        _cover_labels[2], size=_px_pt(14), color=colors["cover_box_label"],
         align=PP_ALIGN.RIGHT,
     )
     return slide
@@ -527,6 +537,13 @@ def render_deck_to_pptx(
     if out_path is None:
         out_path = Path(tempfile.mkdtemp(prefix="iris_pptx_")) / "deck.pptx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 슬라이드 전체가 같은 폰트/커버 라벨 언어를 쓰도록 첫 판단을 한 번만
+    # 하고 모듈 전역에 담아둠 — 콘텐츠 언어(소스 문서 언어)를 따라감.
+    global FONT, _cover_labels
+    lang = detect_deck_lang(deck)
+    FONT = _FONT_BY_LANG[lang]
+    _cover_labels = _COVER_LABELS[lang]
 
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_W_IN)

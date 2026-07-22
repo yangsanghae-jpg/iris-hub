@@ -8,9 +8,18 @@ from typing import Callable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pypdf import PdfReader, PdfWriter
 
-from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES
+from src.engine.output.deck.schema import Deck, PATTERN_TEMPLATES, detect_deck_lang
 
 ProgressFn = Callable[[int, int, str], None]
+
+# cover.html.j2 등 하드코딩 라벨이 있던 자리 — pptx_export.py의 _COVER_LABELS와
+# 같은 목적, 같은 3개 문구(대상/일자·버전/기밀고지). 렌더러가 둘이라 값도 둘로
+# 나뉘어 있지만 문구 자체는 동일하게 맞춤(드리프트 방지 목적 주석).
+_COVER_LABELS = {
+    "ko": {"target": "보고 대상", "date_version": "보고 일자 / 버전", "confidential": "Confidential — 사내 한정 사용"},
+    "zh": {"target": "报告对象", "date_version": "报告日期 / 版本", "confidential": "Confidential — 内部使用"},
+    "en": {"target": "Target Audience", "date_version": "Date / Version", "confidential": "Confidential — Internal Use Only"},
+}
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -27,11 +36,13 @@ def _env() -> Environment:
 
 
 def render_slide_html(slide_pattern: str, slide_data: dict, deck: Deck,
-                      *, pageno: int = 1, total_pages: int = 1) -> str:
+                      *, pageno: int = 1, total_pages: int = 1,
+                      lang: str | None = None) -> str:
     tpl_name = PATTERN_TEMPLATES.get(slide_pattern)
     if not tpl_name:
         raise ValueError(f"미지 패턴: {slide_pattern}")
     tpl = _env().get_template(tpl_name)
+    resolved_lang = lang or detect_deck_lang(deck)
     ctx = {
         **slide_data,
         "company_name": deck.company_name,
@@ -39,6 +50,7 @@ def render_slide_html(slide_pattern: str, slide_data: dict, deck: Deck,
         "deck_date": deck.date,
         "pageno": pageno,
         "total_pages": total_pages,
+        "cover_labels": _COVER_LABELS[resolved_lang],
     }
     return tpl.render(**ctx)
 
@@ -54,6 +66,7 @@ def render_deck_to_pdf(
     from playwright.sync_api import sync_playwright
 
     total = len(deck.slides)
+    lang = detect_deck_lang(deck)
     tmp_dir = Path(tempfile.mkdtemp(prefix="iris_deck_html_"))
     pdf_paths: list[Path] = []
 
@@ -64,7 +77,7 @@ def render_deck_to_pdf(
         for i, slide in enumerate(deck.slides, 1):
             html = render_slide_html(
                 slide.pattern, slide.data, deck,
-                pageno=i, total_pages=total,
+                pageno=i, total_pages=total, lang=lang,
             )
             html_path = tmp_dir / f"slide_{i:03d}.html"
             html_path.write_text(html, encoding="utf-8")

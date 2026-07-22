@@ -23,9 +23,9 @@
     <div class="cover-sub">{{ subtitle }}</div>
   </div>
   <div class="cover-bottom">
-    <div class="cover-box"><label>보고 대상</label><span>{{ target }}</span></div>
-    <div class="cover-box"><label>보고 일자 / 버전</label><span>{{ date_version }}</span></div>
+    <div class="cover-box"><label>{{ cover_labels.target }}</label><span>{{ target }}</span></div>
+    <div class="cover-box"><label>{{ cover_labels.date_version }}</label><span>{{ date_version }}</span></div>
   </div>
-  <div class="cover-conf">Confidential — 사내 한정 사용</div>
+  <div class="cover-conf">{{ cover_labels.confidential }}</div>
 </div>
 {% endblock %}
