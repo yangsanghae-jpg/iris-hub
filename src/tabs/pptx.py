@@ -1,11 +1,21 @@
-"""탭: 📊 PPT — 마크다운 → PPTX 변환 (V2.8.3 — 진단툴 스타일+컬러 목업 이식).
+"""탭: 📊 PPT — 마크다운 → PPTX 변환 (V2.9.0 — 4단계 위저드 재구현).
 
-V2.8.3: client/dev/diagnosistool_pptx_mock.html 목업을 실제 탭에 이식
-  - 라이브 파이프라인 스트립(①소스→②확장→③설계→④렌더, 호버 상세)
-  - 소스 선택: 왼쪽 세로 레일(4모드, 실시간 카운트) + 오른쪽 정보 영역(ㅏ자)
-  - archive/docs: 드롭다운 대신 리스트+프리뷰 2단
-  - 변환 설정: 공통(버튼식) + 디자인 상세(샘플/언어/컬러 NEW) 박스
+V2.9.0: docs/design/PPT_WIZARD_UX_DESIGN.md 확정 UX로 전면 재구현
+  - 카드 2열 나열(진행상태/소스선택/변환설정) 폐기
+  - 상단 스텝퍼(①소스 ②확장 ③설계 ④렌더) + 단일 포커스 패널 + 우측 사이드(단계별 전환)
+    + 하단 진행 요약 스트립 구조로 교체
+  - Marp 엔진 선택지 삭제 — 디자인 엔진(LLM 슬라이드 설계 → HTML/PPTX 렌더링) 단일화
+  - ②확장을 명시적 처리 단계로 승격 (expander.expand_for_slides), ③설계에서
+    designer.design_deck 실행, ④렌더에서 실제 PDF/PPTX 파일 생성
+  - NOTE(구현 범위 한계 — 아래 "알려진 제약" 참고): 언어 선택 셀렉트박스는
+    현재 백엔드(expander/designer/renderer/pptx_export)가 명시적 lang 파라미터를
+    받지 않아(콘텐츠 자동 감지만 지원) 세션 상태 저장 UI로만 동작한다. 템플릿
+    3종(iris다크/라이트/미니멀)·마스터 스타일도 렌더 엔진에 실제 배선된 개념이
+    아직 없어 세션 상태 선택만 반영된다(진짜 렌더링 반영은 추후 백엔드 작업).
+    이번 패스는 src/tabs/pptx.py 한 파일만 수정하는 범위였으므로 엔진 파일은
+    건드리지 않았다.
 
+V2.8.3: client/dev/diagnosistool_pptx_mock.html 목업을 실제 탭에 이식(폐기됨)
 V2.7.6.3: deck 탭 흡수 + 엔진 선택 + 모델 선택
 V2.7.5.1: 입력 방식 3종 — 직접 입력 / 파일 업로드 / 디스크 .md 선택
 """
@@ -17,10 +27,10 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.ui_kit import hub_pagebar, hub_section
+from src.ui_kit import hub_pagebar
 
 
-# ─── 디자인 토큰 (client/dev/diagnosistool_pptx_mock.html 이식, --pptx- 네임스페이스) ──
+# ─── 디자인 토큰 (client/dev/pptx_wizard_mock.html 이식, --pptx- 네임스페이스) ──
 _PPTX_CSS = """
 <style>
 :root {
@@ -52,59 +62,67 @@ _PPTX_CSS = """
 }
 .hub-pagebar-title { color: var(--pptx-text) !important; }
 
-/* ── 라이브 파이프라인 스트립 ── */
-.flow-strip {
-  display:flex; align-items:stretch; gap:0;
-  background:var(--pptx-card); border:1px solid var(--pptx-line); border-radius:12px;
-  box-shadow:0 1px 2px rgba(15,23,42,0.04); overflow:visible; margin-bottom:6px;
+/* ── 스텝퍼 ── */
+.st-key-pptx_stepper_box { padding:0 !important; overflow:hidden !important; margin-bottom:6px !important; }
+.st-key-pptx_stepper_box [data-testid="stVerticalBlock"] { gap:0 !important; }
+.st-key-pptx_stepper_box [data-testid="stButton"] button {
+  border:none !important; border-radius:0 !important; background:#fff !important;
+  padding:12px 14px !important; font-size:13px !important; font-weight:800 !important;
+  color:var(--pptx-s1-text-sub) !important; text-align:left !important; min-height:44px !important;
+  border-right:1px solid var(--pptx-s1-border) !important; border-bottom:3px solid transparent !important;
+  white-space:normal !important; width:100% !important;
 }
-.flow-seg { display:flex; align-items:center; gap:9px; padding:11px 14px; flex:1 1 0; min-width:0; position:relative; cursor:default; }
-.flow-seg:first-child { border-radius:12px 0 0 12px; }
-.flow-seg.active:last-child { border-radius:0 12px 12px 0; }
-.flow-seg .ic { width:18px; height:18px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900; border:1.5px solid var(--hue); }
-.flow-seg.done .ic { background:var(--hue); color:#fff; border-color:var(--hue); }
-.flow-seg.done .ic::before { content:"✓"; }
-.flow-seg.pending .ic { border-color:var(--pptx-s1-border); color:transparent; }
-.flow-seg.active .ic { border-color:var(--hue); color:var(--hue); animation:pptx-spin .9s linear infinite; border-right-color:transparent; border-top-color:transparent; }
-@keyframes pptx-spin { to { transform:rotate(360deg); } }
-.flow-seg .lab { font-size:10.5px; font-weight:800; color:var(--hue); letter-spacing:.02em; flex:0 0 auto; }
-.flow-seg.pending .lab { color:var(--pptx-muted); }
-.flow-seg .val { font-size:12.5px; font-weight:650; color:var(--pptx-s1-text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.flow-seg.pending .val { color:#b8c0cc; font-weight:500; }
-.flow-seg .val .u { font-size:10.5px; color:var(--pptx-muted); font-weight:600; margin-left:3px; }
-.flow-seg.active { background:var(--tint); }
-.flow-seg .caret { margin-left:4px; color:#cbd5e1; font-size:9px; flex:0 0 auto; }
-.flow-arrow { display:flex; align-items:center; color:#cbd5e1; font-size:12px; padding:0 2px; flex:0 0 auto; }
-.flow-seg .detail {
-  position:absolute; top:calc(100% + 8px); left:0; z-index:20; width:280px;
-  background:#fff; border:1px solid var(--pptx-line); border-radius:12px;
-  box-shadow:0 12px 32px rgba(15,23,42,0.14); padding:12px 13px;
-  opacity:0; visibility:hidden; transform:translateY(-4px);
-  transition:opacity .15s ease, transform .15s ease; pointer-events:none;
-}
-.flow-seg:hover .detail { opacity:1; visibility:visible; transform:translateY(0); }
-.flow-seg .detail::before { content:""; position:absolute; top:-5px; left:20px; width:9px; height:9px; background:#fff; border-left:1px solid var(--pptx-line); border-top:1px solid var(--pptx-line); transform:rotate(45deg); }
-.detail .d-head { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
-.detail .d-lab { font-size:10.5px; font-weight:800; color:var(--hue); }
-.detail .d-meta { font-size:10.5px; color:var(--pptx-muted); margin-left:auto; }
-.detail .d-stat { font-size:15px; font-weight:800; color:var(--pptx-s1-text-main); margin-bottom:8px; }
-.detail .d-stat .u { font-size:11px; color:var(--pptx-muted); font-weight:600; margin-left:3px; }
-.detail .d-list { display:flex; flex-direction:column; gap:4px; }
-.detail .d-item { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--pptx-s1-text-main); }
-.detail .d-item .n { color:#b8c0cc; font-variant-numeric:tabular-nums; width:15px; flex:0 0 auto; }
-.detail .d-item .pat { font-weight:700; color:var(--hue); flex:0 0 auto; }
-.detail .d-item .tt { color:var(--pptx-s1-text-sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.detail .d-more { font-size:10.5px; color:var(--pptx-muted); margin-top:6px; }
-.detail .d-code { margin-top:8px; padding:8px 9px; background:#f8fafc; border:1px solid var(--pptx-s1-border); border-radius:7px; font-family:ui-monospace,"SF Mono",monospace; font-size:10.5px; color:var(--pptx-s1-text-sub); line-height:1.5; white-space:pre-wrap; max-height:88px; overflow:hidden; }
-.flow-progress { height:4px; border-radius:999px; background:#eef2f7; overflow:hidden; margin:8px 2px 4px; }
-.flow-progress > span { display:block; height:100%; background:var(--pptx-ch-2); transition:width .4s ease; }
-.flow-caption { font-size:11px; color:var(--pptx-muted); margin:0 2px 16px; display:flex; align-items:center; gap:6px; }
-.flow-caption .live-dot { width:6px; height:6px; border-radius:50%; background:var(--pptx-ch-2); animation:pptx-blink 1s ease-in-out infinite; }
-@keyframes pptx-blink { 50% { opacity:.3; } }
+.st-key-pptx_stepper_box [data-testid="stCaptionContainer"] { padding:0 14px 8px !important; margin-top:-6px !important; }
 
-/* ── 섹션 타이틀 ── */
-.pptx-section-title { font-size:13px; font-weight:800; color:var(--pptx-text); margin:20px 0 10px; display:flex; align-items:center; gap:8px; }
-.pptx-section-title .dot { width:8px; height:8px; border-radius:50%; background:var(--pptx-ch-1); }
+/* ── panel / side / progress ── */
+.st-key-pptx_panel_box, .st-key-pptx_side_box, .st-key-pptx_progress_box {
+  border-color: var(--pptx-line) !important; box-shadow: var(--pptx-shadow) !important;
+  border-radius: var(--pptx-radius) !important;
+}
+.st-key-pptx_progress_box { border-radius: 12px !important; box-shadow:none !important; margin-top:8px !important; }
+.st-key-pptx_progress_box [data-testid="stButton"] button {
+  border:none !important; background:transparent !important; color:#3b82f6 !important;
+  font-size:10.5px !important; font-weight:800 !important; padding:2px 0 !important; min-height:0 !important;
+}
+
+.expand-note { font-size:12px; color:var(--pptx-muted); margin-bottom:14px; line-height:1.6; }
+.expand-box {
+  background:#f9fafb; border:1px solid var(--pptx-s1-border); border-radius:10px; padding:14px;
+  font-family:ui-monospace, monospace; font-size:12px; line-height:1.7; white-space:pre-wrap;
+  max-height:340px; overflow:auto; color:var(--pptx-s1-text-main);
+}
+.expand-box.accent { background:#eff6ff; border-color:#bfdbfe; }
+.expand-sub { font-size:11px; font-weight:800; color:var(--pptx-muted); margin-bottom:6px; }
+.llm-status { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--pptx-muted); font-weight:700; }
+.llm-status .dot { width:7px; height:7px; border-radius:50%; }
+.llm-status .dot.done { background:#16a34a; }
+
+.tpl-section > label { display:block; font-size:11.5px; font-weight:700; color:var(--pptx-muted); margin-bottom:8px; }
+.tpl-thumb { width:100%; aspect-ratio:16/10; border-radius:6px; }
+.tpl-name { font-size:10.5px; font-weight:700; color:var(--pptx-s1-text-main); margin-top:4px; text-align:center; }
+.tpl-badge { display:block; font-size:9px; font-weight:800; color:#16a34a; }
+
+.master-section-label { font-size:11.5px; font-weight:700; color:var(--pptx-muted); margin:14px 0 8px; }
+.master-section-label .hint { font-weight:500; color:var(--pptx-muted); font-size:10.5px; }
+
+.render-status { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--pptx-muted); font-weight:700; margin-bottom:14px; }
+.render-status .dot { width:7px; height:7px; border-radius:50%; background:#16a34a; }
+.render-thumb {
+  aspect-ratio:16/10; border-radius:6px; padding:14px; display:flex; flex-direction:column; gap:6px;
+  color:#fff; overflow:hidden; margin-top:6px;
+}
+.render-thumb-title { font-size:12.5px; font-weight:800; }
+.render-thumb-body { font-size:10px; line-height:1.55; opacity:.85; white-space:pre-line; overflow:hidden; }
+.render-meta { font-size:10.5px; color:var(--pptx-muted); font-weight:700; margin-top:6px; }
+
+.issue-legend { display:flex; flex-direction:column; gap:2px; }
+.src-settings-note {
+  font-size:11px; color:var(--pptx-muted); line-height:1.5;
+  border-top:1px dashed var(--pptx-s1-border); padding-top:10px; margin-top:6px;
+}
+
+.p-k { font-size:10.5px; color:var(--pptx-muted); font-weight:700; }
+.p-v { font-size:12px; font-weight:700; color:var(--pptx-s1-text-main); margin-top:2px; margin-bottom:4px; }
 
 /* ── 소스 선택: 왼쪽 레일(4모드). Streamlit이 key= 위젯에 자동으로 붙이는
    .st-key-<KEY> 클래스로 스코프 (marker+:has() 조상매칭은 여러 중첩 레벨이
@@ -129,22 +147,6 @@ _PPTX_CSS = """
 .st-key-pptx_source_mode_v2 div[data-testid="stRadio"] label:nth-of-type(3):has(input:checked) { background:#fffbeb !important; border-color:var(--pptx-ch-4) !important; }
 .st-key-pptx_source_mode_v2 div[data-testid="stRadio"] label:nth-of-type(4):has(input:checked) { background:#eef2ff !important; border-color:var(--pptx-ch-3) !important; }
 
-/* ── 엔진 선택 라디오: 컴팩트 카드 2개 나란히. display:flex만으로는
-   Streamlit 자체 emotion 클래스의 flex-direction:column이 이겨서
-   세로로 쌓였음(실측 확인) — row를 명시로 강제. ── */
-.st-key-pptx_engine div[data-testid="stRadio"] > div[role="radiogroup"] {
-  display:flex !important; flex-direction:row !important; gap:10px !important;
-}
-.st-key-pptx_engine div[data-testid="stRadio"] label {
-  border:1px solid var(--pptx-s1-border) !important; border-radius:10px !important;
-  padding:11px 13px !important; background:#fff !important; flex:1 1 0 !important;
-  min-width:0 !important;
-}
-.st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(1) { border-left:3px solid var(--pptx-ch-4) !important; }
-.st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(2) { border-left:3px solid var(--pptx-ch-5) !important; }
-.st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(1):has(input:checked) { background:#fffbeb !important; border-color:var(--pptx-ch-4) !important; }
-.st-key-pptx_engine div[data-testid="stRadio"] label:nth-of-type(2):has(input:checked) { background:#fef2f2 !important; border-color:var(--pptx-ch-5) !important; }
-
 /* ── doc-pick 2단 (archive/docs) ── */
 .doc-list-wrap [data-testid="stVerticalBlockBorderWrapper"] { border:none !important; }
 .doc-item-btn button {
@@ -163,69 +165,6 @@ _PPTX_CSS = """
 .doc-preview .dp-body { font-family:ui-monospace,"SF Mono",monospace; font-size:11px; color:var(--pptx-s1-text-sub); line-height:1.55; white-space:pre-wrap; flex:1 1 auto; overflow:hidden; }
 .doc-preview .dp-foot { margin-top:9px; padding-top:8px; border-top:1px solid var(--pptx-s1-border); font-size:11px; color:var(--pptx-muted); display:flex; align-items:center; gap:6px; }
 .doc-preview .dp-foot b { color:var(--pptx-ch-6); font-weight:800; }
-.pptx-caption { font-size:12px; color:var(--pptx-muted); margin-bottom:10px; }
-.pptx-caption strong { color:var(--pptx-s1-text-main); }
-
-/* ── 변환 설정: 공통/디자인 상세 박스 — 이 Streamlit 버전은 st.container(border=True)의
-   테두리를 별도 wrapper가 아니라 .st-key-<KEY>가 붙은 stVerticalBlock 자신에 그림
-   (실측 확인: stVerticalBlockBorderWrapper testid 없음). ── */
-.st-key-pptx_common_box {
-  border-color: rgba(245,158,11,0.32) !important; border-radius:12px !important;
-}
-.st-key-pptx_design_box {
-  border-color: rgba(239,68,68,0.32) !important; border-radius:12px !important; background:#fffafa !important;
-}
-.set-glabel { font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--pptx-muted); margin-bottom:6px; display:flex; align-items:center; gap:7px; }
-.set-glabel .g-dot { width:7px; height:7px; border-radius:50%; }
-.new-tag { font-size:8.5px; font-weight:800; color:#b25e09; background:#fef3e2; border-radius:4px; padding:1px 5px; margin-left:6px; letter-spacing:.02em; }
-.wire-note { font-size:11px; color:var(--pptx-muted); margin-top:6px; padding:8px 10px; border:1px dashed var(--pptx-s1-border); border-radius:10px; background:#fbfcfe; line-height:1.5; }
-
-/* 디자인 샘플 썸네일 (st.pills로 실제 선택 가능, 카드는 프리뷰용 시각 장식) */
-.sample-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:6px; }
-.sample-card { border:1px solid var(--pptx-s1-border); border-radius:10px; overflow:hidden; background:#fff; }
-.sample-card.sel { border-color:var(--pptx-ch-5); box-shadow:0 0 0 1px rgba(239,68,68,0.35); }
-.sample-thumb { height:44px; display:flex; flex-direction:column; padding:7px 8px; gap:4px; }
-.sample-thumb .bar { height:5px; border-radius:2px; width:62%; }
-.sample-thumb .row { display:flex; gap:4px; margin-top:auto; }
-.sample-thumb .row i { flex:1; height:11px; border-radius:3px; display:block; }
-.sample-name { padding:5px 8px; font-size:11px; font-weight:700; color:var(--pptx-s1-text-main); border-top:1px solid var(--pptx-s1-border); text-align:center; }
-
-/* ── 공용 버튼식 세그먼트(st.pills) 스킨 ── */
-.st-key-pptx_output_format_pills [data-baseweb="button-group"],
-.st-key-pptx_paginate_pills [data-baseweb="button-group"],
-.st-key-pptx_save_disk_pills [data-baseweb="button-group"],
-.st-key-pptx_slide_target_pills [data-baseweb="button-group"],
-.st-key-pptx_sample_pills [data-baseweb="button-group"],
-.st-key-pptx_lang_pills [data-baseweb="button-group"],
-.st-key-pptx_color_pills [data-baseweb="button-group"] {
-  display:flex !important; gap:0 !important; width:100% !important; overflow:hidden !important;
-  border-radius:10px !important; border:1px solid rgba(47,128,196,0.20) !important; background:#fff !important;
-}
-.st-key-pptx_output_format_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_output_format_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_paginate_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_paginate_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_save_disk_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_save_disk_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_slide_target_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_slide_target_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_sample_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_sample_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_lang_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_lang_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_color_pills [data-testid="stBaseButton-pills"],
-.st-key-pptx_color_pills [data-testid="stBaseButton-pillsActive"] {
-  flex:1 1 0 !important; border-radius:0 !important; border:0 !important; box-shadow:none !important;
-  background:transparent !important; color:#6b7280 !important; font-weight:800 !important;
-  padding:8px 10px !important; min-height:34px !important; height:100% !important;
-}
-.st-key-pptx_output_format_pills [data-testid="stBaseButton-pillsActive"] { background:rgba(37,99,235,0.14) !important; color:#2563eb !important; }
-.st-key-pptx_paginate_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_save_disk_pills [data-testid="stBaseButton-pillsActive"] { background:rgba(34,197,94,0.14) !important; color:#15803d !important; }
-.st-key-pptx_slide_target_pills [data-testid="stBaseButton-pillsActive"] { background:rgba(99,102,241,0.14) !important; color:#4f46e5 !important; }
-.st-key-pptx_sample_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_lang_pills [data-testid="stBaseButton-pillsActive"],
-.st-key-pptx_color_pills [data-testid="stBaseButton-pillsActive"] { background:rgba(239,68,68,0.14) !important; color:#dc2626 !important; }
 
 div[data-testid="stButton"] > button { min-height:36px; border-radius:10px; }
 </style>
@@ -263,12 +202,6 @@ _SAMPLE_MD = """# IRIS 주간 보고
 - V2.7.5 PPT Export *(현 슬라이드)*
 - V2.7.6 OpenClaw 통합
 - V2.7.1 야간 스케줄러
-
----
-
-<!-- _class: lead -->
-
-# 끝
 """
 
 
@@ -372,112 +305,6 @@ def _rail_label(mode: str, *, md_chars: int, upload_name: str | None,
     return f"📄 docs/system · {docs_n}건"
 
 
-def _current_markdown_length(source_mode: str, md_text: str) -> int:
-    return len(md_text)
-
-
-# ─── 라이브 파이프라인 스트립 ────────────────────────────────────────────
-def _seg(lab: str, hue: str, tint: str, state: str, val: str, unit: str = "",
-        detail: str | None = None) -> str:
-    cls = f"flow-seg {state}"
-    style = f"--hue:{hue}; --tint:{tint};"
-    caret = "<span class='caret'>▼</span>" if detail else ""
-    detail_html = f"<div class='detail'>{detail}</div>" if detail else ""
-    unit_html = f"<span class='u'>{_esc(unit)}</span>" if unit else ""
-    return (
-        f"<div class='{cls}' style='{style}'>"
-        f"<span class='ic'></span><span class='lab'>{_esc(lab)}</span>"
-        f"<span class='val'>{_esc(val)}{unit_html}</span>{caret}{detail_html}"
-        f"</div>"
-    )
-
-
-def _source_detail(source_label: str, md_text: str) -> str:
-    snippet = _esc(md_text[:110]) + ("…" if len(md_text) > 110 else "")
-    return (
-        f"<div class='d-head'><span class='d-lab'>① 소스</span><span class='d-meta'>{_esc(source_label or '미선택')}</span></div>"
-        f"<div class='d-stat'>{len(md_text):,}<span class='u'>chars</span></div>"
-        f"<div class='d-code'>{snippet}</div>"
-    )
-
-
-def _render_strip(placeholder, *, engine_is_design: bool, source_label: str, md_text: str,
-                  stage_expand: dict | None, stage_design: dict | None,
-                  stage_render: dict | None, engine_label: str, export_fmt: str) -> None:
-    """스트립을 placeholder에 그림. 여러 번 호출해 실시간 갱신 (같은 run 안에서도, rerun 이후에도)."""
-    s1 = _seg("① 소스", "var(--pptx-ch-1)", "#eff6ff", "done" if md_text else "pending",
-              source_label or "미선택", f"{len(md_text):,}자" if md_text else "",
-              _source_detail(source_label, md_text) if md_text else None)
-
-    if engine_is_design:
-        if stage_expand:
-            d2 = (f"<div class='d-head'><span class='d-lab'>② 입력 확장 · Stage 1</span>"
-                  f"<span class='d-meta'>{stage_expand['elapsed']:.1f}s</span></div>"
-                  f"<div class='d-stat'>{stage_expand['in']:,} → {stage_expand['out']:,}<span class='u'>자 · {stage_expand['out']/max(stage_expand['in'],1):.1f}×</span></div>"
-                  f"<div class='d-code'>{_esc(stage_expand['preview'])}</div>"
-                  f"<div class='d-more'>모델 {_esc(stage_expand['model'])}</div>")
-            s2 = _seg("② 확장", "var(--pptx-ch-6)", "#ecfeff", "done",
-                      f"{stage_expand['in']:,} → {stage_expand['out']:,}", "자", d2)
-        else:
-            s2 = _seg("② 확장", "var(--pptx-ch-6)", "#ecfeff", "pending", "대기")
-
-        if stage_design:
-            items_html = "".join(
-                f"<div class='d-item'><span class='n'>{i}</span><span class='pat'>{_esc(p)}</span><span class='tt'>{_esc(t)}</span></div>"
-                for i, p, t in stage_design["items"][:5]
-            )
-            more = len(stage_design["items"]) - 5
-            more_html = f"<div class='d-more'>+{more}장 더 · model {_esc(stage_design['model'])}</div>" if more > 0 else f"<div class='d-more'>model {_esc(stage_design['model'])}</div>"
-            d3 = (f"<div class='d-head'><span class='d-lab'>③ 슬라이드 설계 · Stage 2</span>"
-                  f"<span class='d-meta'>{stage_design['elapsed']:.1f}s</span></div>"
-                  f"<div class='d-stat'>{stage_design['n']}<span class='u'>장 · {stage_design['patterns']}개 패턴</span></div>"
-                  f"<div class='d-list'>{items_html}</div>{more_html}")
-            s3 = _seg("③ 설계", "var(--pptx-ch-4)", "#fffbeb", "done",
-                      f"{stage_design['n']}", "장 설계됨", d3)
-        else:
-            s3 = _seg("③ 설계", "var(--pptx-ch-4)", "#fffbeb", "pending", "대기")
-
-        if stage_render:
-            if stage_render.get("done"):
-                d4 = (f"<div class='d-head'><span class='d-lab'>④ {_esc(stage_render['fmt'])} 렌더 · Stage 3</span>"
-                      f"<span class='d-meta'>{stage_render['elapsed']:.1f}s</span></div>"
-                      f"<div class='d-stat'>{stage_render['total']}<span class='u'>장 · {stage_render['size_kb']:.1f}KB</span></div>")
-                s4 = _seg("④ 렌더", "var(--pptx-ch-2)", "#f0fdf4", "done",
-                          stage_render["fmt"], f"{stage_render['total']}장 완료", d4)
-            else:
-                cur, total = stage_render["current"], stage_render["total"]
-                pct = int(cur / max(total, 1) * 100)
-                d4 = (f"<div class='d-head'><span class='d-lab'>④ {_esc(stage_render['fmt'])} 렌더 · Stage 3</span>"
-                      f"<span class='d-meta'>{stage_render['elapsed']:.0f}s 경과</span></div>"
-                      f"<div class='d-stat'>{cur} / {total}<span class='u'>장 · {pct}%</span></div>"
-                      f"<div class='d-list'><div class='d-item'><span class='n'>{cur}</span><span class='pat' style='color:var(--pptx-ch-2)'>▸</span>"
-                      f"<span class='tt'>{_esc(stage_render.get('label',''))} 렌더 중…</span></div></div>")
-                s4 = _seg("④ 렌더", "var(--pptx-ch-2)", "#f0fdf4", "active",
-                          f"{stage_render['fmt']} {cur} / {total}", "장", d4)
-        else:
-            s4 = _seg("④ 렌더", "var(--pptx-ch-2)", "#f0fdf4", "pending", "대기")
-    else:
-        # Marp 엔진 — 실제로는 단일 변환 호출이라 ②/③은 즉시 done, ④만 생성 전후로 갈림
-        s2 = _seg("② 원문", "var(--pptx-ch-6)", "#ecfeff",
-                  "done" if md_text else "pending", f"{len(md_text):,}", "chars")
-        s3 = _seg("③ 엔진", "var(--pptx-ch-4)", "#fffbeb", "done", engine_label, "Fast")
-        if stage_render:
-            if stage_render.get("done"):
-                s4 = _seg("④ 산출", "var(--pptx-ch-2)", "#f0fdf4", "done",
-                          export_fmt, f"{stage_render['size_kb']:.1f}KB")
-            else:
-                s4 = _seg("④ 산출", "var(--pptx-ch-2)", "#f0fdf4", "active", export_fmt, "생성 중…")
-        else:
-            s4 = _seg("④ 산출", "var(--pptx-ch-2)", "#f0fdf4", "pending", export_fmt)
-
-    html = (
-        "<div class='flow-strip'>" + s1 + "<div class='flow-arrow'>→</div>" + s2 +
-        "<div class='flow-arrow'>→</div>" + s3 + "<div class='flow-arrow'>→</div>" + s4 +
-        "</div>"
-    )
-    placeholder.markdown(html, unsafe_allow_html=True)
-
-
 # ─── 소스 선택: 왼쪽 레일 + 오른쪽 정보 영역(ㅏ자) ───────────────────────
 def _render_doc_picker(items: list[tuple[str, Path]], *, kind: str, hue: str, tint: str,
                        key_prefix: str) -> tuple[str, str]:
@@ -533,470 +360,686 @@ def _render_doc_picker(items: list[tuple[str, Path]], *, kind: str, hue: str, ti
               <div class="dp-head"><span class="dp-name">{_esc(picked_title)}</span>
               <span class="dp-badge">{len(md_text):,}자</span></div>
               <div class="dp-body">{preview}</div>
-              <div class="dp-foot">→ <b>② 원문으로 {len(md_text):,}자 전달</b></div>
+              <div class="dp-foot">→ <b>② 확장으로 {len(md_text):,}자 전달</b></div>
             </div>""",
             unsafe_allow_html=True,
         )
     return md_text, source_label
 
 
+# ─── 세션 상태 초기화 ────────────────────────────────────────────────────
+def _init_wizard_state() -> None:
+    st.session_state.setdefault("pptx_wizard_step", 0)
+    st.session_state.setdefault("pptx_lang", "한국어")
+    st.session_state.setdefault("pptx_page_count", "자동 (LLM 판단)")
+    st.session_state.setdefault("pptx_template", "iris (다크)")
+    st.session_state.setdefault("pptx_master_style", {
+        "title_font": "Pretendard", "title_size": "32pt", "title_color": "#f8fafc",
+        "pageno_pos": "우측 하단", "logo_fixed": False,
+    })
+    st.session_state.setdefault("pptx_issue_types", {"글자 겹침 오류"})
+    st.session_state.setdefault("pptx_selected_pages", set())
+    st.session_state.setdefault("pptx_output_format", "PDF")
+    st.session_state.setdefault("pptx_density", "보통")
+    st.session_state.setdefault("pptx_pageno_on", True)
+    st.session_state.setdefault("pptx_save_disk", False)
+    st.session_state.setdefault("pptx_use_other_llm_design", False)
+    st.session_state.setdefault("pptx_design_model_override", None)
+
+
+def _current_meta() -> dict:
+    return {
+        "company": st.session_state.get("pptx_deck_company", _DEFAULT_DECK_COMPANY),
+        "title": st.session_state.get("pptx_deck_title", ""),
+        "subtitle": st.session_state.get("pptx_deck_subtitle", ""),
+        "date": st.session_state.get("pptx_deck_date", ""),
+    }
+
+
+def _target_slides_from_page_count() -> int | None:
+    pc = st.session_state.get("pptx_page_count", "자동 (LLM 판단)")
+    if pc.startswith("자동"):
+        return None
+    try:
+        return int(pc.replace("장", "").strip())
+    except ValueError:
+        return None
+
+
+# ─── 스텝퍼 ──────────────────────────────────────────────────────────────
+_STEP_LABELS = ["① 소스", "② 확장", "③ 설계", "④ 렌더"]
+_STEP_HUES = ["var(--pptx-ch-1)", "var(--pptx-ch-3)", "var(--pptx-ch-4)", "var(--pptx-ch-6)"]
+
+
+def _step_sub_labels() -> list[str]:
+    md_text = st.session_state.get("pptx_md", _SAMPLE_MD)
+    src_len = len(md_text)
+    expand_result = st.session_state.get("pptx_expand_result")
+    deck = st.session_state.get("pptx_deck")
+    render_result = st.session_state.get("pptx_render_result")
+    return [
+        f"직접 입력 · {src_len:,}자" if src_len else "미선택",
+        f"{expand_result['model']} · 완료" if expand_result else "대기 중",
+        (f"{st.session_state.get('pptx_template', 'iris (다크)')} · "
+         f"{st.session_state.get('pptx_output_format', 'PDF')}") if deck else "대기 중",
+        f"{render_result['fmt']} 완료" if render_result else "대기 중",
+    ]
+
+
+def _render_stepper(step: int) -> None:
+    subs = _step_sub_labels()
+    css_parts = []
+    for i in range(4):
+        hue = _STEP_HUES[i]
+        if i == step:
+            css_parts.append(
+                f".st-key-pptx_step_btn_{i} button {{ background:#fafbfd !important; "
+                f"border-bottom:3px solid {hue} !important; color:{hue} !important; }}"
+            )
+        elif i < step:
+            css_parts.append(
+                f".st-key-pptx_step_btn_{i} button {{ color:var(--pptx-s1-text-main) !important; }}"
+            )
+        else:
+            css_parts.append(
+                f".st-key-pptx_step_btn_{i} button {{ color:var(--pptx-muted) !important; }}"
+            )
+    st.markdown("<style>" + "\n".join(css_parts) + "</style>", unsafe_allow_html=True)
+
+    with st.container(border=True, key="pptx_stepper_box"):
+        cols = st.columns(4)
+        for i, (lab, sub) in enumerate(zip(_STEP_LABELS, subs)):
+            with cols[i]:
+                mark = "✓ " if i < step else ""
+                if st.button(f"{mark}{lab}", key=f"pptx_step_btn_{i}", use_container_width=True):
+                    st.session_state["pptx_wizard_step"] = i
+                    st.rerun()
+                st.caption(sub)
+
+
+def _render_progress_strip(step: int) -> None:
+    subs = _step_sub_labels()
+    with st.container(border=True, key="pptx_progress_box"):
+        cols = st.columns(4)
+        for i in range(4):
+            with cols[i]:
+                muted = "color:#b8c0cc;font-weight:500;" if i > step else ""
+                st.markdown(
+                    f"<div class='p-k'>{_STEP_LABELS[i]}</div>"
+                    f"<div class='p-v' style='{muted}'>{_esc(subs[i])}</div>",
+                    unsafe_allow_html=True,
+                )
+                if i < 3:
+                    if st.button("편집", key=f"pptx_progress_edit_{i}"):
+                        st.session_state["pptx_wizard_step"] = i
+                        st.rerun()
+
+
+# ─── 우측 사이드 (①②③=생성 설정, ④=문제 유형) ──────────────────────────
+def _render_side(step: int) -> None:
+    if step == 3:
+        st.markdown("<h4 style='font-size:12px;font-weight:800;color:var(--pptx-muted);"
+                    "text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px'>문제 유형</h4>",
+                    unsafe_allow_html=True)
+        issues: set[str] = st.session_state.setdefault("pptx_issue_types", {"글자 겹침 오류"})
+        options = ["언어 선택 오류", "내용 밀도 오류", "글자 겹침 오류", "페이지 형식 오류"]
+        for opt in options:
+            checked = st.checkbox(opt, value=opt in issues, key=f"pptx_issue_{opt}")
+            if checked:
+                issues.add(opt)
+            else:
+                issues.discard(opt)
+        st.session_state["pptx_issue_types"] = issues
+        st.markdown(
+            "<div class='src-settings-note'>왼쪽에서 선택한 페이지에 표시된 문제만 골라 "
+            "그 부분에 집중해서 다시 생성합니다.</div>", unsafe_allow_html=True,
+        )
+        return
+
+    st.markdown("<h4 style='font-size:12px;font-weight:800;color:var(--pptx-muted);"
+                "text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px'>생성 설정</h4>",
+                unsafe_allow_html=True)
+    lang_opts = ["한국어", "English", "중국어"]
+    cur_lang = st.session_state.get("pptx_lang", "한국어")
+    st.session_state["pptx_lang"] = st.selectbox(
+        "언어", lang_opts, index=lang_opts.index(cur_lang) if cur_lang in lang_opts else 0,
+        key="pptx_lang_sel",
+    )
+    pc_opts = ["자동 (LLM 판단)", "5장", "10장", "15장"]
+    cur_pc = st.session_state.get("pptx_page_count", "자동 (LLM 판단)")
+    st.session_state["pptx_page_count"] = st.selectbox(
+        "페이지 수", pc_opts, index=pc_opts.index(cur_pc) if cur_pc in pc_opts else 0,
+        key="pptx_page_count_sel",
+    )
+
+    from src.config import IRIS_LLM_DEEP
+    installed = _ollama_models()
+    if not installed:
+        st.warning("⚠️ Ollama에 모델 0개 또는 미가동")
+    else:
+        default_idx = 0
+        for i, n in enumerate(installed):
+            if n == IRIS_LLM_DEEP or n.startswith(IRIS_LLM_DEEP + ":"):
+                default_idx = i
+                break
+        cur_model = st.session_state.get("pptx_model")
+        idx = installed.index(cur_model) if cur_model in installed else default_idx
+        st.session_state["pptx_model"] = st.selectbox(
+            f"LLM 모델 ({len(installed)}개 설치)", installed, index=idx, key="pptx_model_sel",
+        )
+    st.markdown(
+        "<div class='src-settings-note'>여기서 정한 값이 ②확장의 LLM 변환에 그대로 적용됩니다.</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ─── ① 소스 ──────────────────────────────────────────────────────────────
+def _step_source(archive_items: list[tuple[str, Path]], docs_items: list[tuple[str, Path]]) -> tuple[str, str]:
+    st.markdown("<h3 style='font-size:14px;font-weight:800;margin:0 0 14px;"
+                "color:var(--pptx-s1-text-main)'>① 소스 선택</h3>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='expand-note'>PPT로 만들 원본을 고릅니다. 직접 입력하거나, 파일을 올리거나, "
+        "archive · docs/system에 이미 있는 자료를 골라도 됩니다. 오른쪽에서 정한 언어 · 페이지 수 · "
+        "모델이 다음 단계 LLM 변환에 그대로 쓰입니다.</div>", unsafe_allow_html=True,
+    )
+
+    rail_col, body_col = st.columns([176, 600])
+    upload_name = st.session_state.get("pptx_upload_name")
+
+    def _fmt(m: str) -> str:
+        return _rail_label(m, md_chars=len(st.session_state.get("pptx_md", _SAMPLE_MD)),
+                           upload_name=upload_name, archive_n=len(archive_items), docs_n=len(docs_items))
+
+    with rail_col:
+        st.markdown("<div class='pptx-rail-anchor'></div>", unsafe_allow_html=True)
+        source_mode = st.radio(
+            "마크다운 소스", options=_SOURCE_MODES, format_func=_fmt,
+            key="pptx_source_mode_v2", label_visibility="collapsed",
+        )
+
+    md_text = ""
+    source_label = ""
+
+    with body_col:
+        if source_mode.startswith("✍️"):
+            md_text = st.text_area(
+                "마크다운 입력",
+                value=st.session_state.get("pptx_md", _SAMPLE_MD),
+                key="pptx_md_input", height=280,
+                help="원본 텍스트를 그대로 붙여넣으세요. 표·인용·리스트 모두 다음 단계에서 활용됩니다.",
+                label_visibility="collapsed",
+            )
+            st.session_state["pptx_md"] = md_text
+            source_label = "직접 입력"
+
+        elif source_mode.startswith("📂"):
+            uploaded = st.file_uploader(
+                ".md 파일 선택", type=["md", "markdown", "txt"], key="pptx_upload",
+                help="마크다운 1개 파일. UTF-8 인코딩 권장.",
+            )
+            if uploaded:
+                try:
+                    md_text = uploaded.read().decode("utf-8")
+                    source_label = f"파일: {uploaded.name}"
+                    st.session_state["pptx_upload_name"] = uploaded.name
+                    st.session_state["pptx_md"] = md_text
+                    _sync_deck_meta_from_source(
+                        source_key=f"upload:{uploaded.name}",
+                        doc_title=_doc_title_from_upload(uploaded.name),
+                    )
+                    st.caption(f"✅ {uploaded.name} · {len(md_text):,} chars")
+                except Exception as e:
+                    st.error(f"❌ 파일 읽기 실패: {e}")
+
+        elif source_mode.startswith("📦"):
+            md_text, source_label = _render_doc_picker(
+                archive_items, kind="archive 자료", hue="var(--pptx-ch-4)", tint="#fffbeb",
+                key_prefix="pptx_archive",
+            )
+            if md_text:
+                st.session_state["pptx_md"] = md_text
+
+        elif source_mode.startswith("📄"):
+            md_text, source_label = _render_doc_picker(
+                docs_items, kind="docs/system", hue="var(--pptx-ch-3)", tint="#eef2ff",
+                key_prefix="pptx_docs",
+            )
+            if md_text:
+                st.session_state["pptx_md"] = md_text
+
+    st.session_state["pptx_source_label"] = source_label
+    return md_text, source_label
+
+
+# ─── ② 확장 · LLM 변환 ──────────────────────────────────────────────────
+def _run_expand(md_text: str, meta: dict, model: str | None) -> None:
+    from src.engine.output.deck import expander
+    try:
+        with st.spinner("① LLM 입력 확장 중… (30~180초, 모델·입력 크기 따라)"):
+            er = expander.expand_for_slides(md_text, meta, model=model, timeout=900)
+        st.session_state["pptx_expand_result"] = {
+            "md": er.md, "elapsed": er.elapsed_ms / 1000, "model": er.model,
+            "in": er.original_chars, "out": er.output_chars,
+        }
+        # 소스가 바뀐 뒤 재확장이면 하위 단계 캐시 무효화
+        st.session_state["pptx_deck"] = None
+        st.session_state["pptx_design_meta"] = None
+        st.session_state["pptx_render_result"] = None
+    except expander.ExpansionError as e:
+        st.error(f"❌ 확장 실패: {e}")
+
+
+def _step_expand(md_text: str) -> None:
+    st.markdown("<h3 style='font-size:14px;font-weight:800;margin:0 0 14px;"
+                "color:var(--pptx-s1-text-main)'>② 확장 · LLM 변환</h3>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='expand-note'>①에서 정한 언어 · 페이지 수 · 모델로 LLM이 소스를 읽고, "
+        "슬라이드용으로 더 풍부하게 재구조화한 마크다운을 생성합니다. 이 결과가 ③설계 단계의 입력이 됩니다.</div>",
+        unsafe_allow_html=True,
+    )
+
+    if not md_text.strip():
+        st.info("①소스에서 원본을 먼저 고르세요.")
+        return
+
+    result = st.session_state.get("pptx_expand_result")
+    meta = _current_meta()
+    model = st.session_state.get("pptx_model")
+
+    row1, row2 = st.columns([4, 1])
+    with row1:
+        if result:
+            st.markdown(
+                f"<div class='llm-status'><span class='dot done'></span>"
+                f"{_esc(result['model'])} · 변환 완료 · {result['elapsed']:.1f}초 · "
+                f"소스 {result['in']:,}자 → {result['out']:,}자</div>", unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<div class='llm-status'><span class='dot' style='background:#f59e0b'></span>"
+                "아직 확장되지 않음</div>", unsafe_allow_html=True,
+            )
+    with row2:
+        btn_label = "🔁 재생성" if result else "▶ 확장 시작"
+        if st.button(btn_label, key="pptx_expand_run_btn", use_container_width=True):
+            _run_expand(md_text, meta, model)
+            st.rerun()
+
+    if result:
+        st.markdown("<div class='expand-sub'>출력 · LLM이 생성한 슬라이드용 마크다운 (③설계 입력)</div>",
+                    unsafe_allow_html=True)
+        preview = result["md"][:4000] + ("…" if len(result["md"]) > 4000 else "")
+        st.markdown(f"<div class='expand-box accent'>{_esc(preview)}</div>", unsafe_allow_html=True)
+
+
+# ─── ③ 설계 ──────────────────────────────────────────────────────────────
+_TEMPLATES = [("iris (다크)", "#111827"), ("iris (라이트)", "#f3f4f6"), ("미니멀", "#e5e7eb")]
+
+
+def _run_design(effective_md: str, meta: dict, model: str | None, *,
+                pre_expanded: bool, target_slides: int | None) -> None:
+    from src.engine.output.deck import designer
+    try:
+        with st.spinner(f"② LLM 슬라이드 설계 중… (30~300초, model: {model or 'default'})"):
+            t0 = _dt.datetime.now()
+            deck = designer.design_deck(
+                effective_md, meta, model=model, timeout=600,
+                pre_expanded=pre_expanded, target_slides=target_slides,
+            )
+            elapsed = (_dt.datetime.now() - t0).total_seconds()
+        st.session_state["pptx_deck"] = deck
+        st.session_state["pptx_design_meta"] = {
+            "elapsed": elapsed, "model": model or "default", "n": len(deck.slides),
+        }
+        st.session_state["pptx_render_result"] = None
+        st.session_state["pptx_selected_pages"] = set(range(1, len(deck.slides) + 1))
+    except designer.DesignError as e:
+        st.error(f"❌ 설계 실패: {e}")
+
+
+def _step_design() -> None:
+    st.markdown("<h3 style='font-size:14px;font-weight:800;margin:0 0 14px;"
+                "color:var(--pptx-s1-text-main)'>③ 변환 설정</h3>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='expand-note'>②에서 나온 마크다운을 슬라이드로 렌더링합니다. 페이지별 내용에 맞는 "
+        "레이아웃을 LLM이 골라 템플릿에 맞춰 그려냅니다.</div>", unsafe_allow_html=True,
+    )
+
+    # ── 템플릿 갤러리 ──
+    st.markdown("<div class='tpl-section'><label>템플릿</label></div>", unsafe_allow_html=True)
+    imp_col1, imp_col2 = st.columns([5, 1])
+    with imp_col1:
+        st.text_input(
+            "템플릿 가져오기", key="pptx_tpl_import_query",
+            placeholder="URL 또는 검색어로 템플릿 가져오기 (예: notion, 컨설팅 제안서 다크)",
+            label_visibility="collapsed",
+        )
+    with imp_col2:
+        if st.button("가져오기", key="pptx_tpl_import_btn", use_container_width=True):
+            st.toast("준비 중입니다")
+
+    tpl_cols = st.columns(len(_TEMPLATES))
+    for i, (name, color) in enumerate(_TEMPLATES):
+        with tpl_cols[i]:
+            st.markdown(f"<div class='tpl-thumb' style='background:{color}'></div>", unsafe_allow_html=True)
+            sel = st.session_state.get("pptx_template") == name
+            if st.button(("✓ " if sel else "") + name, key=f"pptx_tpl_btn_{i}", use_container_width=True):
+                st.session_state["pptx_template"] = name
+                st.rerun()
+            st.markdown(f"<div class='tpl-name'>{_esc(name)}</div>", unsafe_allow_html=True)
+
+    # ── 마스터 스타일 ──
+    st.markdown(
+        "<div class='master-section-label'>마스터 스타일 <span class='hint'>— 모든 페이지에 고정 적용, "
+        "템플릿을 바꿔도 여기서 손댄 값은 유지됩니다</span></div>", unsafe_allow_html=True,
+    )
+    ms = st.session_state["pptx_master_style"]
+    fc1, fc2, fc3 = st.columns(3)
+    with fc1:
+        fonts = ["Pretendard", "SUIT", "Noto Sans KR"]
+        ms["title_font"] = st.selectbox(
+            "제목 폰트", fonts, index=fonts.index(ms.get("title_font", "Pretendard")),
+            key="pptx_master_font",
+        )
+    with fc2:
+        sizes = ["32pt", "28pt", "24pt"]
+        ms["title_size"] = st.selectbox(
+            "제목 크기", sizes, index=sizes.index(ms.get("title_size", "32pt")),
+            key="pptx_master_size",
+        )
+    with fc3:
+        color_opts = [("#f8fafc", "화이트"), ("#3b82f6", "블루"), ("#f59e0b", "오렌지")]
+        labels = [lab for _, lab in color_opts]
+        cur_label = next((lab for c, lab in color_opts if c == ms.get("title_color")), labels[0])
+        picked = st.selectbox("제목 색상", labels, index=labels.index(cur_label), key="pptx_master_color")
+        ms["title_color"] = dict((lab, c) for c, lab in color_opts)[picked]
+
+    mc1, mc2 = st.columns(2)
+    with mc1:
+        positions = ["우측 하단", "좌측 하단", "중앙 하단"]
+        ms["pageno_pos"] = st.selectbox(
+            "페이지 번호 위치", positions, index=positions.index(ms.get("pageno_pos", "우측 하단")),
+            key="pptx_master_pageno_pos",
+        )
+    with mc2:
+        ms["logo_fixed"] = st.checkbox("로고 고정 표시", value=ms.get("logo_fixed", False), key="pptx_master_logo")
+    st.session_state["pptx_master_style"] = ms
+
+    # ── 컴팩트 설정 행 ──
+    cr1, cr2, cr3, cr4, cr5 = st.columns(5)
+    with cr1:
+        fmt_opts = ["PDF", "PPTX"]
+        cur_fmt = st.session_state.get("pptx_output_format", "PDF")
+        st.session_state["pptx_output_format"] = st.selectbox(
+            "출력 형식", fmt_opts, index=fmt_opts.index(cur_fmt) if cur_fmt in fmt_opts else 0,
+            key="pptx_output_format_sel",
+        )
+    with cr2:
+        density_opts = ["보통", "여유 (텍스트 적게)", "빽빽 (텍스트 많이)"]
+        cur_density = st.session_state.get("pptx_density", "보통")
+        st.session_state["pptx_density"] = st.selectbox(
+            "레이아웃 밀도", density_opts,
+            index=density_opts.index(cur_density) if cur_density in density_opts else 0,
+            key="pptx_density_sel",
+        )
+    with cr3:
+        st.session_state["pptx_pageno_on"] = st.checkbox(
+            "페이지 번호", value=st.session_state.get("pptx_pageno_on", True), key="pptx_pageno_chk",
+        )
+    with cr4:
+        st.session_state["pptx_save_disk"] = st.checkbox(
+            "exports 저장", value=st.session_state.get("pptx_save_disk", False), key="pptx_save_disk_chk",
+        )
+    with cr5:
+        st.session_state["pptx_use_other_llm_design"] = st.checkbox(
+            "설계에서 다른 LLM", value=st.session_state.get("pptx_use_other_llm_design", False),
+            key="pptx_other_llm_chk",
+        )
+        if st.session_state["pptx_use_other_llm_design"]:
+            installed = _ollama_models()
+            if installed:
+                st.session_state["pptx_design_model_override"] = st.selectbox(
+                    "설계용 모델", installed, key="pptx_design_model_sel",
+                )
+
+    # ── 설계 실행 ──
+    st.markdown("<hr style='margin:14px 0;border:none;border-top:1px dashed var(--pptx-s1-border)'>",
+               unsafe_allow_html=True)
+    expand_result = st.session_state.get("pptx_expand_result")
+    md_text = st.session_state.get("pptx_md", "")
+    effective_md = expand_result["md"] if expand_result else md_text
+    pre_expanded = bool(expand_result)
+    deck = st.session_state.get("pptx_deck")
+    design_meta = st.session_state.get("pptx_design_meta")
+
+    dcol1, dcol2 = st.columns([4, 1])
+    with dcol1:
+        if design_meta:
+            st.markdown(
+                f"<div class='llm-status'><span class='dot done'></span>"
+                f"{_esc(design_meta['model'])} · 설계 완료 · {design_meta['elapsed']:.1f}초 · "
+                f"{design_meta['n']}장</div>", unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<div class='llm-status'><span class='dot' style='background:#f59e0b'></span>"
+                "아직 설계되지 않음</div>", unsafe_allow_html=True,
+            )
+    with dcol2:
+        btn_label = "🔁 재설계" if deck else "🎨 설계 실행"
+        if st.button(btn_label, key="pptx_design_run_btn", disabled=not effective_md.strip(),
+                     use_container_width=True):
+            model = (st.session_state.get("pptx_design_model_override")
+                    if st.session_state.get("pptx_use_other_llm_design")
+                    else st.session_state.get("pptx_model"))
+            _run_design(effective_md, _current_meta(), model,
+                       pre_expanded=pre_expanded, target_slides=_target_slides_from_page_count())
+            st.rerun()
+
+
+# ─── ④ 렌더 · 결과 리뷰 ──────────────────────────────────────────────────
+def _run_render(deck, output_format: str, save_disk: bool) -> None:
+    fmt_label = "PDF" if output_format == "PDF" else "PPTX"
+    try:
+        with st.spinner(f"③ {fmt_label} 렌더 중… (슬라이드당 ~2초)"):
+            t0 = _dt.datetime.now()
+            if fmt_label == "PDF":
+                from src.engine.output.deck.renderer import render_deck_to_pdf
+                out_path = render_deck_to_pdf(deck)
+                ext, mime = "pdf", "application/pdf"
+            else:
+                from src.engine.output.deck.pptx_export import render_deck_to_pptx
+                out_path = render_deck_to_pptx(deck)
+                ext = "pptx"
+                mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            elapsed = (_dt.datetime.now() - t0).total_seconds()
+        size_kb = out_path.stat().st_size / 1024
+        result = {
+            "out_path": str(out_path), "ext": ext, "mime": mime,
+            "size_kb": size_kb, "elapsed": elapsed, "fmt": fmt_label,
+        }
+        if save_disk:
+            saved = _save_to_exports(out_path, prefix="deck")
+            result["saved_to"] = str(saved)
+        st.session_state["pptx_render_result"] = result
+    except Exception as e:
+        st.error(f"❌ 렌더 실패: {type(e).__name__}: {e}")
+        st.caption("playwright 미설치라면: `pip install playwright && playwright install chromium`")
+
+
+def _step_render() -> None:
+    deck = st.session_state.get("pptx_deck")
+    render_result = st.session_state.get("pptx_render_result")
+
+    st.markdown("<h3 style='font-size:14px;font-weight:800;margin:0 0 14px;"
+                "color:var(--pptx-s1-text-main)'>④ 렌더 · 결과 리뷰</h3>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='expand-note'>생성된 페이지를 확인하고, 마음에 안 드는 페이지만 선택해서 "
+        "다시 생성할 수 있습니다.</div>", unsafe_allow_html=True,
+    )
+
+    if not deck:
+        st.info("아직 설계된 슬라이드가 없습니다. ③설계 단계에서 '설계 실행'을 먼저 눌러주세요.")
+        return
+
+    tpl = st.session_state.get("pptx_template", "iris (다크)")
+    if render_result:
+        st.markdown(
+            f"<div class='render-status'><span class='dot'></span>"
+            f"{render_result['fmt']} 생성 완료 · {len(deck.slides)}페이지 · {_esc(tpl)} 템플릿 · "
+            f"{render_result['size_kb']:.1f}KB</div>", unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div class='render-status'><span class='dot' style='background:#f59e0b'></span>"
+            "아직 렌더되지 않음 — 아래 '전체 재생성'을 눌러주세요.</div>", unsafe_allow_html=True,
+        )
+
+    selected: set[int] = st.session_state.setdefault(
+        "pptx_selected_pages", set(range(1, len(deck.slides) + 1)),
+    )
+    cols = st.columns(3)
+    for i, slide in enumerate(deck.slides, 1):
+        title = str(slide.data.get("title", slide.data.get("company", slide.pattern)))[:40]
+        body_bits = [str(v) for k, v in slide.data.items()
+                    if isinstance(v, str) and k not in ("title", "subtitle") and v]
+        body_preview = " · ".join(body_bits)[:90]
+        col = cols[(i - 1) % 3]
+        with col:
+            checked = st.checkbox(f"{i}. {title}", value=i in selected, key=f"pptx_page_chk_{i}")
+            if checked:
+                selected.add(i)
+            else:
+                selected.discard(i)
+            st.markdown(
+                f"<div class='render-thumb' style='background:#111827'>"
+                f"<div class='render-thumb-title'>{_esc(title)}</div>"
+                f"<div class='render-thumb-body'>{_esc(body_preview)}</div></div>"
+                f"<div class='render-meta'>page {i} · {_esc(slide.pattern)}</div>",
+                unsafe_allow_html=True,
+            )
+    st.session_state["pptx_selected_pages"] = selected
+
+    n_sel = len(selected)
+    st.markdown(
+        f"<div style='font-size:11.5px;color:var(--pptx-muted);font-weight:700;margin:14px 0 8px'>"
+        f"{n_sel}개 페이지 선택됨</div>", unsafe_allow_html=True,
+    )
+
+    ac1, ac2, ac3 = st.columns(3)
+    output_format = st.session_state.get("pptx_output_format", "PDF")
+    save_disk = st.session_state.get("pptx_save_disk", False)
+    with ac1:
+        if st.button("🎯 표시한 문제로 재생성", key="pptx_regen_issues", use_container_width=True):
+            # 이번 패스에서는 부분 재생성 대신 전체 재생성으로 동작 (계획서 확정 기본값).
+            _run_render(deck, output_format, save_disk)
+            st.rerun()
+    with ac2:
+        if st.button("🔁 전체 재생성", key="pptx_regen_all", use_container_width=True):
+            _run_render(deck, output_format, save_disk)
+            st.rerun()
+    with ac3:
+        if render_result:
+            out_path = Path(render_result["out_path"])
+            if out_path.exists():
+                with out_path.open("rb") as f:
+                    data = f.read()
+                stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+                st.download_button(
+                    f"💾 {render_result['fmt']} 다운로드", data=data,
+                    file_name=f"deck_{stamp}.{render_result['ext']}",
+                    mime=render_result["mime"], use_container_width=True, key="pptx_download_btn",
+                )
+            else:
+                st.caption("⚠️ 파일이 사라졌습니다 — 다시 생성해주세요.")
+    if render_result and render_result.get("saved_to"):
+        st.caption(f"📦 exports/ 저장: `{render_result['saved_to']}`")
+
+
+# ─── 단계 전환 로직 (하단 이전/다음) ──────────────────────────────────────
+def _advance_from(step: int) -> None:
+    md_text = st.session_state.get("pptx_md", "")
+    meta = _current_meta()
+    model = st.session_state.get("pptx_model")
+
+    if step == 0:
+        st.session_state["pptx_wizard_step"] = 1
+
+    elif step == 1:
+        if not st.session_state.get("pptx_expand_result") and md_text.strip():
+            _run_expand(md_text, meta, model)
+        st.session_state["pptx_wizard_step"] = 2
+
+    elif step == 2:
+        expand_result = st.session_state.get("pptx_expand_result")
+        effective_md = expand_result["md"] if expand_result else md_text
+        pre_expanded = bool(expand_result)
+        if not st.session_state.get("pptx_deck") and effective_md.strip():
+            design_model = (st.session_state.get("pptx_design_model_override")
+                            if st.session_state.get("pptx_use_other_llm_design")
+                            else model)
+            _run_design(effective_md, meta, design_model,
+                       pre_expanded=pre_expanded, target_slides=_target_slides_from_page_count())
+        deck = st.session_state.get("pptx_deck")
+        if deck and not st.session_state.get("pptx_render_result"):
+            _run_render(deck, st.session_state.get("pptx_output_format", "PDF"),
+                       st.session_state.get("pptx_save_disk", False))
+        st.session_state["pptx_wizard_step"] = 3
+
+    else:
+        deck = st.session_state.get("pptx_deck")
+        if deck:
+            _run_render(deck, st.session_state.get("pptx_output_format", "PDF"),
+                       st.session_state.get("pptx_save_disk", False))
+
+    st.rerun()
+
+
+# ─── 메인 render() ───────────────────────────────────────────────────────
 def render() -> None:
     st.markdown(_PPTX_CSS, unsafe_allow_html=True)
     hub_pagebar(
         "PPT",
         "Deck Console",
-        "마크다운 소스를 선택하고 변환 엔진을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.",
+        "마크다운 소스를 선택하고 언어 · 페이지 수 · 템플릿을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.",
         "Export Ready",
     )
 
-    strip_ph = st.empty()
-    caption_ph = st.empty()
+    _init_wizard_state()
+    _init_deck_meta_defaults()
+    archive_items = _list_archive_content_md()
+    docs_items = _list_docs_md()
 
-    st.markdown("<div class='pptx-section-title'><span class='dot'></span>소스 선택</div>", unsafe_allow_html=True)
-    with st.container(border=True):
-        rail_col, body_col = st.columns([176, 600])
+    step = st.session_state["pptx_wizard_step"]
+    _render_stepper(step)
 
-        _init_deck_meta_defaults()
-        archive_items = _list_archive_content_md()
-        docs_items = _list_docs_md()
+    panel_col, side_col = st.columns([3, 1], gap="medium")
 
-        with rail_col:
-            st.markdown("<div class='pptx-rail-anchor'></div>", unsafe_allow_html=True)
-            upload_name = st.session_state.get("pptx_upload_name")
-            # 옵션 정체성(_SOURCE_MODES)과 표시 라벨(실시간 카운트)을 분리 —
-            # 라벨에 매 rerun마다 바뀌는 글자수를 그대로 넣으면 위젯 상태 매칭이 깨짐.
-            def _fmt(m: str) -> str:
-                return _rail_label(m, md_chars=len(st.session_state.get("pptx_md", _SAMPLE_MD)),
-                                   upload_name=upload_name, archive_n=len(archive_items), docs_n=len(docs_items))
-
-            source_mode = st.radio(
-                "마크다운 소스", options=_SOURCE_MODES, format_func=_fmt,
-                key="pptx_source_mode_v2", label_visibility="collapsed",
-            )
-
-        md_text = ""
-        source_label = ""
-
-        with body_col:
-            if source_mode.startswith("✍️"):
-                md_text = st.text_area(
-                    "마크다운 입력",
-                    value=st.session_state.get("pptx_md", _SAMPLE_MD),
-                    key="pptx_md_input", height=204,
-                    help="`---`로 슬라이드 구분. 표·인용·코드 모두 박힘.",
-                    label_visibility="collapsed",
-                )
-                st.session_state["pptx_md"] = md_text
-                source_label = "직접 입력"
-
-            elif source_mode.startswith("📂"):
-                uploaded = st.file_uploader(
-                    ".md 파일 선택", type=["md", "markdown", "txt"], key="pptx_upload",
-                    help="마크다운 1개 파일. UTF-8 인코딩 권장.",
-                )
-                if uploaded:
-                    try:
-                        md_text = uploaded.read().decode("utf-8")
-                        source_label = f"파일: {uploaded.name}"
-                        st.session_state["pptx_upload_name"] = uploaded.name
-                        _sync_deck_meta_from_source(
-                            source_key=f"upload:{uploaded.name}",
-                            doc_title=_doc_title_from_upload(uploaded.name),
-                        )
-                        st.caption(f"✅ {uploaded.name} · {len(md_text):,} chars")
-                    except Exception as e:
-                        st.error(f"❌ 파일 읽기 실패: {e}")
-
-            elif source_mode.startswith("📦"):
-                md_text, source_label = _render_doc_picker(
-                    archive_items, kind="archive 자료", hue="var(--pptx-ch-4)", tint="#fffbeb",
-                    key_prefix="pptx_archive",
-                )
-
-            elif source_mode.startswith("📄"):
-                md_text, source_label = _render_doc_picker(
-                    docs_items, kind="docs/system", hue="var(--pptx-ch-3)", tint="#eef2ff",
-                    key_prefix="pptx_docs",
-                )
-
-    st.markdown("<div class='pptx-section-title'><span class='dot' style='background:var(--pptx-ch-4)'></span>변환 설정</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='pptx-caption'>소스: <strong>{_esc(source_label or '미선택')}</strong> · 본문 <strong>{len(md_text):,}</strong> chars</div>", unsafe_allow_html=True)
-
-    # 좌(엔진선택+공통설정+생성버튼, 고정폭) / 우(엔진별 상세, 나머지 전체) —
-    # 폭만 넓힌 1열 스택이 아니라 실제로 폭을 나눠 쓰도록 재구성 (와이드 목업 이식).
-    left_col, right_col = st.columns([1, 3], gap="medium")
-
-    with left_col:
-        st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>PPT 엔진</div>", unsafe_allow_html=True)
-        engine = st.radio(
-            "🛠️ PPT 엔진",
-            options=["📄 Marp (단순·빠름)", "🎨 디자인 (컨설팅급, LLM 슬라이드 설계 → HTML 템플릿)"],
-            index=0, key="pptx_engine", label_visibility="collapsed",
-            help="Marp = 마크다운을 슬라이드로 그대로 박음 (3~10초). "
-                 "디자인 = LLM이 패턴 결정 → HTML 렌더 (30~120초, playwright 필요).",
-        )
-        is_design = engine.startswith("🎨")
-
-        with st.container(border=True, key="pptx_common_box"):
-            st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>공통 설정 · Marp · 디자인</div>", unsafe_allow_html=True)
-
-            if "pptx_output_format_pills" not in st.session_state:
-                st.session_state["pptx_output_format_pills"] = "📄 PDF"
-            out_choice = st.pills("출력 형식", options=["📄 PDF", "📊 PPTX"], selection_mode="single",
-                                  key="pptx_output_format_pills", width="stretch")
-
-            r1c1, r1c2 = st.columns(2)
-            with r1c1:
-                if "pptx_paginate_pills" not in st.session_state:
-                    st.session_state["pptx_paginate_pills"] = "ON"
-                pag_choice = st.pills("페이지 번호", options=["ON", "OFF"], selection_mode="single",
-                                     key="pptx_paginate_pills", width="stretch")
-            with r1c2:
-                if "pptx_save_disk_pills" not in st.session_state:
-                    st.session_state["pptx_save_disk_pills"] = "ON" if is_design else "OFF"
-                save_choice = st.pills("exports 저장", options=["ON", "OFF"], selection_mode="single",
-                                      key="pptx_save_disk_pills", width="stretch")
-
-            output_format = "PDF (벡터, 편집 불가)" if "PDF" in str(out_choice) else "PPTX (이미지 임베드)"
-            paginate = str(pag_choice) == "ON"
-            save_to_disk = str(save_choice) == "ON"
-
-            from src.config import IRIS_LLM_DEEP
-            installed = _ollama_models()
-            if not installed:
-                st.warning("⚠️ Ollama에 모델 0개 또는 Ollama 미가동")
-                picked_model = None
+    with panel_col:
+        with st.container(border=True, key="pptx_panel_box"):
+            if step == 0:
+                _step_source(archive_items, docs_items)
+            elif step == 1:
+                _step_expand(st.session_state.get("pptx_md", ""))
+            elif step == 2:
+                _step_design()
             else:
-                default_idx = 0
-                for i, n in enumerate(installed):
-                    if n == IRIS_LLM_DEEP or n.startswith(IRIS_LLM_DEEP + ":"):
-                        default_idx = i
-                        break
-                picked_model = st.selectbox(
-                    f"🧠 LLM 모델 ({len(installed)}개 설치)", options=installed, index=default_idx,
-                    key="pptx_model",
-                    help=f"Ollama 설치 모델. 기본 env IRIS_LLM_DEEP=`{IRIS_LLM_DEEP}`.",
-                )
+                _step_render()
 
-        if is_design:
-            gen_btn = st.button("🎨 디자인 PPT 생성", type="primary", use_container_width=True,
-                               disabled=not md_text.strip(), key="pptx_gen_design")
-        else:
-            gen_pdf = "PDF" in str(output_format)
-            gen_btn = st.button("📄 PDF 생성" if gen_pdf else "📊 PPT 생성", type="primary",
-                               use_container_width=True, disabled=not md_text.strip(), key="pptx_gen_marp")
+    with side_col:
+        with st.container(border=True, key="pptx_side_box"):
+            _render_side(step)
 
-    theme_name = None
-    use_llm_restructure = False
-    use_2stage = False
-    slide_target = "auto (입력 크기에 따라)"
-    deck_company = st.session_state.get("pptx_deck_company", _DEFAULT_DECK_COMPANY)
-    deck_title = st.session_state.get("pptx_deck_title", "")
-    deck_subtitle = st.session_state.get("pptx_deck_subtitle", "")
-    deck_date = st.session_state.get("pptx_deck_date", "")
+    _render_progress_strip(step)
 
-    with right_col:
-        if not is_design:
-            with st.container(border=True):
-                st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-4)'></span>Marp 옵션</div>", unsafe_allow_html=True)
-                c1, c2 = st.columns(2)
-                with c1:
-                    theme_name = st.selectbox(
-                        "테마", options=["iris (다크)", "default (기본)", "gaia (밝음)", "uncover (미니멀)"],
-                        index=0, key="pptx_theme", help="iris는 IRIS 전용 다크 테마. 다른 테마는 Marp 내장.",
-                    )
-                with c2:
-                    st.markdown("<div style='height:1.6rem'></div>", unsafe_allow_html=True)
-                    use_llm_restructure = st.checkbox(
-                        "🤖 LLM 재구조화 (품질 ↑)", value=False, key="pptx_use_llm",
-                        help="Marp 변환 *전*에 LLM이 마크다운을 프레젠테이션용으로 재구조화.",
-                    )
-        else:
-            with st.container(border=True, key="pptx_design_box"):
-                st.markdown("<div class='set-glabel'><span class='g-dot' style='background:var(--pptx-ch-5)'></span>디자인 엔진 상세</div>", unsafe_allow_html=True)
-
-                st.markdown(
-                    """<div class="sample-grid">
-                      <div class="sample-card sel">
-                        <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#f4f8ff)">
-                          <div class="bar" style="background:#1a3a6b"></div>
-                          <div class="row"><i style="background:#2563eb"></i><i style="background:#1a3a6b"></i><i style="background:#3b82f6"></i></div>
-                        </div><div class="sample-name">블루 (기본)</div>
-                      </div>
-                      <div class="sample-card">
-                        <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#f6f6f6)">
-                          <div class="bar" style="background:#1a1a1a"></div>
-                          <div class="row"><i style="background:#404040"></i><i style="background:#737373"></i><i style="background:#a3a3a3"></i></div>
-                        </div><div class="sample-name">흑백</div>
-                      </div>
-                      <div class="sample-card">
-                        <div class="sample-thumb" style="background:linear-gradient(180deg,#fff,#fef6ff)">
-                          <div class="bar" style="background:#7c3aed"></div>
-                          <div class="row"><i style="background:#e89324"></i><i style="background:#15803d"></i><i style="background:#dc2626"></i></div>
-                        </div><div class="sample-name">컬러풀</div>
-                      </div>
-                    </div>""",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("<span style='font-size:11.5px;font-weight:700;color:#6b7280'>📐 디자인 샘플</span><span class='new-tag'>NEW</span>", unsafe_allow_html=True)
-                if "pptx_sample_pills" not in st.session_state:
-                    st.session_state["pptx_sample_pills"] = "블루 (기본)"
-                st.pills("디자인 샘플 선택", options=["블루 (기본)", "흑백", "컬러풀"], selection_mode="single",
-                        key="pptx_sample_pills", label_visibility="collapsed", width="stretch")
-                st.markdown("<div class='wire-note'>현재 <code>_base.html.j2</code>가 테마 1개뿐이라서, 흑백/컬러풀용 base 변형 CSS 2개 추가 배선이 필요합니다.</div>", unsafe_allow_html=True)
-
-                lc1, lc2 = st.columns(2)
-                with lc1:
-                    st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🌐 언어</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
-                    if "pptx_lang_pills" not in st.session_state:
-                        st.session_state["pptx_lang_pills"] = "한국어"
-                    st.pills("언어 선택", options=["한국어", "中文", "자동"], selection_mode="single",
-                            key="pptx_lang_pills", label_visibility="collapsed", width="stretch")
-                    st.markdown("<div class='wire-note'>소스 언어를 따라감 — designer 프롬프트 강제 지시 배선 필요.</div>", unsafe_allow_html=True)
-                with lc2:
-                    st.markdown("<div style='margin-top:14px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>🎨 컬러 (액센트)</span><span class='new-tag'>NEW</span></div>", unsafe_allow_html=True)
-                    if "pptx_color_pills" not in st.session_state:
-                        st.session_state["pptx_color_pills"] = "⬛ 네이비"
-                    st.pills("컬러 선택", options=["⬛ 네이비", "🔵 블루", "🟧 오렌지", "🟩 그린", "🟪 퍼플", "🟥 레드"],
-                            selection_mode="single", key="pptx_color_pills", label_visibility="collapsed", width="stretch")
-                    st.markdown("<div class='wire-note'><code>--accent</code> 주입 배선 필요.</div>", unsafe_allow_html=True)
-
-                st.markdown("<hr style='margin:14px 0;border:none;border-top:1px solid #eee'>", unsafe_allow_html=True)
-
-                sc1, sc2 = st.columns([2, 1])
-                with sc1:
-                    if "pptx_slide_target_pills" not in st.session_state:
-                        st.session_state["pptx_slide_target_pills"] = "auto (입력 크기에 따라)"
-                    slide_target = st.pills(
-                        "🎯 목표 슬라이드 수",
-                        options=["auto (입력 크기에 따라)", "10장", "15장", "20장", "25장", "30장"],
-                        selection_mode="single", key="pptx_slide_target_pills", width="stretch",
-                    )
-                with sc2:
-                    st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
-                    use_2stage = st.checkbox("🚀 2단 파이프라인 (품질 ↑↑)", value=True, key="pptx_use_2stage",
-                                            help="① LLM 입력 확장 → ② 슬라이드 패턴 매칭. OFF면 단일-패스.")
-
-                st.markdown("<div style='margin-top:10px'><span style='font-size:11.5px;font-weight:700;color:#6b7280'>📝 메타 정보</span></div>", unsafe_allow_html=True)
-                mc0, mc1, mc2, mc3 = st.columns(4)
-                with mc0:
-                    deck_company = st.text_input("회사명", key="pptx_deck_company")
-                with mc1:
-                    deck_title = st.text_input("보고서 제목", key="pptx_deck_title")
-                with mc2:
-                    deck_subtitle = st.text_input("부제", key="pptx_deck_subtitle")
-                with mc3:
-                    deck_date = st.text_input("날짜·버전", key="pptx_deck_date")
-
-    # ─── 스트립 그리기 (생성 전: 현재 선택 상태 그대로) ──────────────────
-    engine_label = "Design" if is_design else "Marp"
-    export_fmt = "PDF" if "PDF" in str(output_format) else ("PPTX" if is_design else "PPTX")
-    _render_strip(strip_ph, engine_is_design=is_design, source_label=source_label, md_text=md_text,
-                 stage_expand=st.session_state.get("pptx_last_stage_expand"),
-                 stage_design=st.session_state.get("pptx_last_stage_design"),
-                 stage_render=st.session_state.get("pptx_last_stage_render"),
-                 engine_label=engine_label, export_fmt=export_fmt)
-
-    # ─── 생성 분기 ──────────────────────────────────────────────
-    if gen_btn:
-        # 새 생성 시작 — 이전 실행의 스테이지 결과 초기화
-        st.session_state["pptx_last_stage_expand"] = None
-        st.session_state["pptx_last_stage_design"] = None
-        st.session_state["pptx_last_stage_render"] = None
-
-        if is_design:
-            target_n: int | None = None
-            if not str(slide_target).startswith("auto"):
-                try:
-                    target_n = int(str(slide_target).replace("장", "").strip())
-                except ValueError:
-                    target_n = None
-            _generate_design(
-                md_text, picked_model, output_format, save_to_disk,
-                deck_company, deck_title, deck_subtitle, deck_date,
-                use_2stage=use_2stage, target_slides=target_n,
-                strip_ph=strip_ph, source_label=source_label,
-            )
-            return
-
-        gen_pdf = "PDF" in str(output_format)
-        _generate_marp(
-            md_text, picked_model, theme_name, paginate,
-            use_llm_restructure, save_to_disk, gen_pdf,
-            strip_ph=strip_ph, source_label=source_label, engine_label=engine_label,
-        )
-
-
-def _generate_marp(md_text: str, picked_model: str | None,
-                   theme_name: str, paginate: bool,
-                   use_llm_restructure: bool, save_to_disk: bool,
-                   gen_pdf: bool, *, strip_ph, source_label: str, engine_label: str) -> None:
-    from src.engine.output import exporter
-
-    def _repaint(stage_render: dict | None) -> None:
-        _render_strip(strip_ph, engine_is_design=False, source_label=source_label, md_text=md_text,
-                     stage_expand=None, stage_design=None, stage_render=stage_render,
-                     engine_label=engine_label, export_fmt="PDF" if gen_pdf else "PPTX")
-
-    _repaint({"done": False})
-
-    effective_md = md_text
-    if use_llm_restructure:
-        from src.engine.output import exporter_llm
-        try:
-            with st.spinner("🤖 LLM 재구조화 중… (~30~120s, 모델 따라 다름)"):
-                rr = exporter_llm.restructure_markdown(md_text, model=picked_model)
-            effective_md = rr.md
-            st.info(
-                f"🤖 재구조화 완료 — {rr.model} · {rr.elapsed_ms / 1000:.1f}s · "
-                f"{rr.original_chars:,} → {rr.output_chars:,}자 · 슬라이드 ~{rr.slides_count}장"
-            )
-            with st.expander("📋 재구조화된 마크다운 미리보기", expanded=False):
-                st.code(effective_md[:1500] + ("..." if len(effective_md) > 1500 else ""), language="markdown")
-        except exporter_llm.RestructureError as e:
-            st.warning(f"⚠️ LLM 재구조화 실패: {e} — 원본 마크다운 사용")
-
-    theme_map = {"iris (다크)": "iris", "default (기본)": "default", "gaia (밝음)": "gaia", "uncover (미니멀)": "uncover"}
-    theme_id = theme_map.get(theme_name, "iris")
-    theme_css = exporter.DEFAULT_THEME_PATH if theme_id == "iris" else None
-
-    try:
-        with st.spinner(f"{'PDF' if gen_pdf else 'PPT'} 생성 중… (3~10초)"):
-            t0 = _dt.datetime.now()
-            if gen_pdf:
-                res = exporter.md_to_pdf(effective_md, theme_css=theme_css, theme_name=theme_id, paginate=paginate)
-            else:
-                res = exporter.md_to_pptx(effective_md, theme_css=theme_css, theme_name=theme_id, paginate=paginate)
-    except exporter.ExportError as e:
-        st.error(f"❌ 변환 실패: {e}")
-        st.caption("Marp 미설치: `brew install marp-cli`")
-        _repaint(None)
-        return
-
-    result = {"done": True, "size_kb": res.size_bytes / 1024, "elapsed": res.elapsed_ms / 1000}
-    st.session_state["pptx_last_stage_render"] = result
-    _repaint(result)
-
-    st.success(f"✅ 생성 완료 — {res.size_bytes / 1024:.1f}KB · {res.elapsed_ms / 1000:.1f}초")
-
-    ext = "pdf" if gen_pdf else "pptx"
-    with res.out_path.open("rb") as f:
-        data = f.read()
-    stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    st.download_button(
-        f"💾 다운로드 (slides_{stamp}.{ext})", data=data, file_name=f"slides_{stamp}.{ext}",
-        mime="application/pdf" if gen_pdf else "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        use_container_width=True,
-    )
-    if save_to_disk:
-        saved = _save_to_exports(res.out_path, prefix="slides")
-        st.caption(f"📦 exports/ 저장: `{saved}`")
-
-
-def _generate_design(md_text: str, picked_model: str | None,
-                     output_format: str, save_to_disk: bool,
-                     company: str, title: str, subtitle: str, date: str,
-                     *, use_2stage: bool = True, target_slides: int | None = None,
-                     strip_ph, source_label: str) -> None:
-    """V2.7.6 → V2.8.3 디자인 엔진. 스테이지마다 strip_ph를 실시간 갱신."""
-    meta = {"company": company, "title": title, "subtitle": subtitle, "date": date}
-    model_label = picked_model or "default"
-
-    def _repaint(stage_expand=None, stage_design=None, stage_render=None) -> None:
-        _render_strip(strip_ph, engine_is_design=True, source_label=source_label, md_text=md_text,
-                     stage_expand=stage_expand, stage_design=stage_design, stage_render=stage_render,
-                     engine_label="Design", export_fmt="PDF" if "PDF" in output_format else "PPTX")
-
-    _repaint()
-
-    try:
-        effective_md = md_text
-        pre_expanded = False
-        stage_expand_result = None
-
-        if use_2stage and len(md_text) >= 2000:
-            from src.engine.output.deck import expander
-            try:
-                with st.spinner("① LLM 입력 확장 중… (30~180초, 모델·입력 크기 따라)"):
-                    er = expander.expand_for_slides(md_text, meta, model=picked_model, timeout=900)
-                effective_md = er.md
-                pre_expanded = True
-                stage_expand_result = {
-                    "in": er.original_chars, "out": er.output_chars,
-                    "elapsed": er.elapsed_ms / 1000, "model": er.model,
-                    "preview": effective_md[:200],
-                }
-                st.session_state["pptx_last_stage_expand"] = stage_expand_result
-                _repaint(stage_expand=stage_expand_result)
-                st.info(f"🚀 확장 완료 — {er.model} · {er.elapsed_ms / 1000:.1f}s · {er.original_chars:,} → {er.output_chars:,}자")
-                with st.expander("📋 확장된 마크다운 미리보기 (앞 2000자)", expanded=False):
-                    st.code(effective_md[:2000] + ("..." if len(effective_md) > 2000 else ""), language="markdown")
-            except expander.ExpansionError as e:
-                st.warning(f"⚠️ Stage 1 확장 실패: {e} — 원본 마크다운으로 계속")
-        elif use_2stage:
-            st.caption(f"📌 입력 {len(md_text):,}자 < 2000자 — Stage 1 자동 skip")
-
-        with st.spinner(f"② LLM 슬라이드 설계 중… (30~300초, model: {model_label})"):
-            t0 = _dt.datetime.now()
-            from src.engine.output.deck import designer
-            deck = designer.design_deck(effective_md, meta, model=picked_model, timeout=600,
-                                        pre_expanded=pre_expanded, target_slides=target_slides)
-            elapsed2 = (_dt.datetime.now() - t0).total_seconds()
-
-        items = []
-        for i, sl in enumerate(deck.slides, 1):
-            label = str(sl.data.get("title", sl.data.get("company", "?")))[:40]
-            items.append((i, sl.pattern, label))
-        stage_design_result = {
-            "n": len(deck.slides), "patterns": len(set(sl.pattern for sl in deck.slides)),
-            "elapsed": elapsed2, "model": model_label, "items": items,
-        }
-        st.session_state["pptx_last_stage_design"] = stage_design_result
-        _repaint(stage_expand=stage_expand_result, stage_design=stage_design_result)
-
-        st.success(f"✅ 슬라이드 {len(deck.slides)}장 설계됨 (model: {model_label}, 2단: {'ON' if use_2stage and pre_expanded else 'OFF'})")
-        with st.expander("📋 슬라이드 패턴 미리보기", expanded=False):
-            for i, pat, label in items:
-                st.write(f"{i}. **{pat}** — {label}")
-
-        fmt_label = "PDF" if "PDF" in output_format else "PPTX"
-        render_t0 = _dt.datetime.now()
-
-        def _on_progress(cur: int, total: int, label: str) -> None:
-            elapsed = (_dt.datetime.now() - render_t0).total_seconds()
-            live = {"current": cur, "total": total, "label": label, "elapsed": elapsed, "fmt": fmt_label, "done": False}
-            _repaint(stage_expand=stage_expand_result, stage_design=stage_design_result, stage_render=live)
-
-        with st.spinner(f"③ {fmt_label} 렌더 중… (슬라이드당 ~2초, 총 {len(deck.slides)*2}~{len(deck.slides)*4}초)"):
-            if "PDF" in output_format:
-                from src.engine.output.deck.renderer import render_deck_to_pdf
-                out_path = render_deck_to_pdf(deck, on_progress=_on_progress)
-                ext, mime = "pdf", "application/pdf"
-            else:
-                from src.engine.output.deck.pptx_export import render_deck_to_pptx
-                out_path = render_deck_to_pptx(deck, on_progress=_on_progress)
-                ext = "pptx"
-                mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-
-        size_kb = out_path.stat().st_size / 1024
-        elapsed3 = (_dt.datetime.now() - render_t0).total_seconds()
-        stage_render_result = {"done": True, "total": len(deck.slides), "size_kb": size_kb, "elapsed": elapsed3, "fmt": fmt_label}
-        st.session_state["pptx_last_stage_render"] = stage_render_result
-        _repaint(stage_expand=stage_expand_result, stage_design=stage_design_result, stage_render=stage_render_result)
-
-        st.success(f"✅ 생성 완료 — {size_kb:.1f}KB")
-        if save_to_disk:
-            saved = _save_to_exports(out_path, prefix="deck")
-            st.caption(f"📦 exports/ 저장: `{saved}`")
-
-        with out_path.open("rb") as f:
-            data = f.read()
-        stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        st.download_button(
-            f"💾 다운로드 (deck_{stamp}.{ext})", data=data, file_name=f"deck_{stamp}.{ext}",
-            mime=mime, use_container_width=True,
-        )
-
-    except Exception as e:
-        st.error(f"❌ 실패: {type(e).__name__}: {e}")
-        st.caption("playwright 미설치라면: `pip install playwright && playwright install chromium`")
+    next_labels = ["다음: 확장", "다음: 설계", "다음: 렌더", "PDF 생성"]
+    _, act_col = st.columns([3, 1])
+    with act_col:
+        pc, nc = st.columns(2)
+        with pc:
+            if st.button("이전", key="pptx_prev_btn", disabled=(step == 0), use_container_width=True):
+                st.session_state["pptx_wizard_step"] = max(0, step - 1)
+                st.rerun()
+        with nc:
+            if st.button(next_labels[step], key="pptx_next_btn", type="primary", use_container_width=True):
+                _advance_from(step)
