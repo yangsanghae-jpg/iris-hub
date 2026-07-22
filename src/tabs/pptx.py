@@ -54,9 +54,12 @@ _PPTX_CSS = """
 .block-container {
   max-width: 1800px !important;
 }
-/* 소스 레일은 목업처럼 고정 폭 유지 — 페이지가 넓어져도 st.columns 비율대로
-   같이 늘어나면 아이콘 행이 불필요하게 뚱뚱해짐. */
-[data-testid="stColumn"]:has(> div .pptx-rail-anchor) {
+/* 소스 레일 폭 고정 — 이전에는 `:has(.pptx-rail-anchor)`로 찾아서 강제로
+   220px를 줬는데, :has()가 조상 방향으로 과매칭되어 레일의 진짜 부모 열뿐
+   아니라 그 바깥 패널 컨테이너 자체까지 220px로 짓눌러버리는 회귀가 있었다
+   (패널 전체가 찌그러지고 우측 사이드바가 비정상적으로 넓어짐). 이제 anchor가
+   아니라 rail_col 자신에게 준 고유 key(.st-key-pptx_rail_col)를 직접 타겟팅. */
+[data-testid="stColumn"]:has(> div > .st-key-pptx_rail_col) {
   flex: 0 0 220px !important; max-width: 220px !important; min-width: 220px !important;
 }
 
@@ -604,8 +607,7 @@ def _step_source(archive_items: list[tuple[str, Path]], docs_items: list[tuple[s
         return _rail_label(m, md_chars=len(st.session_state.get("pptx_md", _SAMPLE_MD)),
                            upload_name=upload_name, archive_n=len(archive_items), docs_n=len(docs_items))
 
-    with rail_col:
-        st.markdown("<div class='pptx-rail-anchor'></div>", unsafe_allow_html=True)
+    with rail_col, st.container(key="pptx_rail_col"):
         source_mode = st.radio(
             "마크다운 소스", options=_SOURCE_MODES, format_func=_fmt,
             key="pptx_source_mode_v2", label_visibility="collapsed",
