@@ -1,0 +1,1304 @@
+<!doctype html>
+<!--
+  Path: client/dev/shell_v31_port.html
+  Title: iris-hub → 진단툴 V3.1 디자인 포트 목업 (전체 쉘)
+  Date: 2026-07-23
+  Scope: V3.1 sidebar + KPI + main card 레이아웃을 iris-hub 전체에 적용.
+         모든 탭 (진실원, 입력, 흐름, 데이터, 그래프, 위키, PPT, 인사이트, 설정)
+         진단툴 모노크롬 디자인으로 렌더링. Streamlit(:8765) 연결은 comment-out.
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IRIS HUB — V3.1 Shell Port</title>
+  <style>
+    /* ============================================================
+       V3.1 Design Tokens (Monochrome Zinc)
+       Ported from diagnosis-tool/client/v31/v31.css
+       ============================================================ */
+    :root {
+      --bg: #f4f7fb; --card: #ffffff; --text: #1f2a37; --muted: #6b7280;
+      --line: #e5e7eb; --sidebar-w: 240px;
+      /* Color accents (≤ 10% visible area) */
+      --accent-blue: #3b82f6; --accent-blue-soft: #eff6ff;
+      --status-ok: #22c55e; --status-warn: #f59e0b; --status-err: #ef4444;
+      --sec-core: #3b82f6; --sec-knowledge: #8b5cf6; --sec-create: #06b6d4;
+    }
+    html {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+      font-size: 23.5px; line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      color: #0a0a0a;
+    }
+    * { box-sizing: border-box; }
+
+    /* ============================================================
+       Layout: Sidebar + Main
+       ============================================================ */
+    .shell { display: flex; min-height: 100vh; height: 100%; }
+    .sidebar {
+      width: 268px; flex: none; padding: 12px 10px;
+      display: flex; flex-direction: column; gap: 2px;
+      background: #fafafa;
+      border-right: 1px solid #ececee;
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .sidebar::-webkit-scrollbar { width: 6px; }
+    .sidebar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+    .main {
+      flex: 1; min-width: 0; margin: 8px 8px 8px 0;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 0 0 1px #e5e5e5, 0 1px 2px rgba(0,0,0,.04);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* ============================================================
+       Sidebar: Brand
+       ============================================================ */
+    .brand {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 8px 10px;
+    }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: #18181b; color: #fafafa;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 23.5px;
+    }
+    .brand-t { font-weight: 700; font-size: 18.0px; letter-spacing: -.01em; line-height: 1.1; }
+    .brand-s { font-size: 14.5px; color: #71717a; }
+
+    /* ============================================================
+       Sidebar: Navigation (V3.1 style)
+       ============================================================ */
+    .nav { flex: 1; min-height: 0; padding-bottom: 8px; }
+    .group-label {
+      font-size: 14.5px; font-weight: 700; color: #a1a1aa;
+      padding: 14px 8px 5px;
+    }
+    .group-label:first-child { padding-top: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6.5px 8px; border-radius: 8px;
+      color: #0a0a0a; font-size: 17.0px; font-weight: 500;
+      cursor: pointer; border: 0; background: transparent;
+      width: 100%; text-align: left; position: relative;
+    }
+    .nav-item:hover { background: #f0f0f1; }
+    .nav-item.active { background: #f0f0f1; font-weight: 650; }
+    .nav-item.active::before {
+      content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 16px; border-radius: 2px; background: var(--accent-blue);
+    }
+    .nav-item.locked {
+      color: #a1a1aa; cursor: default; opacity: .85;
+    }
+    .nav-item.locked:hover { background: transparent; }
+    .nav-code {
+      flex: none; min-width: 44px; font-size: 14.5px; font-weight: 750;
+      color: #71717a; font-variant-numeric: tabular-nums;
+    }
+    .nav-item.active .nav-code { color: var(--accent-blue); }
+    .nav-item.done .nav-code { color: var(--status-ok); }
+    .nav-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-tag {
+      flex: none; font-size: 12.5px; font-weight: 800; letter-spacing: .02em;
+      padding: 1px 5px; border-radius: 4px;
+    }
+    .nav-tag.external {
+      background: #f0fdfa; color: #0891b2;
+      box-shadow: inset 0 0 0 1px #a5f3fc;
+    }
+    .nav-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex: none;
+      background: transparent; box-shadow: inset 0 0 0 1.5px #e5e5e5;
+    }
+    .nav-item.done .nav-dot { background: var(--status-ok); box-shadow: none; }
+    .nav-item.active .nav-dot { background: var(--accent-blue); box-shadow: none; }
+
+    /* User area */
+    .sidebar-user {
+      flex: none; display: flex; align-items: center; gap: 9px;
+      padding: 8px; margin-top: 4px;
+      border-radius: 9px; background: #fff;
+      box-shadow: 0 0 0 1px #ececee;
+    }
+    .sidebar-ava {
+      width: 30px; height: 30px; border-radius: 7px; background: #e4e4e7; color: #71717a;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15.5px;
+    }
+    .sb-user-t { font-size: 16.0px; font-weight: 650; }
+    .sb-user-s { font-size: 14.5px; color: #71717a; }
+
+    /* ============================================================
+       Main: Header
+       ============================================================ */
+    .main-header {
+      height: 52px; flex: none; display: flex; align-items: center;
+      padding: 0 18px; border-bottom: 1px solid #e5e5e5; gap: 12px;
+    }
+    .phase-badge {
+      font-size: 14.5px; font-weight: 750; padding: 3px 9px; border-radius: 6px;
+      background: #f4f4f5; color: #0a0a0a;
+      box-shadow: inset 0 0 0 1px #e5e5e5;
+    }
+    .phase-badge.core { background: var(--accent-blue-soft); color: var(--accent-blue); box-shadow: inset 0 0 0 1px #bfdbfe; }
+    .phase-badge.knowledge { background: #f5f3ff; color: var(--sec-knowledge); box-shadow: inset 0 0 0 1px #c4b5fd; }
+    .phase-badge.create { background: #ecfeff; color: #0891b2; box-shadow: inset 0 0 0 1px #a5f3fc; }
+    .phase-badge.observ { background: #f0fdf4; color: var(--status-ok); box-shadow: inset 0 0 0 1px #86efac; }
+    .phase-badge.manage { background: #fffbeb; color: var(--status-warn); box-shadow: inset 0 0 0 1px #fde68a; }
+    .breadcrumb {
+      display: flex; align-items: center; gap: 8px; font-size: 17.0px; min-width: 0;
+    }
+    .breadcrumb .bc-muted { color: #71717a; }
+    .breadcrumb .bc-sep { color: #a1a1aa; }
+    .breadcrumb .bc-cur { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spacer { flex: 1; }
+    .lang-switch { display: flex; gap: 4px; }
+    .lang-btn {
+      height: 28px; padding: 0 8px; border-radius: 7px; border: 0;
+      font-size: 14.5px; font-weight: 600; cursor: pointer;
+      box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff;
+    }
+    .lang-btn.active { background: #f4f4f5; font-weight: 700; }
+    .header-btn {
+      height: 30px; padding: 0 11px; border-radius: 8px; border: 0;
+      font-size: 16.0px; font-weight: 600; cursor: pointer;
+    }
+    .header-btn.ghost {
+      box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff; color: #0a0a0a;
+    }
+    .header-btn.primary { background: var(--accent-blue); color: #fff; }
+
+    /* ============================================================
+       Main: Content Area
+       ============================================================ */
+    .content {
+      padding: 20px 22px 28px; overflow: auto; flex: 1;
+    }
+    .sec-head {
+      display: flex; align-items: baseline; gap: 10px; margin: 2px 0 13px;
+    }
+    .sec-title { font-size: 21.0px; font-weight: 750; letter-spacing: -.02em; }
+    .sec-desc { font-size: 16.0px; color: #71717a; }
+
+    /* ============================================================
+       KPI Stat Tiles (V3.1 4-column grid)
+       ============================================================ */
+    .kpi {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+    }
+    .kpi-card {
+      position: relative;
+      border-radius: 12px; box-shadow: inset 0 0 0 1px #e5e5e5;
+      background: #fff; padding: 14px 16px;
+    }
+    .kpi-badge {
+      float: right; font-size: 14.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      color: #71717a; box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff;
+    }
+    .kpi-badge.on { color: var(--accent-blue); background: var(--accent-blue-soft); box-shadow: inset 0 0 0 1px #bfdbfe; }
+    .kpi-k { font-size: 15.5px; color: #71717a; font-weight: 500; }
+    .kpi-v { margin-top: 6px; font-size: 28.5px; font-weight: 750; letter-spacing: -.02em; line-height: 1; clear: both; }
+    .kpi-f { margin-top: 8px; font-size: 15.0px; color: #71717a; }
+
+    /* ============================================================
+       Section: Cards (A chapter style)
+       ============================================================ */
+    .a-card {
+      border: 1px solid #e5e5e5; border-left: 4px solid #d4d4d8;
+      border-radius: 13px; padding: 18px 20px; margin-bottom: 16px; background: #fff;
+    }
+    .a-card.sec-core { border-left-color: var(--sec-core); }
+    .a-card.sec-knowledge { border-left-color: var(--sec-knowledge); }
+    .a-card.sec-create { border-left-color: var(--sec-create); }
+    .card-h {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .card-num {
+      font-size: 13.5px; font-weight: 800; color: #71717a;
+      border: 1px solid #e5e5e5; border-radius: 5px; padding: 1px 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .card-ttl { font-size: 18.0px; font-weight: 700; letter-spacing: -.01em; }
+    .card-body { font-size: 18.0px; line-height: 1.65; color: #27272a; }
+    .card-body.lead {
+      font-size: 22.0px; font-weight: 650; line-height: 1.75;
+      letter-spacing: -.015em; color: #0a0a0a;
+      word-break: keep-all; width: 100%;
+    }
+    .card-cap { font-size: 15.0px; color: #a1a1aa; margin: -4px 0 12px; }
+    .a-footnote {
+      margin-top: 26px; padding-top: 16px;
+      border-top: 1px dashed #e5e5e5;
+      font-size: 15.0px; color: #a1a1aa;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .a-footnote .kbd {
+      font-size: 13.5px; border: 1px solid #e5e5e5; border-radius: 5px;
+      padding: 1px 6px; background: #f4f4f5; color: #71717a;
+    }
+
+    /* 12-column grid */
+    .a1grid {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;
+      align-items: start;
+    }
+    .a1grid > .a-card { margin-bottom: 0; }
+    .sp12 { grid-column: span 12; }
+    .sp8 { grid-column: span 8; }
+    .sp6 { grid-column: span 6; }
+    .sp4 { grid-column: span 4; }
+    .sp5 { grid-column: span 5; }
+    @media (max-width: 1180px) {
+      .sp8, .sp6, .sp5, .sp4 { grid-column: span 12; }
+    }
+
+    /* Lists */
+    .axis-list {
+      list-style: none; margin: 0; padding: 0;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .axis-list li {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 0 0 0 12px;
+      border-left: 3px solid #e5e5e5;
+      font-size: 17.5px; line-height: 1.55; color: #27272a;
+    }
+    .axis-list strong { display: block; font-weight: 700; color: #0a0a0a; }
+    .axis-list span { color: #71717a; font-size: 17.0px; }
+
+    /* ============================================================
+       Section: Input tab (form cards)
+       ============================================================ */
+    .input-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 12px; background: #fff;
+    }
+    .input-card-title {
+      font-size: 17.0px; font-weight: 700; color: #0a0a0a; margin-bottom: 10px;
+    }
+    .input-row {
+      display: flex; gap: 12px; margin-bottom: 8px;
+    }
+    .input-group { flex: 1; }
+    .input-label {
+      font-size: 14.5px; font-weight: 600; color: #71717a;
+      margin-bottom: 4px; display: block;
+    }
+    .input-field {
+      width: 100%; padding: 8px 12px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; background: #fff;
+      outline: none; transition: border-color 0.12s;
+    }
+    .input-field:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .select-field {
+      width: 100%; padding: 8px 12px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; background: #fff;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2371717a' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    /* ============================================================
+       Section: Flow/Graph tab (ReactFlow placeholder)
+       ============================================================ */
+    .flow-canvas {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      background: #f4f4f5; min-height: 480px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .flow-canvas::after {
+      content: "ReactFlow + ELK.js 영역";
+      font-size: 17.0px; color: #a1a1aa; font-weight: 600;
+    }
+    .flow-toolbar {
+      display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+    }
+    .flow-toolbar .toolbar-btn {
+      height: 28px; padding: 0 10px; border-radius: 6px;
+      border: 1px solid #e5e5e5; background: #fff; font-size: 14.5px;
+      font-weight: 600; color: #0a0a0a; cursor: pointer;
+    }
+
+    /* ============================================================
+       Section: Data tab (table cards)
+       ============================================================ */
+    .data-table-wrap {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      overflow: hidden; background: #fff;
+    }
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 16.0px;
+    }
+    .data-table th {
+      background: #f4f4f5; color: #71717a; font-weight: 650;
+      padding: 10px 14px; text-align: left;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .data-table td {
+      padding: 10px 14px; border-bottom: 1px solid #f0f0f1;
+      color: #27272a;
+    }
+    .data-table tr:last-child td { border-bottom: 0; }
+    .data-table .mono { font-variant-numeric: tabular-nums; color: #71717a; }
+    .data-table .val { font-weight: 700; color: #0a0a0a; }
+
+    /* ============================================================
+       Section: Wiki tab (search + cards)
+       ============================================================ */
+    .wiki-search {
+      display: flex; gap: 8px; margin-bottom: 16px;
+    }
+    .wiki-search-input {
+      flex: 1; padding: 10px 14px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; outline: none;
+    }
+    .wiki-search-input:focus { border-color: #18181b; }
+    .wiki-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    @media (max-width: 900px) { .wiki-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .wiki-grid { grid-template-columns: 1fr; } }
+    .wiki-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 14px 16px; background: #fff;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .wiki-card:hover { background: #fafafa; }
+    .wiki-card-title { font-size: 17.0px; font-weight: 700; color: #0a0a0a; }
+    .wiki-card-desc { font-size: 15.0px; color: #71717a; margin-top: 4px; line-height: 1.45; }
+    .wiki-card-meta { font-size: 13.5px; color: #a1a1aa; margin-top: 8px; }
+
+    /* ============================================================
+       Section: Insight (관측) tab (KPI dashboard)
+       ============================================================ */
+    .observe-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+    }
+    .observe-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 14px 16px; background: #fff;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .observe-label { font-size: 14.5px; font-weight: 600; color: #71717a; }
+    .observe-value { font-size: 28.5px; font-weight: 750; color: #0a0a0a; letter-spacing: -.02em; }
+    .observe-status {
+      font-size: 14.5px; font-weight: 600; padding: 2px 8px;
+      border-radius: 999px; background: #f4f4f5; color: #0a0a0a;
+      box-shadow: inset 0 0 0 1px #e5e5e5; align-self: flex-start;
+    }
+    .observe-status.ok { background: #f4f4f5; color: #16a34a; }
+
+    /* ============================================================
+       Section: Settings (form layout)
+       ============================================================ */
+    .settings-section {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 18px 20px; margin-bottom: 16px; background: #fff;
+    }
+    .settings-title { font-size: 18.0px; font-weight: 700; color: #0a0a0a; margin-bottom: 14px; }
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; gap: 16px;
+    }
+    .setting-label { font-size: 17.0px; font-weight: 500; color: #0a0a0a; }
+    .setting-desc { font-size: 15.0px; color: #71717a; }
+    /* Toggle switch */
+    .toggle {
+      width: 40px; height: 22px; border-radius: 11px;
+      background: #d4d4d8; cursor: pointer; position: relative;
+      transition: background 0.12s; border: 0;
+    }
+    .toggle::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.1);
+      transition: left 0.12s;
+    }
+    .toggle.on { background: var(--accent-blue); }
+    .toggle.on::after { left: 20px; }
+
+    /* ============================================================
+       Section: PPT tab (current working tab, already styled)
+       Keep existing PPT styling compatible
+       ============================================================ */
+    .ppt-steps { display: flex; gap: 8px; margin-bottom: 18px; }
+    .ppt-step {
+      flex: 1; height: 36px; border: 1px solid #e5e5e5; border-radius: 8px;
+      background: #fff; font-size: 15.5px; font-weight: 650; color: #71717a;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .ppt-step.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+    .ppt-step.done { background: #f4f4f5; color: #0a0a0a; }
+    .ppt-panels { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .ppt-panels { grid-template-columns: 1fr; } }
+
+    /* ============================================================
+       Empty state
+       ============================================================ */
+    .v31-empty {
+      border-radius: 12px; box-shadow: inset 0 0 0 1px #e5e5e5;
+      padding: 36px 28px; text-align: center; max-width: 480px;
+      margin: 40px auto;
+    }
+    .v31-empty-title { font-size: 21.0px; font-weight: 700; color: #0a0a0a; margin: 0 0 8px; }
+    .v31-empty-desc { font-size: 17.0px; color: #71717a; margin: 0; line-height: 1.55; }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 900px) {
+      .sidebar { width: 220px; }
+      .kpi, .observe-grid { grid-template-columns: repeat(2, 1fr); }
+      .main { margin: 4px; border-radius: 10px; }
+    }
+    @media (max-width: 640px) {
+      .shell { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; border-right: 0; border-bottom: 1px solid #ececee; }
+      .main { margin: 0; }
+      .kpi, .observe-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ============================================================
+         Sidebar: V3.1 style navigation for iris-hub tabs
+         ============================================================ -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="brand">
+        <div class="brand-mark">H</div>
+        <div>
+          <div class="brand-t">IRIS HUB</div>
+          <div class="brand-s">V3.1 · 정본</div>
+        </div>
+      </div>
+
+      <!-- Navigation (porting iris-hub tabs into V3.1 nav structure) -->
+      <nav class="nav" id="v31Nav">
+
+        <!-- Group: Core (진단 Q1-Q5에 대응) -->
+        <div class="group-label">Core</div>
+
+        <button type="button" class="nav-item" data-section="truth" aria-label="진실원">
+          <span class="nav-code">TR</span>
+          <span class="nav-title">진실원</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="input" aria-label="입력">
+          <span class="nav-code">IN</span>
+          <span class="nav-title">입력</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="flow" aria-label="흐름">
+          <span class="nav-code">FL</span>
+          <span class="nav-title">흐름</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: Knowledge (분석 A1.x에 대응) -->
+        <div class="group-label">Knowledge</div>
+
+        <button type="button" class="nav-item" data-section="data" aria-label="데이터">
+          <span class="nav-code">DA</span>
+          <span class="nav-title">데이터</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="graph" aria-label="그래프">
+          <span class="nav-code">GR</span>
+          <span class="nav-title">그래프</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="wiki" aria-label="위키">
+          <span class="nav-code">WK</span>
+          <span class="nav-title">위키</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: Create (PPT — 현재 동작 중) -->
+        <div class="group-label">Create</div>
+
+        <button type="button" class="nav-item active" data-section="ppt" aria-label="PPT">
+          <span class="nav-code">PP</span>
+          <span class="nav-title">PPT</span>
+          <span class="nav-tag external">NEW</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: External -->
+        <div class="group-label">External</div>
+
+        <button type="button" class="nav-item" data-section="insight" aria-label="인사이트">
+          <span class="nav-code">IS</span>
+          <span class="nav-title">인사이트</span>
+          <span class="nav-tag external">OBS</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="settings" aria-label="설정">
+          <span class="nav-code">ST</span>
+          <span class="nav-title">설정</span>
+          <span class="nav-dot"></span>
+        </button>
+
+      </nav>
+
+      <!-- User / Status -->
+      <div class="sidebar-user">
+        <div class="sidebar-ava">V</div>
+        <div>
+          <div class="sb-user-t">V3.1 UI</div>
+          <div class="sb-user-s">포트 목업</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================================================
+         Main Content Area
+         ============================================================ -->
+    <main class="main">
+      <!-- Header -->
+      <div class="main-header">
+        <span class="phase-badge" id="phaseBadge">핵심</span>
+        <div class="breadcrumb">
+          <span class="bc-muted" id="bcPhase">Core</span>
+          <span class="bc-sep">/</span>
+          <span class="bc-cur" id="bcCur">PPT · DECK CONSOLE</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="lang-switch">
+          <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        </div>
+        <button type="button" class="header-btn ghost" id="prevBtn" style="display:none">이전</button>
+        <!-- No next/prev for non-wizard tabs -->
+      </div>
+
+      <!-- Content -->
+      <div class="content" id="contentArea">
+
+        <!-- ========================================================
+             PPT Tab (active by default — current working tab)
+             ======================================================== -->
+        <div class="tab-content" id="tab-ppt">
+          <div class="sec-head">
+            <span class="sec-title">PPT · DECK CONSOLE</span>
+            <span class="sec-desc">마크다운 소스를 선택하고 언어 · 페이지 수 · 템플릿을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</span>
+          </div>
+
+          <!-- KPI -->
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">ACTIVE</span>
+              <div class="kpi-k">소스</div>
+              <div class="kpi-v">8</div>
+              <div class="kpi-f">업로드된 마크다운</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k"> 템플릿</span>
+              <div class="kpi-v">5</div>
+              <div class="kpi-f">선택 가능한 디자인</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">언어</span>
+              <div class="kpi-v">3</div>
+              <div class="kpi-f">ko / en / zh 지원</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">READY</span>
+              <div class="kpi-k">내보내기</div>
+              <div class="kpi-v">PDF</div>
+              <div class="kpi-f">PPTX/PDF 2종</div>
+            </div>
+          </div>
+
+          <!-- PPT Stepper (existing workflow) -->
+          <div class="ppt-steps">
+            <div class="ppt-step active">1. 소스</div>
+            <div class="ppt-step">2. 확장</div>
+            <div class="ppt-step">3. 디자인</div>
+            <div class="ppt-step">4. 렌더</div>
+          </div>
+
+          <div class="ppt-panels">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">SRC</span>
+                <span class="card-ttl">소스 선택</span>
+              </div>
+              <div class="card-body">
+                <p style="color:var(--muted)">소스 아카이브에서 마크다운 파일을 선택하세요. 선택된 소스는 AI로 자동 확장됩니다.</p>
+                <div class="data-table-wrap" style="margin-top:12px">
+                  <table class="data-table">
+                    <thead><tr><th>ID</th><th>타입</th><th>페이지</th><th>상태</th></tr></thead>
+                    <tbody>
+                      <tr><td class="mono">SRC-001</td><td>사업계획서</td><td class="mono">45</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">SRC-002</td><td>제품 제안서</td><td class="mono">28</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">SRC-003</td><td>성능 보고</td><td class="mono">12</td><td class="mono">보관</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">OPT</span>
+                <span class="card-ttl">옵션</span>
+              </div>
+              <div class="card-body">
+                <div class="input-group" style="margin-bottom:12px">
+                  <label class="input-label">언어</label>
+                  <select class="select-field"><option>한국어</option><option>English</option><option>中文</option></select>
+                </div>
+                <div class="input-group" style="margin-bottom:12px">
+                  <label class="input-label">페이지 수</label>
+                  <select class="select-field"><option>10–15</option><option>15–25</option><option>25–40</option></select>
+                </div>
+                <div class="input-group">
+                  <label class="input-label">템플릿</label>
+                  <select class="select-field"><option>Blue (기본)</option><option>Dark</option><option>Gradient</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             진실원 (Truth) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-truth" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">진실원</span>
+            <span class="sec-desc">IRIS Hub의 단일 진실원 — 모든 데이터 소스의 원천 정보를 추적하고 검증합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">SYNCED</span>
+              <div class="kpi-k">소스</div>
+              <div class="kpi-v">8</div>
+              <div class="kpi-f">데이터 소스 연결</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">노드</span>
+              <div class="kpi-v">2.4K</div>
+              <div class="kpi-f">그래프 연결</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">최신</span>
+              <div class="kpi-v">5분</div>
+              <div class="kpi-f">마지막 동기화</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">OK</span>
+              <div class="kpi-k">신뢰도</div>
+              <div class="kpi-v">98%</div>
+              <div class="kpi-f">일관성 검증</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp8">
+              <div class="card-h">
+                <span class="card-num">TR</span>
+                <span class="card-ttl">주요 소스</span>
+              </div>
+              <div class="card-body">
+                <div class="data-table-wrap">
+                  <table class="data-table">
+                    <thead><tr><th>ID</th><th>타입</th><th>이름</th><th>최신</th><th>상태</th></tr></thead>
+                    <tbody>
+                      <tr><td class="mono">DOC-001</td><td>명세서</td><td class="val">S1 Config Spec v2.9.1</td><td class="mono">2026-07-20</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">DOC-002</td><td>로그</td><td class="val">Sensor Array B Logs</td><td class="mono">2026-07-23</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">DOC-003</td><td>보고서</td><td class="val">Q2 Performance Review</td><td class="mono">2026-07-18</td><td class="mono">보관</td></tr>
+                      <tr><td class="mono">DOC-004</td><td>설계</td><td class="val">Architecture Diagram v4</td><td class="mono">2026-07-22</td><td class="val">활성</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="a-card sp4">
+              <div class="card-h">
+                <span class="card-num">SUM</span>
+                <span class="card-ttl">트리원 요약</span>
+              </div>
+              <div class="card-body">
+                <p>IRIS Hub의 모든 데이터는 8개의 소스에서 파생됩니다. 각 소스는 독립적으로 검증되며, 연결된 노드를 통해 일관성이 유지됩니다.</p>
+                <div style="margin-top:16px">
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">활성 소스</span><span class="mono" style="font-weight:700">7</span>
+                  </div>
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">보관 소스</span><span class="mono" style="font-weight:700">1</span>
+                  </div>
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">오류</span><span style="color:var(--muted);font-weight:700">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             입력 (Input) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-input" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">입력</span>
+            <span class="sec-desc">문서, 센서 데이터, 로그 등 외부 소스를 IRIS Hub에 등록합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">RECEIVED</span>
+              <div class="kpi-k">최근 입력</div>
+              <div class="kpi-v">3</div>
+              <div class="kpi-f">24시간 이내</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">타입</span>
+              <div class="kpi-v">MD</div>
+              <div class="kpi-f">주요 형식</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">처리</span>
+              <div class="kpi-v">100%</div>
+              <div class="kpi-f">자동 파싱 성공</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">대기</span>
+              <div class="kpi-v">0</div>
+              <div class="kpi-f">수동 처리 필요</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="card-h">
+                <span class="card-num">IN</span>
+                <span class="card-ttl">새 소스 등록</span>
+              </div>
+              <div class="input-card">
+                <div class="input-card-title">기본 정보</div>
+                <div class="input-row">
+                  <div class="input-group">
+                    <label class="input-label">타입</label>
+                    <select class="select-field"><option>문서 (Markdown)</option><option>로그 파일</option><option>센서 데이터</option><option>CSV</option></select>
+                  </div>
+                  <div class="input-group">
+                    <label class="input-label">이름</label>
+                    <input type="text" class="input-field" placeholder="소스 이름을 입력하세요" />
+                  </div>
+                </div>
+                <div class="input-row">
+                  <div class="input-group">
+                    <label class="input-label">태그</label>
+                    <input type="text" class="input-field" placeholder="tagName1, tagName2" />
+                  </div>
+                  <div class="input-group">
+                    <label class="input-label">优先级</label>
+                    <select class="select-field"><option>높음</option><option>보통</option><option>낮음</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="input-card">
+                <div class="input-card-title">파일 업로드</div>
+                <div style="border:2px dashed #e5e5e5;border-radius:12px;padding:32px;text-align:center;color:var(--subtle);font-size: 17.0px">
+                  파일을 여기에 드래그하거나 클릭하여 선택하세요
+                </div>
+              </div>
+
+              <div style="margin-top:12px">
+                <button type="button" class="header-btn primary">등록하기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             흐름 (Flow) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-flow" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">흐름</span>
+            <span class="sec-desc">데이터 처리 파이프라인과 노드 간 연결 상태를 시각화합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">LIVE</span>
+              <div class="kpi-k">노드</div>
+              <div class="kpi-v">24</div>
+              <div class="kpi-f">활성 파이프라인</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">엣지</span>
+              <div class="kpi-v">58</div>
+              <div class="kpi-f">연결선</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">OK</span>
+              <div class="kpi-k"> THROUGHPUT</div>
+              <div class="kpi-v">1.2K</div>
+              <div class="kpi-f">events/sec</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">지연</span>
+              <div class="kpi-v">12ms</div>
+              <div class="kpi-f">평균 처리 시간</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="flow-toolbar">
+                <button type="button" class="toolbar-btn">확대</button>
+                <button type="button" class="toolbar-btn">축소</button>
+                <button type="button" class="toolbar-btn">자동 배치</button>
+                <button type="button" class="toolbar-btn">레이어</button>
+                <span style="flex:1"></span>
+                <span style="font-size: 14.5px;color:var(--muted)">ReactFlow + ELK.js</span>
+              </div>
+              <div class="flow-canvas"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             데이터 (Data) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-data" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">데이터</span>
+            <span class="sec-desc">IRIS Hub의 데이터 애сками — 축별 측정치, 점수, 추세를 한눈에 확인합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">ACTIVE</span>
+              <div class="kpi-k">축 (Axis)</div>
+              <div class="kpi-v">9</div>
+              <div class="kpi-f">측정 항목</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">레코드</span>
+              <div class="kpi-v">3.8K</div>
+              <div class="kpi-f">누적 데이터</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">최신</span>
+              <div class="kpi-v">1시간</div>
+              <div class="kpi-f">마지막 갱신</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">VALID</span>
+              <div class="kpi-k">검증</div>
+              <div class="kpi-v">PASS</div>
+              <div class="kpi-f">데이터 무결성</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="card-h">
+                <span class="card-num">DA</span>
+                <span class="card-ttl">측정값 목록</span>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>축 코드</th><th>이름</th><th>현재</th><th>목표</th><th>추세</th><th>최신</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="mono">A1</td><td class="val">관리 전략</td><td class="val">L3</td><td>L4</td><td>▲ 0.3</td><td class="mono">2026-07-22</td></tr>
+                    <tr><td class="mono">A2</td><td class="val">조치 이니셔티브</td><td class="val">L2</td><td>L3</td><td>▲ 0.1</td><td class="mono">2026-07-22</td></tr>
+                    <tr><td class="mono">A3</td><td class="val">프로세스</td><td class="val">L3</td><td>L5</td><td>▲ 0.5</td><td class="mono">2026-07-21</td></tr>
+                    <tr><td class="mono">A4</td><td class="val">인프라 구조</td><td class="val">L2</td><td>L4</td><td>— 0.0</td><td class="mono">2026-07-20</td></tr>
+                    <tr><td class="mono">A5</td><td class="val">IT 조직</td><td class="val">L4</td><td>L4</td><td>▲ 0.2</td><td class="mono">2026-07-22</td></tr>
+                    <tr><td class="mono">A6</td><td class="val">데이터 거버넌스</td><td class="val">L3</td><td>L5</td><td>▲ 0.4</td><td class="mono">2026-07-21</td></tr>
+                    <tr><td class="mono">A7</td><td class="val">IT 프로젝트</td><td class="val">L2</td><td>L3</td><td>▲ 0.2</td><td class="mono">2026-07-22</td></tr>
+                    <tr><td class="mono">A8</td><td class="val">IT 거버넌스</td><td class="val">L3</td><td>L4</td><td>▲ 0.3</td><td class="mono">2026-07-22</td></tr>
+                    <tr><td class="mono">A9</td><td class="val">IT 리스크</td><td class="val">L4</td><td>L4</td><td>— 0.0</td><td class="mono">2026-07-22</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             그래프 (Graph) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-graph" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">그래프</span>
+            <span class="sec-desc">엔티티 간 관계와 지식 그래프 구조를 시각적으로 탐색합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">BUILT</span>
+              <div class="kpi-k">엔티티</div>
+              <div class="kpi-v">847</div>
+              <div class="kpi-f">지식 그래프 노드</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">관계</span>
+              <div class="kpi-v">2.1K</div>
+              <div class="kpi-f">엣지 수</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">군집</span>
+              <div class="kpi-v">12</div>
+              <div class="kpi-f">탐지된 커뮤니티</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">OK</span>
+              <div class="kpi-k">밀도</div>
+              <div class="kpi-v">0.04</div>
+              <div class="kpi-f">Graph density</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="flow-toolbar">
+                <button type="button" class="toolbar-btn">검색</button>
+                <button type="button" class="toolbar-btn">필터</button>
+                <button type="button" class="toolbar-btn">거리 측정</button>
+                <span style="flex:1"></span>
+                <span style="font-size: 14.5px;color:var(--muted)">Force-directed / Neo4j</span>
+              </div>
+              <div class="flow-canvas" style="min-height:560px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             위키 (Wiki) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-wiki" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">위키</span>
+            <span class="sec-desc">개념 중심 검색 — 엔티티, 관계, 분석 결과를 자연어로 탐색합니다.</span>
+          </div>
+
+          <div class="wiki-search">
+            <input type="text" class="wiki-search-input" placeholder="개념, 엔티티, 또는 키워드로 검색..." />
+            <button type="button" class="header-btn primary">검색</button>
+          </div>
+
+          <div class="kpi" style="grid-template-columns: repeat(3, 1fr); margin-bottom:16px">
+            <div class="kpi-card">
+              <span class="kpi-k">총 항목</span>
+              <div class="kpi-v">156</div>
+              <div class="kpi-f">위키 콘텐츠</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">개념</span>
+              <div class="kpi-v">98</div>
+              <div class="kpi-f">개체/엔티티</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">관계</span>
+              <div class="kpi-v">58</div>
+              <div class="kpi-f">연결 정의</div>
+            </div>
+          </div>
+
+          <div class="wiki-grid">
+            <div class="wiki-card">
+              <div class="wiki-card-title"> S1 구성 매개변수</div>
+              <div class="wiki-card-desc">IRIS Hub 핵심 설정 — 데이터베이스 경로, 모델 파라미터, 시스템 플래그</div>
+              <div class="wiki-card-meta">概念 · 2026-07-20</div>
+            </div>
+            <div class="wiki-card">
+              <div class="wiki-card-title"> E2~E5 엔진 구조</div>
+              <div class="wiki-card-desc">엔진 재구조화: E7 컷오버(빈 볼트)까지 완료</div>
+              <div class="wiki-card-meta">구성 · 2026-07-15</div>
+            </div>
+            <div class="wiki-card">
+              <div class="wiki-card-title"> S3 탭 통합</div>
+              <div class="wiki-card-desc">nav 15→9, 흐름=액션·데이터=관측 흐름 정리</div>
+              <div class="wiki-card-meta">구성 · 2026-07-18</div>
+            </div>
+            <div class="wiki-card">
+              <div class="wiki-card-title"> 개념 계층 (S4)</div>
+              <div class="wiki-card-desc">engine/concept(resolve·conceptize)·후보큐·동시출현</div>
+              <div class="wiki-card-meta">개념 · 2026-07-20</div>
+            </div>
+            <div class="wiki-card">
+              <div class="wiki-card-title"> ZUI A1.4 원칙</div>
+              <div class="wiki-card-desc">상세는 같은 캔버스 줌인으로만. 모달/별도뷰/그리드드릴 금지</div>
+              <div class="wiki-card-meta">원칙 · 2026-07-10</div>
+            </div>
+            <div class="wiki-card">
+              <div class="wiki-card-title"> V3.1 UI 매뉴얼 구조</div>
+              <div class="wiki-card-desc">Q1–Q5 진단 + A1.1–A2.4 분석. 편평화된 내비게이션</div>
+              <div class="wiki-card-meta">구조 · 2026-07-12</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             인사이트 (Insight) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-insight" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">인사이트 (관측)</span>
+            <span class="sec-desc">Grafana, Prometheus, Loki 등 외부 모니터링 시스템의 상태를 확인합니다.</span>
+          </div>
+
+          <div class="observe-grid">
+            <div class="observe-card">
+              <div class="observe-label">Grafana</div>
+              <div class="observe-value">
+                <span style="color:var(--status-ok)">●</span> 연결됨
+              </div>
+              <div class="observe-status ok">active</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Prometheus</div>
+              <div class="observe-value">
+                <span style="color:var(--status-ok)">●</span> 연결됨
+              </div>
+              <div class="observe-status ok">active</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Loki</div>
+              <div class="observe-value">
+                <span style="color:var(--status-warn)">●</span> 지연
+              </div>
+              <div class="observe-status">degraded</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Promtail</div>
+              <div class="observe-value">
+                <span style="color:var(--status-err)">●</span> Offline
+              </div>
+              <div class="observe-status">offline</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">API Latency</div>
+              <div class="observe-value">45ms</div>
+              <div class="observe-status ok">p95 OK</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">CPU</div>
+              <div class="observe-value">32%</div>
+              <div class="observe-status ok">normal</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Memory</div>
+              <div class="observe-value">12.4G</div>
+              <div class="observe-status">128G / 9.7%</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Uptime</div>
+              <div class="observe-value">14d 7h</div>
+              <div class="observe-status ok">stable</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="card-h">
+                <span class="card-num">LOG</span>
+                <span class="card-ttl">최근 로그</span>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>시간</th><th>레벨</th><th>소스</th><th>메시지</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">07-23 14:32:01</td><td><span class="val" style="color:var(--status-ok)">INFO</span></td><td class="mono">api</td><td>Health check passed</td></tr>
+                    <tr><td class="mono">07-23 14:31:55</td><td><span style="color:var(--status-warn)">WARN</span></td><td class="mono">loki</td><td>Logship delay > 30s</td></tr>
+                    <tr><td class="mono">07-23 14:30:00</td><td><span class="val" style="color:var(--status-ok)">INFO</span></td><td class="mono">scheduler</td><td>Renewal check completed</td></tr>
+                    <tr><td class="mono">07-23 14:28:12</td><td><span style="color:#ef444a">ERROR</span></td><td class="mono">promtail</td><td>Connection refused</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             설정 (Settings) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-settings" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">설정</span>
+            <span class="sec-desc">IRIS Hub 시스템 기본값, 연결, UI 옵션을 관리합니다.</span>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp6">
+              <div class="settings-title">시스템</div>
+              <div class="settings-section" style="margin:0 0 16px 0">
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">IRIS_DB_PATH</div>
+                    <div class="setting-desc">데이터베이스 경로</div>
+                  </div>
+                  <input type="text" class="input-field" value="/Users/iris/0Dev/iris-hub/data/db" style="max-width:300px" />
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">포트</div>
+                    <div class="setting-desc">정본 / 개발본</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <input type="text" class="input-field" value="8765" style="width:80px" />
+                    <span style="color:var(--muted);font-size: 15.5px">/</span>
+                    <input type="text" class="input-field" value="8766" style="width:80px" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="setting-label">연결</div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">Streamlit (:8765)</div>
+                    <div class="setting-desc">기존 탭 백엔드</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">FastAPI (:8766)</div>
+                    <div class="setting-desc">웹 셸 백엔드</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">LLM Gateway</div>
+                    <div class="setting-desc">api.openai.com 호환</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="a-card sp6">
+              <div class="settings-title">UI 옵션</div>
+              <div class="settings-section" style="margin:0 0 16px 0">
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">V3.1 디자인</div>
+                    <div class="setting-desc">진단툴 모노크롬 스타일 적용</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">사이드바 자동 접기</div>
+                    <div class="setting-desc">화면 너비 &lt; 640px</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <div class="setting-label">애니메이션</div>
+                    <div class="setting-desc">전환 효과</div>
+                  </div>
+                  <button type="button" class="toggle on"></button>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="setting-label">정보</div>
+                <div class="card-body" style="font-size: 15.5px;color:var(--muted);line-height:1.6">
+                  <p>버전: V3.1 Shell Port (2026-07-23)</p>
+                  <p>정본: http://localhost:8765</p>
+                  <p>개발본: http://localhost:8766</p>
+                  <p>진단툴: http://localhost:3001</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+       Minimal JS: Tab switching (no framework)
+       ============================================================ -->
+  <script>
+    (function() {
+      const TABS = {
+        ppt:      { phase: "핵심", phaseClass: "", bcPhase: "Core", bcCur: "PPT · DECK CONSOLE" },
+        truth:    { phase: "핵심", phaseClass: "", bcPhase: "Core", bcCur: "진실원" },
+        input:    { phase: "핵심", phaseClass: "", bcPhase: "Core", bcCur: "입력" },
+        flow:     { phase: "핵심", phaseClass: "", bcPhase: "Core", bcCur: "흐름" },
+        data:     { phase: "분석", phaseClass: "a", bcPhase: "Knowledge", bcCur: "데이터" },
+        graph:    { phase: "분석", phaseClass: "a", bcPhase: "Knowledge", bcCur: "그래프" },
+        wiki:     { phase: "분석", phaseClass: "a", bcPhase: "Knowledge", bcCur: "위키" },
+        ppt:      { phase: "작성", phaseClass: "", bcPhase: "Create", bcCur: "PPT" },
+        insight:  { phase: "관측", phaseClass: "", bcPhase: "External", bcCur: "인사이트" },
+        settings: { phase: "관리", phaseClass: "", bcPhase: "External", bcCur: "설정" },
+      };
+
+      const navItems = document.querySelectorAll(".nav-item[data-section]");
+      const tabIds = Object.keys(TABS);
+
+      function showTab(section) {
+        // Hide all tabs
+        tabIds.forEach(function(id) {
+          var tab = document.getElementById("tab-" + id);
+          if (tab) tab.style.display = "none";
+        });
+
+        // Show active tab
+        var active = document.getElementById("tab-" + section);
+        if (active) active.style.display = "block";
+
+        // Update nav
+        navItems.forEach(function(item) {
+          item.classList.toggle("active", item.dataset.section === section);
+          item.classList.remove("done");
+        });
+
+        // Mark completed (before active)
+        var sections = tabIds;
+        var activeIdx = sections.indexOf(section);
+        sections.forEach(function(s, i) {
+          if (i < activeIdx) {
+            var btn = document.querySelector(".nav-item[data-section='" + s + "']");
+            if (btn) btn.classList.add("done");
+          }
+        });
+
+        // Update header
+        var info = TABS[section];
+        document.getElementById("phaseBadge").textContent = info.phase;
+        document.getElementById("bcPhase").textContent = info.bcPhase;
+        document.getElementById("bcCur").textContent = info.bcCur;
+      }
+
+      // Bind nav clicks
+      navItems.forEach(function(item) {
+        item.addEventListener("click", function() {
+          showTab(this.dataset.section);
+        });
+      });
+
+      // Initialize — default to PPT (active)
+      showTab("ppt");
+    })();
+  </script>
+</body>
+</html>
