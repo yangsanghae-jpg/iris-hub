@@ -708,6 +708,7 @@ def _run_expand(md_text: str, meta: dict, model: str | None) -> None:
             er = expander.expand_for_slides(
                 md_text, meta, model=model, timeout=900,
                 lang=st.session_state.get("pptx_lang", "한국어"),
+                pages=st.session_state.get("pptx_page_count", "자동 (LLM 판단)"),
             )
         st.session_state["pptx_expand_result"] = {
             "md": er.md, "elapsed": er.elapsed_ms / 1000, "model": er.model,

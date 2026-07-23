@@ -37,11 +37,23 @@ class ExpandedResult:
 
 
 _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박은 마크다운 보고서를
-*컨설팅급 PPT 25~30장 분량의 풍부한 슬라이드용 마크다운*으로 재구조화하세요.
+*컨설팅급 PPT 슬라이드용 마크다운*으로 재구조화하세요.
 
-## 출력 언어
-반드시 모든 슬라이드를 {lang}로 작성한다. 추론 과정·설명·메타텍스트를 절대
-출력하지 말고 마크다운 슬라이드 내용만 출력한다.
+## ⚠️ 최우선 지시 — 사용자가 UI에서 직접 고른 값 (언어·페이지 수·모델)
+아래 세 지시는 다른 모든 규칙·예시보다 우선한다. 특히 예시의 언어나 아래
+'25~30장' 같은 표현이 이 지시와 충돌하면 *반드시 이 지시를 따른다*.
+
+### 1) 출력 언어
+{lang_directive}
+추론 과정·설명·메타텍스트를 절대 출력하지 말고 마크다운 슬라이드 내용만 출력한다.
+
+### 2) 페이지 수
+{count_directive}
+목표 분량: **{slide_target}**.
+
+### 3) 모델
+이 요청은 사용자가 고른 모델({model_name})로 처리된다. 모델 능력을 최대한 활용해
+위 언어·페이지 수 지시를 정확히 지켜라.
 
 ## 메타
 회사명: {company}
@@ -49,22 +61,16 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 부제: {subtitle}
 날짜: {date}
 
-## ⚠️ 절대 규칙 (위반 금지)
+## 절대 규칙 (위반 금지)
 
-1. **정보 손실 금지**: 원본의 *모든 섹션, 표, 리스트, 수치, 항목*을 *빠짐없이* 보존.
-   - 원본에 7단계가 있으면 7단계 전부 박음
-   - 원본에 27개 교부물이 있으면 27개 전부 박음
-   - 원본에 SLA 4단계 (30분/1시간/2시간/1일)가 있으면 4개 시간 전부 박음
-   - 표는 *그대로* 마크다운 표로 박음
+1. {loss_rule}
 
 2. **풍부함 의무**: 한 슬라이드에 *제목 + 본문 (리스트 5~10개 또는 표 또는 단락)*.
    - 한 문장만 박힌 슬라이드 금지
-   - 단어 줄임 금지 ("WBS 制定" 같은 3-4단어 X, "制定WBS工作分解结构,定义详细任务" O)
+   - 단어 줄임 금지 (3-4단어 나열 X, *완전한 구절·문장형* O)
    - 항목 내용은 *완전한 구절·문장형*
 
-3. **슬라이드 분리자**: 슬라이드마다 `---` 한 줄로 구분. 25~30개 슬라이드 박음.
-   - 너무 많은 정보가 박힌 섹션은 *2~3 슬라이��로 쪼갬*
-   - 너무 적은 정보는 *가까운 섹션과 합침*
+3. **슬라이드 분리자**: 슬라이드마다 `---` 한 줄로 구분. 전체 {slide_target}으로 박음.
 
 4. **시각 패턴 힌트** (LLM이 Stage 2에서 패턴 선택할 수 있게):
    - 비교/대조 → 표로 박음 (markdown table)
@@ -73,12 +79,13 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
    - 지표 → "**값** 라벨" 형태로 강조
    - As-Is vs To-Be → 두 컬럼 표
 
-5. **다국어 보존**: 입력이 중국어면 *중국어 그대로*, 영어면 영어 그대로.
-   원본 용어 (IM100, CMMI, SSIM 등) *그대로* 박음.
+5. **고유명사·코드 보존**: IM100, CMMI, SSIM, WBS, FAT 같은 표준 용어·코드·약어는
+   번역하지 말고 원문 표기 그대로 박는다. 단 *서술 문장·제목·설명*은 위 '출력 언어'
+   지시를 따른다 (즉 용어만 원문, 문장은 지정 언어).
 
 6. **frontmatter 박지 마** (호출자가 박음). 다른 말 0, 마크다운만.
 
-## 좋은 슬라이드 예시 (이 정도 풍부함)
+## 좋은 슬라이드 예시 (구조·풍부함의 참고용 — *언어는 무시*하고 위 '출력 언어' 지시를 따를 것)
 
 ```markdown
 <!-- _class: cover -->
@@ -126,9 +133,77 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 
 {md_text}
 
-## 출력 (Marp 마크다운만, 25~30 슬라이드, 다른 말 0)
+## 출력 (Marp 마크다운만, {slide_target}, 위 '출력 언어' 지시 준수, 다른 말 0)
 /no_think
 """
+
+
+def _resolve_pages(pages: "str | int | None") -> tuple[str, int | None]:
+    """UI '페이지 수' 선택값 → (mode, n).
+
+    - "자동 (LLM 판단)" / None / 숫자 없음 → ("auto", None)
+    - "5장" / "10장" / 5 → ("fixed", 5)
+    """
+    if pages is None:
+        return ("auto", None)
+    if isinstance(pages, int):
+        return ("fixed", pages) if pages > 0 else ("auto", None)
+    import re
+    s = str(pages)
+    if "자동" in s:
+        return ("auto", None)
+    m = re.search(r"\d+", s)
+    return ("fixed", int(m.group())) if m else ("auto", None)
+
+
+def _build_directives(lang: str | None, pages: "str | int | None") -> dict:
+    """언어·페이지 수 조합을 프롬프트용 명시 지시문으로 변환.
+
+    이 함수가 룰엔진의 핵심: UI 선택(언어·페이지 수)이 프롬프트 안에서
+    *모순 없는 단일 명령*이 되도록 조립한다.
+    """
+    lang_final = (lang or "").strip()
+    if lang_final and lang_final != "입력과 동일한 언어":
+        lang_directive = (
+            f"출력의 **모든 제목·문장·표·불릿을 반드시 {lang_final}로 작성**한다. "
+            f"원본이 다른 언어(중국어·영어 등)라도 {lang_final}로 **번역**해서 쓴다. "
+            f"{lang_final} 이외의 언어로 된 서술 문장을 출력하지 말 것 "
+            f"(고유명사·표준 용어·코드는 예외 — 규칙 5 참조)."
+        )
+    else:
+        lang_directive = (
+            "원본과 *동일한 언어* 그대로 작성한다. 번역하지 말 것."
+        )
+
+    mode, n = _resolve_pages(pages)
+    if mode == "fixed":
+        slide_target = f"정확히 {n}장 (±1장까지만 허용, 표지 포함)"
+        count_directive = (
+            f"반드시 **정확히 {n}장**의 슬라이드로 재구성한다(표지 포함, ±1장까지만 허용). "
+            f"원본이 {n}장보다 많은 내용을 담고 있으면 *핵심만 남기고 요약·압축·통합*해 "
+            f"{n}장에 맞춘다. 장수를 늘리려고 내용을 억지로 쪼개지 말 것."
+        )
+        loss_rule = (
+            "**핵심 우선·요약 허용**: 지정된 장수에 맞추기 위해 덜 중요한 세부는 "
+            "통합·요약한다. 단 수치·고유명사·핵심 표는 왜곡하거나 지어내지 않는다."
+        )
+    else:
+        slide_target = "25~30장"
+        count_directive = (
+            "정보 손실 없이 25~30장 분량으로 *풍부하게 확장*한다. "
+            "너무 많은 정보가 박힌 섹션은 2~3장으로 쪼개고, 너무 적은 섹션은 합친다."
+        )
+        loss_rule = (
+            "**정보 손실 금지**: 원본의 *모든 섹션·표·리스트·수치·항목*을 "
+            "*빠짐없이* 보존한다. 표는 *그대로* 마크다운 표로 박는다."
+        )
+
+    return {
+        "lang_directive": lang_directive,
+        "count_directive": count_directive,
+        "slide_target": slide_target,
+        "loss_rule": loss_rule,
+    }
 
 
 def expand_for_slides(
@@ -139,6 +214,7 @@ def expand_for_slides(
     model: str | None = None,
     max_input_chars: int = 24000,
     lang: str | None = None,
+    pages: "str | int | None" = None,
 ) -> ExpandedResult:
     """LLM이 사용자 마크다운을 풍부한 슬라이드용 마크다운으로 확장.
 
@@ -149,6 +225,10 @@ def expand_for_slides(
       model: 사용자가 UI에서 박은 모델 (None이면 deep)
       max_input_chars: 원본 입력 자르기 (기본 24k, 80b 컨텍스트 여유)
       lang: 출력 언어 지시 (예: "한국어"). None이면 "입력과 동일한 언어".
+      pages: 목표 페이지 수 (예: "5장"/"10장"/"자동 (LLM 판단)"/5). None이면 자동.
+
+    UI에서 고른 (언어·페이지 수·모델) 조합은 _build_directives()에서 모순 없는
+    단일 지시문으로 조립되어 프롬프트 최상단에 박힌다.
 
     반환: ExpandedResult
     """
@@ -160,13 +240,16 @@ def expand_for_slides(
     if len(md_text) > max_input_chars:
         truncated += f"\n\n[... 이하 {len(md_text) - max_input_chars:,}자 생략 ...]"
 
+    directives = _build_directives(lang or meta.get("lang"), pages)
+
     prompt = _PROMPT.format(
-        lang=lang or meta.get("lang") or "입력과 동일한 언어",
         company=meta.get("company", ""),
         title=meta.get("title", ""),
         subtitle=meta.get("subtitle", ""),
         date=meta.get("date", ""),
+        model_name=model or "deep",
         md_text=truncated,
+        **directives,
     )
 
     t0 = time.time()
