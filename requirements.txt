@@ -14,3 +14,7 @@ playwright>=1.40
 Pillow>=10.0
 jinja2>=3.1
 pypdf>=4.0
+# V2.9 — PPT 탭 정적 HTML/CSS/JS 셸 + API (진단툴과 동일 기술 스택)
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9

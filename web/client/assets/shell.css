@@ -1,0 +1,37 @@
+:root {
+  --bg: #f4f7fb; --card: #ffffff; --text: #1f2a37; --muted: #6b7280;
+  --line: #e5e7eb; --sidebar-w: 240px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+.shell { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); background: #fff;
+  border-right: 1px solid var(--line); padding: 20px 16px; position: sticky; top: 0;
+  height: 100vh; overflow-y: auto;
+}
+.sidebar .brand { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+.sidebar .group-label {
+  font-size: 10px; font-weight: 800; color: #9ca3af; letter-spacing: .04em;
+  text-transform: uppercase; margin: 18px 0 8px;
+}
+.sidebar .group-label:first-of-type { margin-top: 14px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+.sidebar a.nav-item, .sidebar .nav-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px;
+  font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; cursor: pointer;
+}
+.sidebar .nav-item:hover { background: #f3f4f6; }
+.sidebar .nav-item.active { background: #eff6ff; color: #1d4ed8; }
+.sidebar .nav-item .ic { font-size: 14px; }
+
+.sidebar .status-box { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px; }
+.sidebar .status-box .row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; }
+.sidebar .status-box .ok { color: #16a34a; font-weight: 700; }
+
+.main { flex: 1 1 auto; min-width: 0; padding: 28px 32px 60px; }
+.main-inner { max-width: 1400px; margin: 0 auto; }

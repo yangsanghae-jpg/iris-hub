@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  iris-hub web shell — 진단툴(diagnosis-tool)과 동일 기술 스택으로 새로 시작.
+  순수 HTML/CSS/바닐라 JS, 프레임워크 없음, 빌드 스텝 없음. Streamlit(8765)의
+  BaseWeb 위젯을 목업 디자인으로 리스킨하려던 시도가 CSS 특이도 싸움으로 3시간
+  넘게 수렴하지 않아서, 이 셸에서는 애초에 그 위젯 레이어를 쓰지 않는다.
+
+  PPT 탭만 실제로 동작한다 — 나머지 탭은 기존 Streamlit(:8765)으로 링크만
+  걸어둔 자리표시자다. 단계별 이관은 별도 작업.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IRIS HUB</title>
+<link rel="stylesheet" href="/assets/shell.css" />
+<link rel="stylesheet" href="/assets/pptx.css" />
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">IRIS HUB</div>
+    <div style="font-size:10px;color:#9ca3af;font-weight:800;letter-spacing:.04em">KNOWLEDGE OPS</div>
+
+    <div class="group-label">Core</div>
+    <nav>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">📋</span>진실원</a>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">📥</span>입력</a>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">🔄</span>흐름</a>
+    </nav>
+
+    <div class="group-label">Knowledge</div>
+    <nav>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">📦</span>데이터</a>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">🕸️</span>그래프</a>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">📚</span>위키</a>
+    </nav>
+
+    <div class="group-label">Create</div>
+    <nav>
+      <div class="nav-item active"><span class="ic">📊</span>PPT</div>
+    </nav>
+
+    <div class="group-label">External</div>
+    <nav>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">💬</span>WebUI</a>
+      <a class="nav-item" href="http://127.0.0.1:8765" target="_blank"><span class="ic">🦅</span>OpenClaw</a>
+    </nav>
+
+    <div class="status-box">
+      <div class="row"><span>이 셸</span><span class="ok">PPT만 동작</span></div>
+      <div class="row"><span>나머지 탭</span><span style="color:#9ca3af">기존 :8765</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-inner">
+      <div class="topbar">
+        <div>
+          <div class="title">PPT · DECK CONSOLE</div>
+          <div class="sub">마크다운 소스를 선택하고 언어 · 페이지 수 · 템플릿을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</div>
+        </div>
+        <span class="badge">EXPORT READY</span>
+      </div>
+
+      <div class="stepper" id="stepper"></div>
+      <div id="error-box"></div>
+
+      <div class="grid">
+        <div class="panel" id="panel"></div>
+        <div class="side" id="side"></div>
+      </div>
+
+      <div class="progress-strip" id="progress-strip"></div>
+
+      <div class="actions">
+        <button class="btn-ghost" id="prev-btn" onclick="prevStep()">이전</button>
+        <button class="btn-primary" id="next-btn" onclick="nextStep()">다음: 확장</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/assets/pptx.js"></script>
+</body>
+</html>
