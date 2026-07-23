@@ -18,10 +18,23 @@ import urllib.request
 import urllib.error
 from typing import Any
 
-from .config import LLM_MODELS, OLLAMA_URL
+from .config import LLM_MODELS, OLLAMA_URL, IRIS_LLM_DEEP
 
 DEFAULT_TIMEOUT = 60.0  # deep K2 분석 5-30초 기대, 60초 헤드룸
 FAST_TIMEOUT = 15.0     # fast는 1-5초 기대
+
+# deep 슬롯 미설치 시 fallback 우선순위 (embedding 제외).
+# 설정값(IRIS_LLM_DEEP)이 설치돼 있으면 그걸 쓰고, 없을 때만 이 목록을 순회한다.
+_DEEP_FALLBACK_PRIORITY = (
+    "qwen3:30b",
+    "qwen3-next:80b-a3b-instruct-q4_K_M",
+    "gpt-oss:20b",
+    "qwen3.5:4b",
+    "gemma4:e4b",
+    "gemma4:latest",
+)
+
+_EMBED_NAME_MARKERS = ("bge-m3", "nomic-embed", "embed")
 
 
 def model_for(role: str) -> str:
@@ -30,6 +43,102 @@ def model_for(role: str) -> str:
         return LLM_MODELS[role]
     except KeyError:
         raise ValueError(f"unknown LLM role: {role!r} (allowed: deep|fast|embed)")
+
+
+def thinking_mode_for_model(model: str) -> bool | str | None:
+    """모델별 Ollama `think` 파라미터 정책.
+
+    반환:
+      - True/False: boolean think 지원 모델
+      - "low"|"medium"|"high": gpt-oss 계열 전용 (boolean 금지)
+      - None: 요청에 think 키를 생략
+
+    규칙 (이름 substring 기준, 대소문자 무시):
+      1. gpt-oss* → "low"  (boolean 절대 사용 금지)
+      2. *instruct* / gemma* / qwen3.5* → False (비추론·instruct)
+      3. qwen3* (위 제외) / deepseek-r1* → True  (thinking 분리 모델)
+      4. 그 외 unknown → False (안전한 기본)
+    """
+    name = (model or "").lower()
+    if not name:
+        return False
+    if "gpt-oss" in name:
+        return "low"
+    if "instruct" in name or "gemma" in name or "qwen3.5" in name:
+        return False
+    if "qwen3" in name or "deepseek-r1" in name:
+        return True
+    return False
+
+
+def _is_embed_model(name: str) -> bool:
+    n = name.lower()
+    return any(k in n for k in _EMBED_NAME_MARKERS)
+
+
+def resolve_available_model(
+    preferred: str | None = None,
+    *,
+    installed: list[str] | None = None,
+) -> str | None:
+    """preferred가 설치돼 있으면 그대로, 아니면 정책 우선순위로 fallback.
+
+    embedding 모델은 제외. 생성 모델이 하나도 없으면 None.
+    """
+    names = installed if installed is not None else list_models()
+    if not names:
+        return None
+
+    def _norm(n: str) -> str:
+        return n if ":" in n else f"{n}:latest"
+
+    name_set = set(names)
+    name_set_norm = {_norm(n) for n in names}
+
+    def _present(candidate: str) -> str | None:
+        if candidate in name_set:
+            return candidate
+        cn = _norm(candidate)
+        if cn in name_set_norm:
+            # 원본 목록에서 매칭되는 실제 이름 반환
+            for n in names:
+                if _norm(n) == cn:
+                    return n
+        # 태그 없는 preferred ↔ 태그 있는 설치본
+        base = candidate.split(":", 1)[0]
+        for n in names:
+            if n == base or n.startswith(base + ":"):
+                return n
+        return None
+
+    pref = preferred or IRIS_LLM_DEEP
+    hit = _present(pref)
+    if hit and not _is_embed_model(hit):
+        return hit
+
+    for cand in _DEEP_FALLBACK_PRIORITY:
+        hit = _present(cand)
+        if hit and not _is_embed_model(hit):
+            return hit
+
+    for n in names:
+        if not _is_embed_model(n):
+            return n
+    return None
+
+
+def _build_generate_options(
+    *,
+    temperature: float,
+    num_ctx: int | None,
+    num_predict: int | None,
+) -> dict[str, Any]:
+    options: dict[str, Any] = {"temperature": temperature}
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
+    if num_predict is not None:
+        options["num_predict"] = num_predict
+    return options
 
 
 def generate_json(prompt: str, *,
@@ -63,11 +172,9 @@ def generate_json(prompt: str, *,
         FAST_TIMEOUT if role == "fast" else DEFAULT_TIMEOUT
     )
 
-    options: dict[str, Any] = {"temperature": temperature}
-    if num_ctx is not None:
-        options["num_ctx"] = num_ctx
-    if num_predict is not None:
-        options["num_predict"] = num_predict
+    options = _build_generate_options(
+        temperature=temperature, num_ctx=num_ctx, num_predict=num_predict,
+    )
 
     body = json.dumps({
         "model": resolved_model,
@@ -116,27 +223,44 @@ def generate_text(prompt: str, *,
                   role: str = "deep",
                   model: str | None = None,
                   timeout: float | None = None,
-                  temperature: float = 0.3) -> dict[str, Any]:
-    """V2.7.5.2 — Ollama raw text 모드. JSON 강제 없음.
+                  temperature: float = 0.3,
+                  think: bool | str | None = None,
+                  num_ctx: int | None = None,
+                  num_predict: int | None = None) -> dict[str, Any]:
+    """Ollama raw text 모드. JSON 강제 없음.
 
     PPT 재구조화처럼 *마크다운 그대로* 받아야 할 때 사용.
 
-    반환:
-        성공: {"ok": True, "text": <str>, "ms": <elapsed>, "model": <name>}
-        실패: {"ok": False, "error": <str>, "ms": 0, "model": <name>}
+    think:
+      - None → thinking_mode_for_model(model) 정책 적용
+      - bool / "low"|"medium"|"high" → 그대로 요청에 포함
+      - 정책이 None이면 think 키 자체를 생략
+
+    반환 (성공):
+      ok, text(=response만), thinking_present(bool), model, ms,
+      done, done_reason, prompt_eval_count, eval_count
+      ※ thinking 원문은 절대 반환하지 않음
     """
     resolved_model = model or model_for(role)
     resolved_timeout = timeout if timeout is not None else (
         FAST_TIMEOUT if role == "fast" else DEFAULT_TIMEOUT
     )
+    think_mode = thinking_mode_for_model(resolved_model) if think is None else think
 
-    body = json.dumps({
+    options = _build_generate_options(
+        temperature=temperature, num_ctx=num_ctx, num_predict=num_predict,
+    )
+
+    req_body: dict[str, Any] = {
         "model": resolved_model,
         "prompt": prompt,
         "stream": False,
-        "think": False,
-        "options": {"temperature": temperature},
-    }).encode("utf-8")
+        "options": options,
+    }
+    if think_mode is not None:
+        req_body["think"] = think_mode
+
+    body = json.dumps(req_body).encode("utf-8")
 
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/generate",
@@ -154,8 +278,41 @@ def generate_text(prompt: str, *,
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": 0, "model": resolved_model}
 
     ms = payload.get("total_duration", 0) // 1_000_000
-    text = payload.get("response", "")
-    return {"ok": True, "text": text, "ms": ms, "model": resolved_model}
+    text = payload.get("response") or ""
+    thinking_raw = payload.get("thinking")
+    thinking_present = bool(thinking_raw and str(thinking_raw).strip())
+    # thinking 원문은 여기서 버리고 존재 여부만 메타로 남긴다.
+    del thinking_raw
+
+    done = payload.get("done")
+    done_reason = payload.get("done_reason")
+    prompt_eval_count = payload.get("prompt_eval_count")
+    eval_count = payload.get("eval_count")
+
+    if not str(text).strip():
+        return {
+            "ok": False,
+            "error": "빈 response (thinking만 있거나 모델이 최종 답을 비움)",
+            "ms": ms,
+            "model": resolved_model,
+            "thinking_present": thinking_present,
+            "done": done,
+            "done_reason": done_reason,
+            "prompt_eval_count": prompt_eval_count,
+            "eval_count": eval_count,
+        }
+
+    return {
+        "ok": True,
+        "text": text,
+        "thinking_present": thinking_present,
+        "ms": ms,
+        "model": resolved_model,
+        "done": done,
+        "done_reason": done_reason,
+        "prompt_eval_count": prompt_eval_count,
+        "eval_count": eval_count,
+    }
 
 
 def embed(text: str, *, model: str | None = None,
@@ -203,6 +360,18 @@ def health(role: str = "deep") -> dict[str, Any]:
 
     names = [m.get("name") for m in tags.get("models", [])]
     found = target in names or target_norm in names
+    if not found and role == "deep":
+        fb = resolve_available_model(target, installed=names)
+        if fb:
+            return {
+                "ok": True,
+                "role": role,
+                "model": fb,
+                "configured": target,
+                "fallback": True,
+                "available_models": names,
+                "error": None,
+            }
     return {
         "ok": found,
         "role": role,
@@ -235,5 +404,7 @@ def list_models(*, timeout: float = 3.0) -> list[str]:
     return sorted(names)
 
 
-__all__ = ["generate_json", "generate_text", "embed", "health", "health_all",
-           "list_models", "model_for"]
+__all__ = [
+    "generate_json", "generate_text", "embed", "health", "health_all",
+    "list_models", "model_for", "thinking_mode_for_model", "resolve_available_model",
+]

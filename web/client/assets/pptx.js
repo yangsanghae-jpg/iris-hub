@@ -145,7 +145,13 @@ async function runExpand() {
   try {
     const data = await api('/api/expand', {
       method: 'POST',
-      body: JSON.stringify({ md_text: state.mdText, lang: state.lang, model: state.model }),
+      body: JSON.stringify({
+        md_text: state.mdText,
+        lang: state.lang,
+        model: state.model,
+        pages: state.pageCount,
+        target_slides: targetSlides(),
+      }),
     });
     state.expandResult = data;
     state.designResult = null;

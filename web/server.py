@@ -96,13 +96,17 @@ def list_models() -> dict:
         n for n in llm.list_models()
         if not any(k in n.lower() for k in ("bge-m3", "nomic-embed", "embed"))
     ]
-    return {"models": names, "default": IRIS_LLM_DEEP}
+    # 설정 deep이 미설치면 정책 우선순위로 fallback (embedding 제외).
+    default = llm.resolve_available_model(IRIS_LLM_DEEP, installed=names) or IRIS_LLM_DEEP
+    return {"models": names, "default": default, "configured": IRIS_LLM_DEEP}
 
 
 class ExpandReq(BaseModel):
     md_text: str
     lang: str = "한국어"
     model: Optional[str] = None
+    pages: Optional[str] = None
+    target_slides: Optional[int] = None
 
 
 @app.post("/api/expand")
@@ -112,9 +116,13 @@ def run_expand(req: ExpandReq) -> dict:
     if not req.md_text.strip():
         raise HTTPException(400, "소스가 비어 있습니다")
     meta = _default_meta(req.lang)
+    pages = req.pages
+    if pages is None and req.target_slides is not None:
+        pages = req.target_slides
     try:
         result = expander.expand_for_slides(
-            req.md_text, meta, model=req.model, timeout=900, lang=req.lang,
+            req.md_text, meta, model=req.model, timeout=900,
+            lang=req.lang, pages=pages,
         )
     except expander.ExpansionError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=422)

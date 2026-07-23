@@ -110,6 +110,8 @@ def hub_work_subdir(name: str) -> Path:
 # ─── LLM 3슬롯 (V2.5.4 부록) ─────────────────────────────────────────────────
 OLLAMA_URL = os.getenv("IRIS_OLLAMA_URL", "http://localhost:11434")
 
+# 기본값은 크로스머신 공통 시드. 실제 설치 여부는 llm.resolve_available_model()
+# / /api/models 가 런타임에 검증·fallback 한다 (한 머신의 list로 전역 기본을 바꾸지 않음).
 IRIS_LLM_DEEP  = os.getenv("IRIS_LLM_DEEP",  "qwen3:8b")
 IRIS_LLM_FAST  = os.getenv("IRIS_LLM_FAST",  "qwen3.5:4b")
 IRIS_LLM_EMBED = os.getenv("IRIS_LLM_EMBED", "bge-m3")
