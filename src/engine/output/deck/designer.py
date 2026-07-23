@@ -38,7 +38,10 @@ PATTERN_SLOTS = {
 
 
 def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
-                  target_slides: int | None) -> str:
+                  target_slides: int | None,
+                  density: str = "standard") -> str:
+    from src.engine.output.deck.theme import density_prompt_directive
+
     patterns_doc = "\n".join(f"- {pid}: {slots}" for pid, slots in PATTERN_SLOTS.items())
 
     # V2.8.2 — 슬라이드 수 *확장*. pre_expanded면 입력이 이미 풍부하므로 더 박을 수 있음
@@ -52,6 +55,8 @@ def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
         target_min = max(8, min(20, len(md_text) // 800))
         target_max = min(25, target_min + 5)
 
+    density_block = density_prompt_directive(density)
+
     return f"""당신은 컨설팅급 PPT 슬라이드 디자이너입니다. 사용자가 박은 마크다운을
 *정보를 풍부하게 유지*하면서 슬라이드 사양으로 변환합니다. JSON으로만 답하세요.
 
@@ -60,6 +65,10 @@ def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
 보고서명: {meta.get('title', '')}
 부제: {meta.get('subtitle', '')}
 날짜: {meta.get('date', '')}
+
+{density_block}
+※ 밀도는 슬라이드 *장수*를 바꾸지 않는다. 목표 장수({target_min}~{target_max})는 유지하고
+  슬라이드별 설명량·구조적 풍부함만 조절한다.
 
 ## 사용 가능 슬라이드 패턴 (이 8종만 사용)
 {patterns_doc}
@@ -93,11 +102,18 @@ def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
 7. **다국어 보존**: 입력이 중국어/영어면 슬라이드도 같은 언어로 박음.
 8. cover 1장 + agenda 1장 + 본문 {target_min - 2}~{target_max - 2}장.
 9. 색상 일관: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'.
+10. **card-grid-4의 intro/outro는 장식이 아니라 손실 방지 슬롯**: 스키마엔 `?`(선택)로
+    표시돼 있지만, 원본에 카드 목록 *앞*에 도입 설명이 있으면 반드시 `intro`에, *뒤*에
+    요약·조건·부가설명(예: "지원: 7×24시간 기술지원, 2회/년 현장서비스")이 있으면 반드시
+    `outro`에 채운다. 카드 3~8개 슬롯에 안 들어가는 문장이 하나라도 원본에 있다면
+    그건 버릴 항목이 아니라 intro/outro에 넣을 항목이다. **다 카드에 안 들어간다고
+    그 문장을 버리면 정보 손실.**
 
 ## 패턴 매칭 전략 (입력 구조 → 패턴)
 
 - 비교/대조 (As-Is vs To-Be 등) → exec-summary 또는 compare-2col
-- N단계·N구역·N카드 → card-grid-4 (N=3~8)
+- N단계·N구역·N카드 → card-grid-4 (N=3~8). 카드 앞뒤에 남는 문장은 규칙 10대로
+  intro/outro에 반드시 채움 — 버리면 정보 손실.
 - 시간·단계 로드맵 → phase-roadmap (단계 3~8)
 - N관점·N차원·N측면 → dimension-5 (N=4~8)
 - 지표·KPI 나열 → metrics-row (3~6 지표)
@@ -188,17 +204,23 @@ def design_deck(md_text: str, meta: dict, *,
                 timeout: float = 300.0,
                 model: str | None = None,
                 pre_expanded: bool = False,
-                target_slides: int | None = None) -> Deck:
+                target_slides: int | None = None,
+                density: str = "standard") -> Deck:
     """LLM이 마크다운을 받아 슬라이드 사양 출력.
 
     V2.8.2 새 인자:
       pre_expanded: Stage 1 확장 통과한 입력이면 True (자르기 24k, 더 밀도 높게)
       target_slides: 사용자가 슬라이드 수 직접 박았으면 (auto면 None)
 
-    V2.8.1.2 JSON 복구 그대로.
+    V2.8.4:
+      density: spacious|standard|dense — 슬라이드 장수는 유지, 콘텐츠 정보량만 조절.
+               기본 standard → 기존 8765 호출과 동일.
     """
-    prompt = _build_prompt(md_text, meta,
-                           pre_expanded=pre_expanded, target_slides=target_slides)
+    prompt = _build_prompt(
+        md_text, meta,
+        pre_expanded=pre_expanded, target_slides=target_slides,
+        density=density or "standard",
+    )
     # V2.8.2 — num_predict 32768로 더 키움 (풍부한 슬라이드 30장 박을 여유)
     resp = llm.generate_json(
         prompt, role="deep", model=model, timeout=timeout,
