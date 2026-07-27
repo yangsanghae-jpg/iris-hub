@@ -578,11 +578,16 @@ function resetMasterStyle() {
   render();
 }
 
-function toggleBtn(on, onClickTrue, onClickFalse) {
-  return `<div class="toggle" role="group">
-    <button type="button" class="${on ? 'on' : ''}" aria-pressed="${on ? 'true' : 'false'}" onclick="${onClickTrue}">ON</button>
-    <button type="button" class="${!on ? 'on' : ''}" aria-pressed="${!on ? 'true' : 'false'}" onclick="${onClickFalse}">OFF</button>
-  </div>`;
+function toggleSwitch(on, setterFn, opts) {
+  // 네이티브 <input type="checkbox"> 기반 스위치. 이전엔 ON/OFF 버튼 2개를
+  // 직접 그려 재렌더 시 방향 표시가 겹쳐 보이는 등 문제가 있어, 상태·포커스·
+  // 키보드 처리를 브라우저가 알아서 하는 네이티브 컨트롤로 교체했다.
+  const disabled = opts && opts.disabled ? 'disabled' : '';
+  const onchange = disabled ? '' : `onchange="${setterFn}(this.checked)"`;
+  return `<label class="switch ${disabled ? 'is-disabled' : ''}">
+    <input type="checkbox" ${on ? 'checked' : ''} ${disabled} ${onchange} />
+    <span class="switch-track"><span class="switch-thumb"></span></span>
+  </label>`;
 }
 
 async function runDesign() {
@@ -830,7 +835,7 @@ function panelDesign() {
       <div class="compact-row">
         <div class="compact-field">
           <span class="lab">페이지 번호</span>
-          ${toggleBtn(state.pageNumber.enabled, 'setPageNumberEnabled(true)', 'setPageNumberEnabled(false)')}
+          ${toggleSwitch(state.pageNumber.enabled, 'setPageNumberEnabled')}
         </div>
         <div class="compact-field">
           <span class="lab">페이지 번호 위치</span>
@@ -841,7 +846,7 @@ function panelDesign() {
         </div>
         <div class="compact-field control-disabled" aria-disabled="true">
           <span class="lab">로고 고정 표시 <span class="pending-badge">지원 예정</span></span>
-          <div class="toggle"><button type="button" disabled>ON</button><button type="button" class="on" disabled>OFF</button></div>
+          ${toggleSwitch(false, 'noop', { disabled: true })}
         </div>
       </div>
     </div>
@@ -863,7 +868,7 @@ function panelDesign() {
       </div>
       <div class="compact-field">
         <span class="lab">exports 저장</span>
-        ${toggleBtn(state.saveDisk, 'setSaveDisk(true)', 'setSaveDisk(false)')}
+        ${toggleSwitch(state.saveDisk, 'setSaveDisk')}
       </div>
     </div>
 
@@ -871,7 +876,7 @@ function panelDesign() {
       <div class="compact-row" style="margin-bottom:8px">
         <div class="compact-field" style="flex:1">
           <span class="lab">설계에서 다른 LLM 쓰기 <span class="hint">(기본: ②와 동일 · ${esc(state.model || '—')})</span></span>
-          ${toggleBtn(state.useOtherDesignModel, 'setUseOtherDesignModel(true)', 'setUseOtherDesignModel(false)')}
+          ${toggleSwitch(state.useOtherDesignModel, 'setUseOtherDesignModel')}
         </div>
       </div>
       ${state.useOtherDesignModel ? `
