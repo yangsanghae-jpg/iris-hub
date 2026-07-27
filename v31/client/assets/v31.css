@@ -1,0 +1,454 @@
+
+    /* ============================================================
+       V3.1 Design Tokens (Monochrome Zinc)
+       Ported from diagnosis-tool/client/v31/v31.css
+       ============================================================ */
+    :root {
+      --bg: #f4f7fb; --card: #ffffff; --text: #1f2a37; --muted: #6b7280;
+      --line: #e5e7eb; --sidebar-w: 240px;
+      /* Color accents (≤ 10% visible area) */
+      --accent-blue: #3b82f6; --accent-blue-soft: #eff6ff;
+      --status-ok: #22c55e; --status-warn: #f59e0b; --status-err: #ef4444;
+      --sec-core: #3b82f6; --sec-knowledge: #8b5cf6; --sec-create: #06b6d4;
+    }
+    html {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+      font-size: 23.5px; line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      color: #0a0a0a;
+    }
+    * { box-sizing: border-box; }
+
+    /* ============================================================
+       Layout: Sidebar + Main
+       ============================================================ */
+    .shell { display: flex; min-height: 100vh; height: 100%; }
+    .sidebar {
+      width: 268px; flex: none; padding: 12px 10px;
+      display: flex; flex-direction: column; gap: 2px;
+      background: #fafafa;
+      border-right: 1px solid #ececee;
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .sidebar::-webkit-scrollbar { width: 6px; }
+    .sidebar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+    .main {
+      flex: 1; min-width: 0; margin: 8px 8px 8px 0;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 0 0 1px #e5e5e5, 0 1px 2px rgba(0,0,0,.04);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* ============================================================
+       Sidebar: Brand
+       ============================================================ */
+    .brand {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 8px 10px;
+    }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: #18181b; color: #fafafa;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 23.5px;
+    }
+    .brand-t { font-weight: 700; font-size: 18.0px; letter-spacing: -.01em; line-height: 1.1; }
+    .brand-s { font-size: 14.5px; color: #71717a; }
+
+    /* ============================================================
+       Sidebar: Navigation (V3.1 style)
+       ============================================================ */
+    .nav { flex: 1; min-height: 0; padding-bottom: 8px; }
+    .group-label {
+      font-size: 14.5px; font-weight: 700; color: #a1a1aa;
+      padding: 14px 8px 5px;
+    }
+    .group-label:first-child { padding-top: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6.5px 8px; border-radius: 8px;
+      color: #0a0a0a; font-size: 17.0px; font-weight: 500;
+      cursor: pointer; border: 0; background: transparent;
+      width: 100%; text-align: left; position: relative;
+    }
+    .nav-item:hover { background: #f0f0f1; }
+    .nav-item.active { background: #f0f0f1; font-weight: 650; }
+    .nav-item.active::before {
+      content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 16px; border-radius: 2px; background: var(--accent-blue);
+    }
+    .nav-item.locked {
+      color: #a1a1aa; cursor: default; opacity: .85;
+    }
+    .nav-item.locked:hover { background: transparent; }
+    .nav-code {
+      flex: none; min-width: 44px; font-size: 14.5px; font-weight: 750;
+      color: #71717a; font-variant-numeric: tabular-nums;
+    }
+    .nav-item.active .nav-code { color: var(--accent-blue); }
+    .nav-item.done .nav-code { color: var(--status-ok); }
+    .nav-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-tag {
+      flex: none; font-size: 12.5px; font-weight: 800; letter-spacing: .02em;
+      padding: 1px 5px; border-radius: 4px;
+    }
+    .nav-tag.external {
+      background: #f0fdfa; color: #0891b2;
+      box-shadow: inset 0 0 0 1px #a5f3fc;
+    }
+    .nav-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex: none;
+      background: transparent; box-shadow: inset 0 0 0 1.5px #e5e5e5;
+    }
+    .nav-item.done .nav-dot { background: var(--status-ok); box-shadow: none; }
+    .nav-item.active .nav-dot { background: var(--accent-blue); box-shadow: none; }
+
+    /* User area */
+    .sidebar-user {
+      flex: none; display: flex; align-items: center; gap: 9px;
+      padding: 8px; margin-top: 4px;
+      border-radius: 9px; background: #fff;
+      box-shadow: 0 0 0 1px #ececee;
+    }
+    .sidebar-ava {
+      width: 30px; height: 30px; border-radius: 7px; background: #e4e4e7; color: #71717a;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15.5px;
+    }
+    .sb-user-t { font-size: 16.0px; font-weight: 650; }
+    .sb-user-s { font-size: 14.5px; color: #71717a; }
+
+    /* ============================================================
+       Main: Header
+       ============================================================ */
+    .main-header {
+      height: 52px; flex: none; display: flex; align-items: center;
+      padding: 0 18px; border-bottom: 1px solid #e5e5e5; gap: 12px;
+    }
+    .phase-badge {
+      font-size: 14.5px; font-weight: 750; padding: 3px 9px; border-radius: 6px;
+      background: #f4f4f5; color: #0a0a0a;
+      box-shadow: inset 0 0 0 1px #e5e5e5;
+    }
+    .phase-badge.core { background: var(--accent-blue-soft); color: var(--accent-blue); box-shadow: inset 0 0 0 1px #bfdbfe; }
+    .phase-badge.knowledge { background: #f5f3ff; color: var(--sec-knowledge); box-shadow: inset 0 0 0 1px #c4b5fd; }
+    .phase-badge.create { background: #ecfeff; color: #0891b2; box-shadow: inset 0 0 0 1px #a5f3fc; }
+    .phase-badge.observ { background: #f0fdf4; color: var(--status-ok); box-shadow: inset 0 0 0 1px #86efac; }
+    .phase-badge.manage { background: #fffbeb; color: var(--status-warn); box-shadow: inset 0 0 0 1px #fde68a; }
+    .breadcrumb {
+      display: flex; align-items: center; gap: 8px; font-size: 17.0px; min-width: 0;
+    }
+    .breadcrumb .bc-muted { color: #71717a; }
+    .breadcrumb .bc-sep { color: #a1a1aa; }
+    .breadcrumb .bc-cur { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spacer { flex: 1; }
+    .lang-switch { display: flex; gap: 4px; }
+    .lang-btn {
+      height: 28px; padding: 0 8px; border-radius: 7px; border: 0;
+      font-size: 14.5px; font-weight: 600; cursor: pointer;
+      box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff;
+    }
+    .lang-btn.active { background: #f4f4f5; font-weight: 700; }
+    .header-btn {
+      height: 30px; padding: 0 11px; border-radius: 8px; border: 0;
+      font-size: 16.0px; font-weight: 600; cursor: pointer;
+    }
+    .header-btn.ghost {
+      box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff; color: #0a0a0a;
+    }
+    .header-btn.primary { background: var(--accent-blue); color: #fff; }
+
+    /* ============================================================
+       Main: Content Area
+       ============================================================ */
+    .content {
+      padding: 20px 22px 28px; overflow: auto; flex: 1;
+    }
+    .sec-head {
+      display: flex; align-items: baseline; gap: 10px; margin: 2px 0 13px;
+    }
+    .sec-title { font-size: 21.0px; font-weight: 750; letter-spacing: -.02em; }
+    .sec-desc { font-size: 16.0px; color: #71717a; }
+
+    /* ============================================================
+       KPI Stat Tiles (V3.1 4-column grid)
+       ============================================================ */
+    .kpi {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+    }
+    .kpi-card {
+      position: relative;
+      border-radius: 12px; box-shadow: inset 0 0 0 1px #e5e5e5;
+      background: #fff; padding: 14px 16px;
+    }
+    .kpi-badge {
+      float: right; font-size: 14.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      color: #71717a; box-shadow: inset 0 0 0 1px #e5e5e5; background: #fff;
+    }
+    .kpi-badge.on { color: var(--accent-blue); background: var(--accent-blue-soft); box-shadow: inset 0 0 0 1px #bfdbfe; }
+    .kpi-k { font-size: 15.5px; color: #71717a; font-weight: 500; }
+    .kpi-v { margin-top: 6px; font-size: 28.5px; font-weight: 750; letter-spacing: -.02em; line-height: 1; clear: both; }
+    .kpi-f { margin-top: 8px; font-size: 15.0px; color: #71717a; }
+
+    /* ============================================================
+       Section: Cards (A chapter style)
+       ============================================================ */
+    .a-card {
+      border: 1px solid #e5e5e5; border-left: 4px solid #d4d4d8;
+      border-radius: 13px; padding: 18px 20px; margin-bottom: 16px; background: #fff;
+    }
+    .a-card.sec-core { border-left-color: var(--sec-core); }
+    .a-card.sec-knowledge { border-left-color: var(--sec-knowledge); }
+    .a-card.sec-create { border-left-color: var(--sec-create); }
+    .card-h {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .card-num {
+      font-size: 13.5px; font-weight: 800; color: #71717a;
+      border: 1px solid #e5e5e5; border-radius: 5px; padding: 1px 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .card-ttl { font-size: 18.0px; font-weight: 700; letter-spacing: -.01em; }
+    .card-body { font-size: 18.0px; line-height: 1.65; color: #27272a; }
+    .card-body.lead {
+      font-size: 22.0px; font-weight: 650; line-height: 1.75;
+      letter-spacing: -.015em; color: #0a0a0a;
+      word-break: keep-all; width: 100%;
+    }
+    .card-cap { font-size: 15.0px; color: #a1a1aa; margin: -4px 0 12px; }
+    .a-footnote {
+      margin-top: 26px; padding-top: 16px;
+      border-top: 1px dashed #e5e5e5;
+      font-size: 15.0px; color: #a1a1aa;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .a-footnote .kbd {
+      font-size: 13.5px; border: 1px solid #e5e5e5; border-radius: 5px;
+      padding: 1px 6px; background: #f4f4f5; color: #71717a;
+    }
+
+    /* 12-column grid */
+    .a1grid {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;
+      align-items: start;
+    }
+    .a1grid > .a-card { margin-bottom: 0; }
+    .sp12 { grid-column: span 12; }
+    .sp8 { grid-column: span 8; }
+    .sp6 { grid-column: span 6; }
+    .sp4 { grid-column: span 4; }
+    .sp5 { grid-column: span 5; }
+    @media (max-width: 1180px) {
+      .sp8, .sp6, .sp5, .sp4 { grid-column: span 12; }
+    }
+
+    /* Lists */
+    .axis-list {
+      list-style: none; margin: 0; padding: 0;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .axis-list li {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 0 0 0 12px;
+      border-left: 3px solid #e5e5e5;
+      font-size: 17.5px; line-height: 1.55; color: #27272a;
+    }
+    .axis-list strong { display: block; font-weight: 700; color: #0a0a0a; }
+    .axis-list span { color: #71717a; font-size: 17.0px; }
+
+    /* ============================================================
+       Section: Input tab (form cards)
+       ============================================================ */
+    .input-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 12px; background: #fff;
+    }
+    .input-card-title {
+      font-size: 17.0px; font-weight: 700; color: #0a0a0a; margin-bottom: 10px;
+    }
+    .input-row {
+      display: flex; gap: 12px; margin-bottom: 8px;
+    }
+    .input-group { flex: 1; }
+    .input-label {
+      font-size: 14.5px; font-weight: 600; color: #71717a;
+      margin-bottom: 4px; display: block;
+    }
+    .input-field {
+      width: 100%; padding: 8px 12px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; background: #fff;
+      outline: none; transition: border-color 0.12s;
+    }
+    .input-field:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .select-field {
+      width: 100%; padding: 8px 12px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; background: #fff;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2371717a' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    /* ============================================================
+       Section: Flow/Graph tab (ReactFlow placeholder)
+       ============================================================ */
+    .flow-canvas {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      background: #f4f4f5; min-height: 480px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .flow-canvas::after {
+      content: "ReactFlow + ELK.js 영역";
+      font-size: 17.0px; color: #a1a1aa; font-weight: 600;
+    }
+    .flow-toolbar {
+      display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+    }
+    .flow-toolbar .toolbar-btn {
+      height: 28px; padding: 0 10px; border-radius: 6px;
+      border: 1px solid #e5e5e5; background: #fff; font-size: 14.5px;
+      font-weight: 600; color: #0a0a0a; cursor: pointer;
+    }
+
+    /* ============================================================
+       Section: Data tab (table cards)
+       ============================================================ */
+    .data-table-wrap {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      overflow: hidden; background: #fff;
+    }
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 16.0px;
+    }
+    .data-table th {
+      background: #f4f4f5; color: #71717a; font-weight: 650;
+      padding: 10px 14px; text-align: left;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .data-table td {
+      padding: 10px 14px; border-bottom: 1px solid #f0f0f1;
+      color: #27272a;
+    }
+    .data-table tr:last-child td { border-bottom: 0; }
+    .data-table .mono { font-variant-numeric: tabular-nums; color: #71717a; }
+    .data-table .val { font-weight: 700; color: #0a0a0a; }
+
+    /* ============================================================
+       Section: Wiki tab (search + cards)
+       ============================================================ */
+    .wiki-search {
+      display: flex; gap: 8px; margin-bottom: 16px;
+    }
+    .wiki-search-input {
+      flex: 1; padding: 10px 14px; border: 1px solid #e5e5e5;
+      border-radius: 8px; font-size: 17.0px; outline: none;
+    }
+    .wiki-search-input:focus { border-color: #18181b; }
+    .wiki-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    @media (max-width: 900px) { .wiki-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .wiki-grid { grid-template-columns: 1fr; } }
+    .wiki-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 14px 16px; background: #fff;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .wiki-card:hover { background: #fafafa; }
+    .wiki-card-title { font-size: 17.0px; font-weight: 700; color: #0a0a0a; }
+    .wiki-card-desc { font-size: 15.0px; color: #71717a; margin-top: 4px; line-height: 1.45; }
+    .wiki-card-meta { font-size: 13.5px; color: #a1a1aa; margin-top: 8px; }
+
+    /* ============================================================
+       Section: Insight (관측) tab (KPI dashboard)
+       ============================================================ */
+    .observe-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+    }
+    .observe-card {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 14px 16px; background: #fff;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .observe-label { font-size: 14.5px; font-weight: 600; color: #71717a; }
+    .observe-value { font-size: 28.5px; font-weight: 750; color: #0a0a0a; letter-spacing: -.02em; }
+    .observe-status {
+      font-size: 14.5px; font-weight: 600; padding: 2px 8px;
+      border-radius: 999px; background: #f4f4f5; color: #0a0a0a;
+      box-shadow: inset 0 0 0 1px #e5e5e5; align-self: flex-start;
+    }
+    .observe-status.ok { background: #f4f4f5; color: #16a34a; }
+
+    /* ============================================================
+       Section: Settings (form layout)
+       ============================================================ */
+    .settings-section {
+      border: 1px solid #e5e5e5; border-radius: 12px;
+      padding: 18px 20px; margin-bottom: 16px; background: #fff;
+    }
+    .settings-title { font-size: 18.0px; font-weight: 700; color: #0a0a0a; margin-bottom: 14px; }
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; gap: 16px;
+    }
+    .setting-label { font-size: 17.0px; font-weight: 500; color: #0a0a0a; }
+    .setting-desc { font-size: 15.0px; color: #71717a; }
+    /* Toggle switch */
+    .toggle {
+      width: 40px; height: 22px; border-radius: 11px;
+      background: #d4d4d8; cursor: pointer; position: relative;
+      transition: background 0.12s; border: 0;
+    }
+    .toggle::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.1);
+      transition: left 0.12s;
+    }
+    .toggle.on { background: var(--accent-blue); }
+    .toggle.on::after { left: 20px; }
+
+    /* ============================================================
+       Section: PPT tab (current working tab, already styled)
+       Keep existing PPT styling compatible
+       ============================================================ */
+    .ppt-steps { display: flex; gap: 8px; margin-bottom: 18px; }
+    .ppt-step {
+      flex: 1; height: 36px; border: 1px solid #e5e5e5; border-radius: 8px;
+      background: #fff; font-size: 15.5px; font-weight: 650; color: #71717a;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .ppt-step.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+    .ppt-step.done { background: #f4f4f5; color: #0a0a0a; }
+    .ppt-panels { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .ppt-panels { grid-template-columns: 1fr; } }
+
+    /* ============================================================
+       Empty state
+       ============================================================ */
+    .v31-empty {
+      border-radius: 12px; box-shadow: inset 0 0 0 1px #e5e5e5;
+      padding: 36px 28px; text-align: center; max-width: 480px;
+      margin: 40px auto;
+    }
+    .v31-empty-title { font-size: 21.0px; font-weight: 700; color: #0a0a0a; margin: 0 0 8px; }
+    .v31-empty-desc { font-size: 17.0px; color: #71717a; margin: 0; line-height: 1.55; }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 900px) {
+      .sidebar { width: 220px; }
+      .kpi, .observe-grid { grid-template-columns: repeat(2, 1fr); }
+      .main { margin: 4px; border-radius: 10px; }
+    }
+    @media (max-width: 640px) {
+      .shell { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; border-right: 0; border-bottom: 1px solid #ececee; }
+      .main { margin: 0; }
+      .kpi, .observe-grid { grid-template-columns: 1fr; }
+    }
+  

@@ -1,0 +1,313 @@
+<!doctype html>
+<!--
+  Path: client/dev/shell_v31_port.html
+  Title: iris-hub → 진단툴 V3.1 디자인 포트 목업 (전체 쉘)
+  Date: 2026-07-23
+  Scope: V3.1 sidebar + KPI + main card 레이아웃을 iris-hub 전체에 적용.
+         모든 탭 (진실원, 입력, 흐름, 데이터, 그래프, 위키, PPT, 인사이트, 설정)
+         진단툴 모노크롬 디자인으로 렌더링. Streamlit(:8765) 연결은 comment-out.
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IRIS HUB — V3.1 Shell Port</title>
+  <link rel="stylesheet" href="/assets/v31.css" />
+  <link rel="stylesheet" href="/assets/pptx.css" />
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ============================================================
+         Sidebar: V3.1 style navigation for iris-hub tabs
+         ============================================================ -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="brand">
+        <div class="brand-mark">H</div>
+        <div>
+          <div class="brand-t">IRIS HUB</div>
+          <div class="brand-s">V3.1 · 정본</div>
+        </div>
+      </div>
+
+      <!-- Navigation (porting iris-hub tabs into V3.1 nav structure) -->
+      <nav class="nav" id="v31Nav">
+
+        <!-- Group: Core (진단 Q1-Q5에 대응) -->
+        <div class="group-label">Core</div>
+
+        <button type="button" class="nav-item" data-section="truth" aria-label="진실원">
+          <span class="nav-code">TR</span>
+          <span class="nav-title">진실원</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="input" aria-label="입력">
+          <span class="nav-code">IN</span>
+          <span class="nav-title">입력</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="flow" aria-label="흐름">
+          <span class="nav-code">FL</span>
+          <span class="nav-title">흐름</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: Knowledge (분석 A1.x에 대응) -->
+        <div class="group-label">Knowledge</div>
+
+        <button type="button" class="nav-item" data-section="data" aria-label="데이터">
+          <span class="nav-code">DA</span>
+          <span class="nav-title">데이터</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="graph" aria-label="그래프">
+          <span class="nav-code">GR</span>
+          <span class="nav-title">그래프</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="wiki" aria-label="위키">
+          <span class="nav-code">WK</span>
+          <span class="nav-title">위키</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: Create (PPT — 현재 동작 중) -->
+        <div class="group-label">Create</div>
+
+        <button type="button" class="nav-item active" data-section="ppt" aria-label="PPT">
+          <span class="nav-code">PP</span>
+          <span class="nav-title">PPT</span>
+          <span class="nav-tag external">NEW</span>
+          <span class="nav-dot"></span>
+        </button>
+
+        <!-- Group: External -->
+        <div class="group-label">External</div>
+
+        <button type="button" class="nav-item" data-section="insight" aria-label="인사이트">
+          <span class="nav-code">IS</span>
+          <span class="nav-title">인사이트</span>
+          <span class="nav-tag external">OBS</span>
+          <span class="nav-dot"></span>
+        </button>
+        <button type="button" class="nav-item" data-section="settings" aria-label="설정">
+          <span class="nav-code">ST</span>
+          <span class="nav-title">설정</span>
+          <span class="nav-dot"></span>
+        </button>
+
+      </nav>
+
+      <!-- User / Status -->
+      <div class="sidebar-user">
+        <div class="sidebar-ava">V</div>
+        <div>
+          <div class="sb-user-t">V3.1 UI</div>
+          <div class="sb-user-s">포트 목업</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================================================
+         Main Content Area
+         ============================================================ -->
+    <main class="main">
+      <!-- Header -->
+      <div class="main-header">
+        <span class="phase-badge" id="phaseBadge">핵심</span>
+        <div class="breadcrumb">
+          <span class="bc-muted" id="bcPhase">Core</span>
+          <span class="bc-sep">/</span>
+          <span class="bc-cur" id="bcCur">PPT · DECK CONSOLE</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="lang-switch">
+          <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        </div>
+        <button type="button" class="header-btn ghost" id="prevBtn" style="display:none">이전</button>
+        <!-- No next/prev for non-wizard tabs -->
+      </div>
+
+      <!-- Content -->
+      <div class="content" id="contentArea">
+
+        <!-- ========================================================
+             PPT Tab (active by default — current working tab)
+             ======================================================== -->
+        <div class="tab-content" id="tab-ppt">
+          <!-- Section header -->
+          <div class="sec-head">
+            <span class="sec-title">PPT · DECK CONSOLE</span>
+            <span class="sec-desc">마크다운 소스를 선택하고 언어 · 페이지 수 · 템플릿을 정한 뒤 PPTX/PDF 산출물로 내보냅니다.</span>
+          </div>
+
+          <!-- KPI stat tiles (injected by ppt.js) -->
+          <div class="kpi" id="kpi-bar"></div>
+
+          <!-- Error message box (injected by ppt.js) -->
+          <div id="error-box"></div>
+
+          <!-- PPT Stepper (text-only, injected by ppt.js) -->
+          <div class="ppt-steps" id="stepper"></div>
+
+          <!-- PPT Panels: main panel + side (injected by ppt.js) -->
+          <div class="ppt-panels">
+            <div class="a-card" id="panel-content"></div>
+            <div class="a-card" id="side"></div>
+          </div>
+          <!-- Progress strip (injected by ppt.js) -->
+          <div class="progress-strip" id="progress-strip"></div>
+
+          <!-- Navigation actions (prev/next) -->
+          <div class="actions">
+            <button type="button" id="prev-btn" class="btn-ghost" style="visibility:hidden" onclick="prevStep()">이전</button>
+            <button type="button" id="next-btn" class="btn-primary" disabled onclick="nextStep()">다음: 확장</button>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             진실원 (Truth) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-truth" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">진실원</span>
+            <span class="sec-desc">IRIS Hub의 단일 진실원 — 모든 데이터 소스의 원천 정보를 추적하고 검증합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">SYNCED</span>
+              <div class="kpi-k">소스</div>
+              <div class="kpi-v">8</div>
+              <div class="kpi-f">데이터 소스 연결</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">노드</span>
+              <div class="kpi-v">2.4K</div>
+              <div class="kpi-f">그래프 연결</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">최신</span>
+              <div class="kpi-v">5분</div>
+              <div class="kpi-f">마지막 동기화</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">OK</span>
+              <div class="kpi-k">신뢰도</div>
+              <div class="kpi-v">98%</div>
+              <div class="kpi-f">일관성 검증</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp8">
+              <div class="card-h">
+                <span class="card-num">TR</span>
+                <span class="card-ttl">주요 소스</span>
+              </div>
+              <div class="card-body">
+                <div class="data-table-wrap">
+                  <table class="data-table">
+                    <thead><tr><th>ID</th><th>타입</th><th>이름</th><th>최신</th><th>상태</th></tr></thead>
+                    <tbody>
+                      <tr><td class="mono">DOC-001</td><td>명세서</td><td class="val">S1 Config Spec v2.9.1</td><td class="mono">2026-07-20</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">DOC-002</td><td>로그</td><td class="val">Sensor Array B Logs</td><td class="mono">2026-07-23</td><td class="val">활성</td></tr>
+                      <tr><td class="mono">DOC-003</td><td>보고서</td><td class="val">Q2 Performance Review</td><td class="mono">2026-07-18</td><td class="mono">보관</td></tr>
+                      <tr><td class="mono">DOC-004</td><td>설계</td><td class="val">Architecture Diagram v4</td><td class="mono">2026-07-22</td><td class="val">활성</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="a-card sp4">
+              <div class="card-h">
+                <span class="card-num">SUM</span>
+                <span class="card-ttl">트리원 요약</span>
+              </div>
+              <div class="card-body">
+                <p>IRIS Hub의 모든 데이터는 8개의 소스에서 파생됩니다. 각 소스는 독립적으로 검증되며, 연결된 노드를 통해 일관성이 유지됩니다.</p>
+                <div style="margin-top:16px">
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">활성 소스</span><span class="mono" style="font-weight:700">7</span>
+                  </div>
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">보관 소스</span><span class="mono" style="font-weight:700">1</span>
+                  </div>
+                  <div class="setting-row" style="padding:4px 0">
+                    <span class="setting-label">오류</span><span style="color:var(--muted);font-weight:700">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================
+             입력 (Input) Tab
+             ======================================================== -->
+        <div class="tab-content" id="tab-input" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">입력</span>
+            <span class="sec-desc">문서, 센서 데이터, 로그 등 외부 소스를 IRIS Hub에 등록합니다.</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">RECEIVED</span>
+              <div class="kpi-k">최근 입력</div>
+              <div class="kpi-v" id="inputKpiCount">0</div>
+              <div class="kpi-f">24시간 이내</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">타입</span>
+              <div class="kpi-v">MD</div>
+              <div class="kpi-f">주요 형식</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">처리</span>
+              <div class="kpi-v" id="inputKpiStatus">—</div>
+              <div class="kpi-f">자동 파싱</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-k">대기</span>
+              <div class="kpi-v" id="inputKpiPending">0</div>
+              <div class="kpi-f">수동 처리 필요</div>
+            </div>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp12">
+              <div class="card-h">
+                <span class="card-num">IN</span>
+                <span class="card-ttl">새 소스 등록</span>
+              </div>
+
+              <!-- Mode A: File Upload -->
+              <div class="input-card">
+                <div class="input-card-title">파일 업로드</div>
+                <input type="file" id="fileInput" multiple accept=".md,.txt,.pdf,.pptx,.docx" style="display:none" />
+                <div id="dropZone" style="border:2px dashed var(--accent-blue-soft);border-radius:12px;padding:32px;text-align:center;color:var(--muted);font-size: 17.0px;cursor:pointer;transition:background 0.12s"
+                     onclick="document.getElementById('fileInput').click()"
+                     ondragover="event.preventDefault();this.style.background='var(--accent-blue-soft)'"
+                     ondragleave="this.style.background='transparent'"
+                     ondrop="event.preventDefault();this.style.background='transparent';window.v31.handleFileUpload(event.dataTransfer.files)">
+                  파일을 여기에 드래그하거나 클릭하여 선택하세요
+                </div>
+                <input type="file" id="fileInput" multiple accept=".md,.txt,.pdf,.pptx,.docx" style="display:none"
+                       onchange="window.v31.handleFileUpload(this.files);this.value=''" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /contentArea -->
+    </main>
+  </div><!-- /shell -->
+
+  <script src="/assets/app.js"></script>
+  <script src="/assets/ppt.js"></script>
+</body>
+</html>
