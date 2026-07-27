@@ -325,22 +325,18 @@ def _validate_and_guard_deck(
     contracts: list | None,
     expected: list[str] | None,
 ) -> None:
-    from src.engine.output.deck.pattern_contract import (
-        PatternContractError,
-        SlotValidationError,
-        validate_deck_patterns,
-    )
+    from src.engine.output.deck.pattern_contract import validate_deck_patterns
     from src.engine.output.deck.card_content_guard import guard_deck_card_grids
     from src.engine.output.deck.content_coverage import check_deck_coverage
 
     guard_deck_card_grids(deck, md_text)
     if expected is not None:
         validate_deck_patterns(deck, expected)
+    # 정보 보존(coverage) 미달은 폴백 원칙(§5)에 따라 하드 실패가 아니라
+    # 경고로 강등한다 — 덱 생성 자체를 막지 않는다.
     warns = check_deck_coverage(deck, md_text, strict=False)
-    if expected is not None and len(warns) >= max(2, len(deck.slides) // 2):
-        raise PatternContractError(
-            "정보 보존 검증 실패: " + "; ".join(warns[:3])
-        )
+    if warns:
+        deck.warnings.extend(f"정보 보존 경고: {w}" for w in warns)
 
 
 def design_deck(md_text: str, meta: dict, *,
@@ -361,7 +357,9 @@ def design_deck(md_text: str, meta: dict, *,
         SlotValidationError,
         format_contract_block_for_prompt,
         resolve_contracts,
+        validate_slide_slots,
     )
+    from src.engine.output.deck.deck_reconciler import fallback_slide, reconcile_deck
 
     contracts, expected = resolve_contracts(
         md_text, contract, contract_mode=contract_mode,  # type: ignore[arg-type]
@@ -394,6 +392,14 @@ def design_deck(md_text: str, meta: dict, *,
                 date=meta.get("date", "2026.06"),
                 slides=slides,
             )
+            # 규칙 초과 슬라이드를 검증 *전에* 분할·조정한다. 조정은 슬라이드
+            # 수를 바꿀 수 있으므로 contracts/expected도 함께 갱신해야
+            # 뒤이은 validate_deck_patterns의 actual==expected 비교가 깨지지
+            # 않는다(조정 후 재생성분을 버리고 옛 expected로 비교하면 길이
+            # 불일치로 무조건 반려된다).
+            deck, contracts, _ = reconcile_deck(deck, contracts)
+            if contracts is not None:
+                expected = [c.pattern for c in contracts]
             _validate_and_guard_deck(deck, md_text, contracts, expected)
             return deck
         except SlotValidationError as e:
@@ -408,10 +414,14 @@ def design_deck(md_text: str, meta: dict, *,
                             deck, idx, contracts, md_text, meta,
                             model=model, timeout=timeout, errors=[msg],
                         )
-                        _validate_and_guard_deck(fixed, md_text, contracts, expected)
+                        fixed, fixed_contracts, _ = reconcile_deck(fixed, contracts)
+                        fixed_expected = [c.pattern for c in fixed_contracts] if fixed_contracts else expected
+                        _validate_and_guard_deck(fixed, md_text, fixed_contracts, fixed_expected)
                         return fixed
-                    except (DesignError, PatternContractError, SlotValidationError) as e2:
-                        raise DesignError(str(e2)) from e2
+                    except (DesignError, PatternContractError, SlotValidationError):
+                        # 단일 슬라이드 교정도 실패 — 하드 실패시키지 않고
+                        # 전체 재시도(그래도 안 되면 최종 폴백 tail)로 넘긴다.
+                        pass
             last_err = e
             prompt = (
                 base_prompt
@@ -432,12 +442,16 @@ def design_deck(md_text: str, meta: dict, *,
                                 model=model, timeout=timeout,
                                 errors=[str(e)],
                             )
+                            fixed, fixed_contracts, _ = reconcile_deck(fixed, contracts)
+                            fixed_expected = [c.pattern for c in fixed_contracts] if fixed_contracts else expected
                             _validate_and_guard_deck(
-                                fixed, md_text, contracts, expected,
+                                fixed, md_text, fixed_contracts, fixed_expected,
                             )
                             return fixed
-                        except (DesignError, PatternContractError, SlotValidationError) as e2:
-                            raise DesignError(str(e2)) from e2
+                        except (DesignError, PatternContractError, SlotValidationError):
+                            # 단일 슬라이드 교정도 실패 — 하드 실패시키지 않고
+                            # 전체 재시도(그래도 안 되면 최종 폴백 tail)로 넘긴다.
+                            pass
             last_err = e
             prompt = (
                 base_prompt
@@ -447,8 +461,36 @@ def design_deck(md_text: str, meta: dict, *,
             )
             continue
 
-    if last_err is not None:
-        raise DesignError(str(last_err)) from last_err
+    # 전체 실패 경로 — 예방(프롬프트)·조정(reconcile)·재교정을 모두 소진해도
+    # 검증을 통과 못 하면, 덱 전체를 실패시키는 대신 슬라이드 단위로
+    # fallback_slide 강등을 적용해 항상 유효한 덱을 반환한다(no-hard-fail).
+    if deck is not None:
+        deck, contracts, _ = reconcile_deck(deck, contracts)
+        warnings_list: list[str] = list(deck.warnings)
+        for i, s in enumerate(deck.slides):
+            contract_i = contracts[i] if contracts and i < len(contracts) else None
+            source_body = md_text
+            if contract_i and contract_i.body:
+                source_body = contract_i.body
+
+            slot_ok = True
+            try:
+                validate_slide_slots(s.pattern, s.data or {}, slide_no=i + 1)
+            except Exception:
+                slot_ok = False
+
+            # 슬롯은 유효하지만 계약이 요구한 pattern과 다른 경우도 조용히
+            # 통과시키지 않는다 — "자체로는 유효한 엉뚱한 패턴"이 경고 없이
+            # 나가면 폴백 원칙(§5.3 경고 노출)이 무의미해진다.
+            pattern_ok = contract_i is None or s.pattern == contract_i.pattern
+
+            if not slot_ok or not pattern_ok:
+                new_slide, fwarn = fallback_slide(s, contract_i, source_body)
+                deck.slides[i] = new_slide
+                warnings_list.append(fwarn)
+        deck.warnings = warnings_list
+        return deck
+
     raise DesignError("설계 실패")
 
 

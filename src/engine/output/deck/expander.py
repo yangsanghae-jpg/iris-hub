@@ -123,6 +123,14 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
    허용 role (해당되는 것만): context, items, relation, sequence, metrics,
    comparison, condition, exception, conclusion, source, output
 
+3c. **수치 상한 및 분할**:
+   - **표는 최대 6열.** 원본 표가 7열 이상이면 첫 열(키/구분 열)을 반복하고
+     나머지 열을 나누어 2개 이상의 table 슬라이드로 만든다.
+   - 항목 상한: card-grid-4 카드 ≤8, phase-roadmap 단계 ≤8,
+     dimension-5 관점 ≤8, metrics-row 지표 ≤6, summary 불릿 ≤8, narrative 단락 ≤5.
+     초과하면 여러 슬라이드로 나눈다.
+   - 표가 너무 길면(행 8개 이상) 의미 단위로 여러 표 슬라이드로 나눠도 좋다.
+
    - 첫 슬라이드 pattern은 반드시 cover
    - cover는 첫 장에만
    - 도형형 안에서: 순서/절차→phase-roadmap, 두 축 대응→compare-2col/exec-summary,

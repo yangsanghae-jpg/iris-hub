@@ -39,6 +39,7 @@ class Deck:
     company_name: str
     date: str
     slides: list[Slide] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def detect_deck_lang(deck: Deck) -> str:

@@ -77,7 +77,7 @@ PATTERN_IMPLIED_ROLES: dict[str, tuple[str, ...]] = {
 }
 
 MAX_TABLE_ROWS = 7
-MAX_TABLE_COLS = 5
+MAX_TABLE_COLS = 6
 MAX_TABLE_CELL_CHARS = 1200
 
 
@@ -604,7 +604,7 @@ def split_table_slide_data(data: dict) -> list[dict]:
 def validate_table_data(data: dict, *, slide_no: int = 1) -> None:
     cols = _as_list(data.get("columns"))
     rows = _as_list(data.get("rows"))
-    if len(cols) < 2 or len(cols) > 6:
+    if len(cols) < 2 or len(cols) > MAX_TABLE_COLS:
         raise SlotValidationError(
             f"{slide_no}번(table): column은 2~6개, 현재 {len(cols)}개"
         )
