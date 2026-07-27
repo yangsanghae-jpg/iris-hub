@@ -154,3 +154,50 @@ def test_generate_json_still_forces_think_false():
     assert out["data"] == {"a": 1}
     assert captured["body"]["think"] is False
     assert captured["body"]["format"] == "json"
+
+
+def test_generate_json_uses_low_string_for_gpt_oss():
+    """회귀 방지: generate_json이 gpt-oss에 think:False(boolean)를 보내면
+    Ollama가 thinking을 못 끄고 추론 전문을 response에 그대로 쏟아내
+    JSON 파싱이 항상 실패하는 버그가 있었다(design_deck 전체 실패로 관측됨).
+    gpt-oss는 반드시 문자열 레벨("low")을 받아야 한다."""
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResp({
+            "message": {"content": '{"a": 1}'},
+            "done": True,
+            "total_duration": 0,
+        })
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        out = llm.generate_json("p", model="gpt-oss:20b", num_ctx=4096)
+    assert out["ok"] is True
+    assert out["data"] == {"a": 1}
+    assert captured["body"]["think"] == "low"
+    assert captured["body"]["think"] is not False
+
+
+def test_generate_json_routes_gpt_oss_through_chat_endpoint():
+    """회귀 방지: gpt-oss + /api/generate(raw completion) + format:json은
+    think 값과 무관하게 실측상 항상 빈 응답(eval_count 미미, done_reason=stop)
+    으로 멈춘다(harmony 챗 템플릿 미적용 추정). /api/chat으로 우회해야 한다."""
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResp({
+            "message": {"content": '{"a": 1}'},
+            "done": True,
+            "total_duration": 0,
+        })
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        llm.generate_json("p", model="gpt-oss:20b", num_ctx=4096)
+    assert captured["url"].endswith("/api/chat")
+    assert "messages" in captured["body"]
+    assert captured["body"]["messages"] == [{"role": "user", "content": "p"}]
+    assert "prompt" not in captured["body"]

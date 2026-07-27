@@ -491,7 +491,12 @@ def design_deck(md_text: str, meta: dict, *,
         deck.warnings = warnings_list
         return deck
 
-    raise DesignError("설계 실패")
+    # deck을 단 한 번도 만들지 못한 경우(예: LLM이 매 시도 빈 응답/파싱 불가한
+    # JSON만 반환) — 폴백을 적용할 대상 자체가 없다. 이때도 "설계 실패"라는
+    # 의미 없는 메시지 대신 실제 원인(last_err)을 그대로 노출해야 진단이 된다.
+    if last_err is not None:
+        raise DesignError(f"설계 실패: {last_err}") from last_err
+    raise DesignError("설계 실패: 원인 불명(LLM 응답 없음)")
 
 
 __all__ = [

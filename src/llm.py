@@ -156,12 +156,23 @@ def generate_json(prompt: str, *,
       - num_ctx: 컨텍스트 윈도우 (Ollama 기본 2048 — 큰 입력은 잘림)
       - num_predict: 출력 토큰 한도 (Ollama 기본 128 — 큰 JSON 잘림)
 
-    V2.8.1.3 — think: False 박음:
+    V2.8.1.3 — think: False 박음 (JSON 전용 정책, thinking_mode_for_model()과 다름):
       - Qwen3 / Qwen3.6 / Gemma4 / DeepSeek-R1 등 *추론 모델*은 기본 thinking ON
       - thinking 켜진 채 format:json 호출하면 JSON이 *thinking 블록*에 박히고
-        response가 비어서 `raw=""` 회귀 (M5 진단)
-      - generate_text()엔 V2.7.5.2 사이클에 박혔으나 generate_json()은 누락
+        response가 비어서 `raw=""` 회귀 (M5 진단) — 그래서 JSON 모드에서는
+        thinking_mode_for_model()의 generate_text용 정책(qwen3=True 등)을 그대로
+        쓰면 안 되고, **JSON을 response에 확실히 받기 위해 원칙적으로 항상 끈다**.
       - non-thinking 모델(예: gemma4:e4b native JSON)엔 무해
+
+    V2.8.2 — gpt-oss는 /api/chat으로 우회:
+      - gpt-oss는 harmony 챗 템플릿(analysis/final 채널)을 쓰는 모델이라, think
+        값(boolean/문자열)과 무관하게 `/api/generate`(raw completion) + format:json
+        조합에서는 실측상 **항상 즉시 빈 응답으로 멈춘다**(eval_count 7~20, done_
+        reason=stop, response=""). think 파라미터 문제가 아니라 엔드포인트
+        문제였다 — 같은 프롬프트를 `/api/chat`(messages 형식)으로 보내면 정상
+        동작한다(harmony 템플릿이 올바르게 적용됨). 그래서 gpt-oss만 `/api/chat`을
+        쓰고, 나머지 모델은 기존처럼 `/api/generate`를 그대로 쓴다(회귀 없음
+        확인됨 — qwen3 등은 raw completion으로 이미 정상 동작 중).
 
     반환:
         성공: {"ok": True, "data": <parsed JSON>, "ms": <elapsed>, "raw": <text>, "model": <name>}
@@ -171,22 +182,37 @@ def generate_json(prompt: str, *,
     resolved_timeout = timeout if timeout is not None else (
         FAST_TIMEOUT if role == "fast" else DEFAULT_TIMEOUT
     )
+    is_gpt_oss = "gpt-oss" in resolved_model.lower()
+    # JSON 모드는 항상 thinking을 끈다(원래 의도) — gpt-oss만 boolean이 금지라
+    # thinking_mode_for_model이 주는 문자열 레벨("low")을 그대로 쓴다.
+    think_mode: bool | str = (
+        thinking_mode_for_model(resolved_model) if is_gpt_oss else False
+    )
 
     options = _build_generate_options(
         temperature=temperature, num_ctx=num_ctx, num_predict=num_predict,
     )
 
-    body = json.dumps({
+    req_body: dict[str, Any] = {
         "model": resolved_model,
-        "prompt": prompt,
         "stream": False,
         "format": "json",
-        "think": False,
         "options": options,
-    }).encode("utf-8")
+    }
+    if think_mode is not None:
+        req_body["think"] = think_mode
+
+    if is_gpt_oss:
+        req_body["messages"] = [{"role": "user", "content": prompt}]
+        endpoint = f"{OLLAMA_URL}/api/chat"
+    else:
+        req_body["prompt"] = prompt
+        endpoint = f"{OLLAMA_URL}/api/generate"
+
+    body = json.dumps(req_body).encode("utf-8")
 
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/generate",
+        endpoint,
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -203,7 +229,10 @@ def generate_json(prompt: str, *,
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": 0, "model": resolved_model}
 
     ms = payload.get("total_duration", 0) // 1_000_000
-    raw = payload.get("response", "")
+    if is_gpt_oss:
+        raw = (payload.get("message") or {}).get("content", "")
+    else:
+        raw = payload.get("response", "")
 
     try:
         data = json.loads(raw)

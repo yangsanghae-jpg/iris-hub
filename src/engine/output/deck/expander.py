@@ -54,10 +54,20 @@ class ExpandedResult:
     contract: dict | None = None
 
 
+@dataclass
+class RegeneratedContent:
+    """재생성 패스(regenerate_chapters) 결과 — 형식 마커 없는 순수 챕터 콘텐츠."""
+    md: str
+    elapsed_ms: int
+    model: str
+    original_chars: int
+    output_chars: int
+
+
 _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박은 마크다운 보고서를
 *컨설팅급 PPT 슬라이드용 마크다운*으로 재구조화하세요.
 
-## ⚠️ 최우선 지시 — 사용자가 UI에서 직접 고른 값 (언어·페이지 수·모델)
+## ⚠️ 최우선 지시 — 사용자가 UI에서 직접 고른 값 (언어·챕터 수·모델)
 아래 세 지시는 다른 모든 규칙·예시보다 우선한다. 특히 예시의 언어나 아래
 '25~30장' 같은 표현이 이 지시와 충돌하면 *반드시 이 지시를 따른다*.
 
@@ -65,13 +75,28 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 {lang_directive}
 추론 과정·설명·메타텍스트를 절대 출력하지 말고 마크다운 슬라이드 내용만 출력한다.
 
-### 2) 페이지 수
+### 2) 챕터 구성 (이것은 "슬라이드 개수 맞추기"가 아니라 "재정리" 작업이다)
+먼저 원문 전체를 정독한다. 그 다음 원문의 섹션 구분을 그대로 옮기지 말고,
+**의미 단위로 재구성**해 아래 지시된 개수만큼의 챕터로 나눈다. 원문에 없던
+내용을 지어내지 않되, 원문의 섹션 경계에 얽매이지 말고 주제가 같은 내용을
+모아 하나의 챕터로 통합해도 된다(예: 서로 다른 부서에 흩어진 설비 관련
+항목들을 "설비 관리"라는 하나의 챕터로 합치는 식).
+
+**단, 입력이 이미 의미 단위로 잘 재구성된 챕터 형태(`## 제목`+`---`로 구분되고
+내용이 이미 풍부한 경우)라면 재구성하지 말고 그 챕터 구성과 문장을 그대로
+유지한다** — 이 경우 당신의 역할은 각 챕터에 형식(IRIS_BODY/PATTERN/ROLES)을
+판단해 붙이는 것뿐이며, 본문 내용 자체를 다시 쓰지 않는다.
 {count_directive}
-목표 분량: **{slide_target}**.
+목표 챕터 수: **{slide_target}**.
+
+**원문의 어떤 섹션도 완전히 빠뜨리지 않는다** — 사소해 보이는 섹션이라도
+반드시 어느 챕터에건 최소 한 줄 이상 반영되어야 한다. 다만 각 챕터 *안에서*
+개별 항목을 얼마나 압축할지는 챕터별 IRIS_BODY 판단(아래 3b)에 따라
+달라진다 — 이 압축 허용 여부는 챕터마다 다르다는 점을 명심할 것.
 
 ### 3) 모델
 이 요청은 사용자가 고른 모델({model_name})로 처리된다. 모델 능력을 최대한 활용해
-위 언어·페이지 수 지시를 정확히 지켜라.
+위 언어·챕터 구성 지시를 정확히 지켜라.
 
 ## 메타
 회사명: {company}
@@ -99,13 +124,29 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
    <!-- IRIS_PATTERN: <pattern-id> -->
    <!-- IRIS_ROLES: <role>,<role>,... -->
 
-   ### 최상위 축 — IRIS_BODY (이 페이지의 내용을 *어떻게 쓸지* 먼저 결정)
-   허용 body-type (이 4종만): 요약형 | 서술형 | 표형 | 도형형
-   - **요약형**: 핵심을 짧은 불릿 3~8개로 압축. 문장 늘어놓기 금지.
-   - **서술형**: 근거·배경·논리를 완전한 문장 단락(1~5개)으로 서술. 불릿·표 금지.
-   - **표형**: 행·열 대응이 핵심. 마크다운 표를 그대로 유지.
-   - **도형형**: 병렬 항목·비교·절차·수치·다차원 등 시각 구조로 표현.
-   *모든 슬라이드를 한 형식으로 몰지 마라.* 내용 성격에 맞춰 4종을 고르게 섞는다.
+   ### 최상위 축 — IRIS_BODY (이 챕터의 내용을 *어떻게 쓸지*, 그리고
+   *압축해도 되는지 아닌지*를 먼저 결정한다 — 이 판단은 챕터별로 다르다.
+
+   허용 body-type (이 4종만): 요약형 | 도형형 | 표형 | 서술형
+
+   **압축 허용 (개요·전체상 표현이 목적)**
+   - **요약형**: 챕터 전체 내용을 핵심 불릿 3~8개로 압축한 개요. 세부 항목은
+     통합·생략해도 된다. 문장 늘어놓기 금지, 짧은 구절로.
+   - **도형형**: 병렬 항목·비교·절차·다차원 등을 시각 구조로 압축 표현.
+     요약형과 마찬가지로 세부를 통합·구조화해도 된다.
+
+   **압축 금지 (구체 내용을 원문 그대로 보존하는 것이 목적)**
+   - **표형**: 구체적인 수치·데이터가 핵심인 내용(수치형). 항목을 요약하지
+     말고 원문의 수치·행·열 대응을 *그대로* 표로 옮긴다. 표를 압축·생략하면
+     안 된다.
+   - **서술형**: 원문의 논리·배경·상세 설명을 문장으로 담는다. **이 챕터는
+     압축 대상이 아니다** — 다른 챕터(요약형/도형형)에서 개요로 이미
+     압축했더라도, 서술형 챕터에는 그 원문 내용을 *가능한 한 축약하지 않고*
+     완전한 문장 단락(1~5개)으로 담는다. 불릿·표 금지.
+
+   *모든 챕터를 한 형식으로 몰지 마라.* 개요가 필요한 챕터는 요약형/도형형,
+   구체 수치를 보존해야 하는 챕터는 표형, 원문 상세를 보존해야 하는 챕터는
+   서술형 — 내용 성격에 맞춰 4종을 고르게 섞는다.
 
    ### 하위 축 — IRIS_PATTERN (선택한 body-type 안에서 구체 레이아웃)
    허용 pattern-id (이 목록만):
@@ -135,17 +176,23 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
    - cover는 첫 장에만
    - 도형형 안에서: 순서/절차→phase-roadmap, 두 축 대응→compare-2col/exec-summary,
      수치 핵심→metrics-row, 병렬 독립 항목(3~8)→card-grid-4, 다차원 분류→dimension-5
+   - **병렬 독립 항목이 3개 이상이면 요약형 대신 도형형(card-grid-4)을 우선
+     고려한다** — 모든 챕터를 요약형 나열로만 몰면 시각적으로 단조로운
+     텍스트뿐인 덱이 된다. 요약형은 병렬 구조가 뚜렷하지 않은 개요에만 쓴다.
    - IRIS_ROLES에 condition/exception/conclusion/source가 있으면 그 문장을
      카드 항목으로 삭제하지 말고 슬라이드 하단(또는 상단 context)에 보존
 
 4. **body-type·pattern·본문 구조 3자 일치** — IRIS_BODY, IRIS_PATTERN, 실제 본문이
    서로 맞아야 한다. 예: IRIS_BODY 서술형이면 pattern=narrative이고 본문은 문장 단락.
 
-   - **서술형(narrative)** → 완전한 문장 단락 (context role)
-   - **요약형(summary)** → 짧은 불릿 3~8개
-   - **표형(table)** → markdown 표 유지 (card-grid로 변환 금지)
-   - **도형형** → card-grid-4/phase-roadmap 등. 공통 조건은 roles에 condition 등으로
-     표시 후 카드 밖 문단으로 보존. 원문에 없는 도입/결론을 꾸며내지 말 것.
+   - **서술형(narrative)** → 완전한 문장 단락 (context role). **압축 금지** —
+     원문 상세를 축약하지 않고 담는다.
+   - **요약형(summary)** → 짧은 불릿 3~8개. 압축 허용.
+   - **표형(table)** → markdown 표 유지 (card-grid로 변환 금지). **압축 금지** —
+     구체 수치·행을 요약해서 줄이지 않는다.
+   - **도형형** → card-grid-4/phase-roadmap 등. 압축 허용(개요 표현). 공통 조건은
+     roles에 condition 등으로 표시 후 카드 밖 문단으로 보존. 원문에 없는
+     도입/결론을 꾸며내지 말 것.
 
 5. **고유명사·코드 보존**: 표준 용어·코드·약어는 번역하지 말고 원문 표기 그대로.
    서술 문장·제목·설명은 위 '출력 언어' 지시를 따른다.
@@ -259,13 +306,101 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 
 → 빈약한 나열 + 형식 계약 마커 없음. 거부.
 
+```markdown
+<!-- IRIS_BODY: 표형 -->
+<!-- IRIS_PATTERN: table -->
+
+## 연도별 실적
+
+| 구분 | 수치 |
+|---|---|
+| 요약 | 대체로 증가 추세 |
+```
+
+→ **표형인데 원본 수치를 "대체로 증가 추세"로 요약해버림. 거부.** 표형은
+압축 금지 — 원문에 있는 연도별 실제 수치를 행마다 그대로 담아야 한다.
+
+```markdown
+<!-- IRIS_BODY: 서술형 -->
+<!-- IRIS_PATTERN: narrative -->
+
+## 배경
+
+**핵심 메시지:** 여러 요인이 복합적으로 작용했다.
+
+여러 요인이 복합적으로 작용해 현재 상황에 이르렀다.
+```
+
+→ **서술형인데 원문의 구체적 배경·근거를 한 문장으로 뭉개버림. 거부.**
+서술형은 압축 금지 — 원문에 있던 배경·논리·인과관계를 축약하지 않고
+완전한 문장 단락으로 담아야 한다.
+
 ## 사용자 입력 마크다운
 
 {md_text}
 
 ## 출력
-위 '출력 언어'·페이지 수·형식 계약 지시를 지킨 슬라이드 마크다운만
+위 '출력 언어'·챕터 구성·형식 계약 지시를 지킨 슬라이드 마크다운만
 {SLIDES_START} … {SLIDES_END} 사이에 넣는다. 다른 말 0.
+"""
+
+
+# ─── 재생성(regenerate) 패스 — 형식 마커 없이 순수 콘텐츠만 ────────────────
+#
+# 왜 별도 패스인가: 기존 단일 패스는 "내용을 풍부하게 쓰기"와 "형식 마커
+# 정확히 붙이기"를 한 번에 요구해 콘텐츠 품질이 떨어졌다(같은 모델인데
+# 형식 제약이 없으면 훨씬 풍부한 결과가 나오는 것을 실측으로 확인함).
+# 이 패스는 오직 "원문을 읽고 챕터로만 재구성"하는 것이 유일한 임무이며,
+# IRIS_BODY/PATTERN/ROLES 판단은 하지 않는다. 그 결과를 기존 _PROMPT(위)의
+# 입력으로 넘기면, 그쪽은 이미 풍부한 콘텐츠에 형식만 판단해 붙이면 된다.
+
+_REGEN_PROMPT = """당신은 숙련된 컨설턴트입니다. 아래 원문 전체를 정독하고,
+전문적이고 통찰력 있는 보고서로 재작성하세요. **지금은 형식 규칙이나 슬라이드
+패턴을 신경 쓰지 않습니다** — 오직 내용을 잘 쓰는 데만 집중합니다.
+
+### 1) 출력 언어
+{lang_directive}
+추론 과정·설명·메타텍스트를 절대 출력하지 말고 재작성한 본문만 출력한다.
+
+### 2) 챕터 구성
+원문의 섹션 순서·경계를 그대로 베끼지 말고 **의미 단위로 재구성**해
+{slide_target}로 나눈다. 같은 주제에 해당하는 내용이 원문에서 서로 다른
+곳에 흩어져 있어도 하나의 챕터로 통합한다. **원문의 어떤 내용도 완전히
+빠뜨리지 않는다** — 사소해 보이는 내용도 반드시 어느 챕터에건 반영한다.
+원문에 중복된 섹션이 있으면(예: 같은 내용이 이름만 바뀌어 두 번 나옴)
+하나로 합친다. 챕터 수를 늘리려고 내용을 억지로 쪼개지 말 것.
+
+### 3) 풍부함 — 가장 중요한 지시
+각 챕터를 최대한 상세하고 전문적으로 쓴다:
+- 원문에 있는 수치·고유명사·조건·예외·인과관계를 삭제하거나 뭉개지 않는다.
+- 단순 나열이 아니라, 왜 중요한지·서로 어떻게 연결되는지 맥락을 붙인다.
+- 추상적 표현("체계를 구축한다")보다 원문에 있는 구체적 사례를 그대로 인용한다.
+- 원문에 없는 사실을 지어내지 않는다.
+
+## 메타
+회사명: {company}
+보고서명: {title}
+부제: {subtitle}
+
+## 절대 규칙
+1. **챕터 분리자**: 챕터마다 `---` 한 줄로 구분. 표지(도입부, 제목/부제)도
+   첫 챕터로 포함해 센다.
+2. **형식 마커 금지**: `<!-- IRIS_BODY -->` 등 형식 계약 주석을 넣지 않는다.
+   지금은 순수한 서술형 재작성만 한다.
+3. **고유명사·코드 보존**: 표준 용어·코드·약어는 번역하지 말고 원문 표기 그대로.
+4. **frontmatter 박지 마** (호출자가 박음).
+5. **출력 경계 (필수)**: 최종 답은 아래 마커로만 감싼다. 마커 밖 텍스트 금지.
+{SLIDES_START}
+(챕터 마크다운만)
+{SLIDES_END}
+
+## 원문
+
+{md_text}
+
+## 출력
+위 지시를 지킨 챕터 마크다운만 {SLIDES_START} … {SLIDES_END} 사이에 넣는다.
+다른 말 0.
 """
 
 
@@ -307,25 +442,35 @@ def _build_directives(lang: str | None, pages: "str | int | None") -> dict:
 
     mode, n = _resolve_pages(pages)
     if mode == "fixed":
-        slide_target = f"정확히 {n}장 (±1장까지만 허용, 표지 포함)"
+        slide_target = f"정확히 {n}개 챕터 (±1까지만 허용, 표지 포함)"
         count_directive = (
-            f"반드시 **정확히 {n}장**의 슬라이드로 재구성한다(표지 포함, ±1장까지만 허용). "
-            f"원본이 {n}장보다 많은 내용을 담고 있으면 *핵심만 남기고 요약·압축·통합*해 "
-            f"{n}장에 맞춘다. 장수를 늘리려고 내용을 억지로 쪼개지 말 것."
+            f"원문 전체를 정독한 뒤, 의미 단위로 재구성해 **정확히 {n}개 챕터**로 "
+            f"나눈다(표지 포함, ±1까지만 허용). 이것은 슬라이드 개수를 억지로 맞추는 "
+            f"작업이 아니라 *재정리* 작업이다 — 원문 섹션 순서·경계를 그대로 베끼지 "
+            f"말고, 같은 주제의 내용을 모아 하나의 챕터로 통합해도 된다. "
+            f"챕터 수를 늘리려고 내용을 억지로 쪼개지 말 것."
         )
         loss_rule = (
-            "**핵심 우선·요약 허용**: 지정된 장수에 맞추기 위해 덜 중요한 세부는 "
-            "통합·요약한다. 단 수치·고유명사·핵심 표는 왜곡하거나 지어내지 않는다."
+            "**챕터 배분 시 전량 반영, 챕터 내부 압축은 body-type별로 차등**: "
+            "원문의 어떤 섹션도 완전히 빠뜨리지 말고 반드시 어느 챕터에건 반영한다. "
+            "단, 요약형/도형형 챕터는 세부를 통합·압축해 개요로 표현해도 된다. "
+            "표형·서술형 챕터는 압축 대상이 아니다 — 표형은 구체 수치를 표로 그대로, "
+            "서술형은 원문의 논리·상세를 축약 없이 문장으로 담는다. "
+            "수치·고유명사·핵심 표는 어떤 챕터에서도 왜곡하거나 지어내지 않는다."
         )
     else:
-        slide_target = "25~30장"
+        slide_target = "25~30개 챕터"
         count_directive = (
-            "정보 손실 없이 25~30장 분량으로 *풍부하게 확장*한다. "
-            "너무 많은 정보가 박힌 섹션은 2~3장으로 쪼개고, 너무 적은 섹션은 합친다."
+            "원문 전체를 정독한 뒤, 정보 손실 없이 25~30개 챕터로 *의미 단위로 "
+            "재구성*한다(슬라이드 개수 채우기가 아니라 재정리 작업). "
+            "너무 많은 정보가 박힌 주제는 2~3개 챕터로 쪼개고, 서로 관련된 작은 "
+            "섹션들은 하나의 챕터로 합친다."
         )
         loss_rule = (
-            "**정보 손실 금지**: 원본의 *모든 섹션·표·리스트·수치·항목*을 "
-            "*빠짐없이* 보존한다. 표는 *그대로* 마크다운 표로 박는다."
+            "**정보 손실 금지, 챕터 내부 압축은 body-type별로 차등**: 원본의 "
+            "*모든 섹션·표·리스트·수치·항목*을 *빠짐없이* 어느 챕터에건 반영한다. "
+            "요약형/도형형 챕터는 개요로 압축해도 되지만, 표형은 표를 *그대로* "
+            "마크다운 표로 담고, 서술형은 원문 상세를 축약 없이 문장으로 담는다."
         )
 
     return {
@@ -495,6 +640,44 @@ def _validate_expanded(
         raise ExpansionValidationError(str(e)) from e
 
 
+def _validate_regen(md: str, *, pages: "str | int | None", lang: str | None) -> None:
+    """재생성 패스 결과 검증 — 형식 계약(IRIS_BODY 등)은 아직 없어야 한다."""
+    if not md.strip():
+        raise ExpansionValidationError("재생성 결과가 비어 있습니다.")
+    if SLIDES_START in md or SLIDES_END in md:
+        raise ExpansionValidationError("결과에 경계 마커가 남아 있습니다.")
+    if not re.search(r"(?m)^#{1,6}\s", md):
+        raise ExpansionValidationError("Markdown 헤더가 없습니다.")
+    if not re.search(r"(?m)^---\s*$", md):
+        raise ExpansionValidationError("챕터 경계(---)가 없습니다.")
+    if re.search(r"<!--\s*IRIS_(BODY|PATTERN|ROLES)\s*:", md, re.IGNORECASE):
+        raise ExpansionValidationError(
+            "재생성 단계에서 형식 계약 마커가 출력되었습니다(이 단계는 순수 "
+            "콘텐츠만 작성해야 합니다). 다시 시도하세요."
+        )
+    if _has_reasoning_leak(md):
+        raise ExpansionValidationError(
+            "결과에 허용되지 않은 메타/추론 문구가 포함되어 있습니다."
+        )
+    if _looks_like_english_reasoning(md, lang):
+        raise ExpansionValidationError(
+            "요청 언어와 결과 언어가 일치하지 않습니다. 재생성을 다시 실행하세요."
+        )
+
+    mode, n = _resolve_pages(pages)
+    count = _count_slides(md)
+    if mode == "fixed" and n is not None:
+        if not (n - 1 <= count <= n + 1):
+            raise ExpansionValidationError(
+                f"챕터 수 불일치: 요청 {n}개(±1), 결과 {count}개."
+            )
+    elif mode == "auto":
+        if count < 8:
+            raise ExpansionValidationError(
+                f"자동 모드 결과가 너무 짧습니다({count}개). 재생성을 다시 실행하세요."
+            )
+
+
 def _postprocess_response(raw: str) -> str:
     """response → strip think → 마커 추출 → fence/frontmatter."""
     out = _strip_think(raw)
@@ -502,6 +685,106 @@ def _postprocess_response(raw: str) -> str:
     out = _strip_frontmatter(out)
     out = _strip_code_fence(out)
     return out.strip()
+
+
+def regenerate_chapters(
+    md_text: str,
+    meta: dict,
+    *,
+    timeout: float = 600.0,
+    model: str | None = None,
+    max_input_chars: int = 24000,
+    lang: str | None = None,
+    pages: "str | int | None" = None,
+    num_ctx: int = EXPAND_NUM_CTX,
+    num_predict: int = EXPAND_NUM_PREDICT,
+) -> RegeneratedContent:
+    """Stage 0 — 원문을 읽고 챕터로만 재구성(형식 마커 없음, 압축 없음).
+
+    이 결과를 expand_for_slides()의 입력으로 넘기면, 그쪽은 이미 풍부한
+    콘텐츠에 형식(IRIS_BODY/PATTERN/ROLES)만 판단해 붙이면 된다 — 콘텐츠
+    합성과 형식 분류가 같은 호출 안에서 서로의 여력을 깎아먹지 않도록
+    두 단계로 분리한 것이 이 함수의 존재 이유다.
+    """
+    original_chars = len(md_text)
+    if not md_text.strip():
+        raise ExpansionError("입력 마크다운 비어 있음")
+
+    truncated = md_text[:max_input_chars]
+    if len(md_text) > max_input_chars:
+        truncated += f"\n\n[... 이하 {len(md_text) - max_input_chars:,}자 생략 ...]"
+
+    effective_lang = lang or meta.get("lang")
+    directives = _build_directives(effective_lang, pages)
+
+    base_prompt = _REGEN_PROMPT.format(
+        company=meta.get("company", ""),
+        title=meta.get("title", ""),
+        subtitle=meta.get("subtitle", ""),
+        md_text=truncated,
+        SLIDES_START=SLIDES_START,
+        SLIDES_END=SLIDES_END,
+        lang_directive=directives["lang_directive"],
+        slide_target=directives["slide_target"],
+    )
+
+    last_err: Exception | None = None
+    t0 = time.time()
+    used_model = model or ""
+    prompt = base_prompt
+
+    for attempt in range(EXPAND_MAX_ATTEMPTS):
+        resp = llm.generate_text(
+            prompt,
+            role="deep",
+            model=model,
+            timeout=timeout,
+            temperature=0.6,  # 낮은 temperature는 압축·형식 준수엔 유리하지만
+                              # 이 단계의 목표(풍부한 종합)엔 불리하다.
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+        )
+        used_model = resp.get("model", model or "") or used_model
+
+        if not resp.get("ok"):
+            last_err = ExpansionError(f"LLM 실패: {resp.get('error', 'unknown')}")
+            continue
+
+        done_reason = (resp.get("done_reason") or "").lower()
+        if done_reason == "length":
+            last_err = ExpansionValidationError(
+                "출력 길이 제한으로 재생성이 완료되지 않았습니다. "
+                "챕터 수를 줄이거나 다시 시도하세요."
+            )
+            continue
+
+        try:
+            out = _postprocess_response(resp.get("text", ""))
+            _validate_regen(out, pages=pages, lang=effective_lang)
+        except ExpansionError as e:
+            last_err = e
+            prompt = (
+                base_prompt
+                + "\n\n## 이전 출력 검증 실패 — 수정 후 다시 출력하세요\n"
+                + str(e)
+                + "\n형식 마커는 넣지 말고, 챕터 구분(---)과 언어·챕터 수 "
+                + "지시만 정확히 지켜 순수 콘텐츠로 다시 작성하세요.\n"
+            )
+            continue
+
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return RegeneratedContent(
+            md=out,
+            elapsed_ms=elapsed_ms,
+            model=used_model,
+            original_chars=original_chars,
+            output_chars=len(out),
+        )
+
+    elapsed_ms = int((time.time() - t0) * 1000)
+    if last_err is not None:
+        raise last_err
+    raise ExpansionError("재생성 실패")
 
 
 def expand_for_slides(
@@ -589,6 +872,8 @@ def expand_for_slides(
                 + "`**핵심 메시지:**` 한 문장을 넣으세요.\n"
                 + "body-type→pattern 일치: 요약형=summary, 서술형=narrative, 표형=table, "
                 + "도형형=card-grid-4/phase-roadmap 등.\n"
+                + "표형·서술형 챕터는 압축 금지(원문 수치·상세를 그대로 보존), "
+                + "요약형·도형형만 개요로 압축 가능합니다.\n"
             )
             continue
 
@@ -620,12 +905,15 @@ __all__ = [
     "ExpansionError",
     "ExpansionValidationError",
     "ExpandedResult",
+    "RegeneratedContent",
     "expand_for_slides",
+    "regenerate_chapters",
     "SLIDES_START",
     "SLIDES_END",
     "_extract_slides_block",
     "_strip_think",
     "_count_slides",
     "_validate_expanded",
+    "_validate_regen",
     "_resolve_pages",
 ]
