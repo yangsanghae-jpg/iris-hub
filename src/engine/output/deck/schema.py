@@ -7,6 +7,7 @@ from typing import Any, Literal
 PatternId = Literal[
     "cover", "agenda", "exec-summary", "metrics-row",
     "compare-2col", "card-grid-4", "phase-roadmap", "dimension-5",
+    "table", "narrative", "summary",
 ]
 
 PATTERN_TEMPLATES = {
@@ -18,6 +19,10 @@ PATTERN_TEMPLATES = {
     "card-grid-4": "card-grid-4.html.j2",
     "phase-roadmap": "phase-roadmap.html.j2",
     "dimension-5": "dimension-5.html.j2",
+    "table": "table.html.j2",
+    # V3.1 body_type 상위 축 — 서술형/요약형 텍스트 렌더 모드
+    "narrative": "narrative.html.j2",
+    "summary": "summary.html.j2",
 }
 
 

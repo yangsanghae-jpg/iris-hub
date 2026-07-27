@@ -1,0 +1,26 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header">
+  <h1>{{ title }}</h1>
+  <span class="pageno">{{ pageno }}/{{ total_pages }}</span>
+</div>
+{% endblock %}
+{% block style %}
+.sum-key { background: var(--bg-card); border-left: 6px solid var(--accent);
+  padding: 22px 30px; font-size: 26px; font-weight: 700; color: var(--fg);
+  margin-bottom: 40px; border-radius: 0 8px 8px 0; }
+.sum-list { list-style: none; }
+.sum-item { display: flex; align-items: flex-start; font-size: 26px; line-height: 1.5;
+  color: var(--fg); padding: 18px 0; border-bottom: 1px solid var(--line); }
+.sum-item:last-child { border-bottom: none; }
+.sum-bullet { color: var(--accent); font-weight: 800; margin-right: 20px; flex-shrink: 0; }
+{% endblock %}
+{% block body %}
+{% if subtitle %}<div class="subtitle">{{ subtitle }}</div>{% endif %}
+{% if key_message %}<div class="sum-key">{{ key_message }}</div>{% endif %}
+<ul class="sum-list">
+{% for point in points %}
+  <li class="sum-item"><span class="sum-bullet">&#9642;</span><span>{{ point }}</span></li>
+{% endfor %}
+</ul>
+{% endblock %}

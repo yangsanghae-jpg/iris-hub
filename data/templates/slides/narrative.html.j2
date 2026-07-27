@@ -1,0 +1,21 @@
+{% extends "_base.html.j2" %}
+{% block header %}
+<div class="header">
+  <h1>{{ title }}</h1>
+  <span class="pageno">{{ pageno }}/{{ total_pages }}</span>
+</div>
+{% endblock %}
+{% block style %}
+.nrt-key { background: var(--bg-card); border-left: 6px solid var(--accent);
+  padding: 24px 32px; font-size: 26px; font-weight: 700; color: var(--fg);
+  margin-bottom: 36px; border-radius: 0 8px 8px 0; }
+.nrt-para { font-size: 24px; line-height: 1.7; color: var(--fg); margin-bottom: 26px; }
+.nrt-para:last-child { margin-bottom: 0; }
+{% endblock %}
+{% block body %}
+{% if subtitle %}<div class="subtitle">{{ subtitle }}</div>{% endif %}
+{% if key_message %}<div class="nrt-key">{{ key_message }}</div>{% endif %}
+{% for para in paragraphs %}
+<p class="nrt-para">{{ para }}</p>
+{% endfor %}
+{% endblock %}

@@ -33,7 +33,7 @@ SLIDES_END = "<<<IRIS_SLIDES_END>>>"
 # 25~30장 Markdown + thinking 토큰을 수용. 모델 ctx를 초과하지 않도록 상한.
 EXPAND_NUM_CTX = 32768
 EXPAND_NUM_PREDICT = 16384
-EXPAND_MAX_ATTEMPTS = 2
+EXPAND_MAX_ATTEMPTS = 3
 
 
 class ExpansionError(Exception):
@@ -51,6 +51,7 @@ class ExpandedResult:
     model: str
     original_chars: int
     output_chars: int
+    contract: dict | None = None
 
 
 _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박은 마크다운 보고서를
@@ -82,7 +83,8 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 
 1. {loss_rule}
 
-2. **풍부함 의무**: 한 슬라이드에 *제목 + 본문 (리스트 5~10개 또는 표 또는 단락)*.
+2. **풍부함 의무**: 한 슬라이드에 *주장형 제목 + **핵심 메시지:** 한 문장 + 본문*.
+   - cover 제외 모든 슬라이드에 `**핵심 메시지:**` 한 문장 필수
    - 한 문장만 박힌 슬라이드 금지
    - 단어 줄임 금지 (3-4단어 나열 X, *완전한 구절·문장형* O)
    - 항목 내용은 *완전한 구절·문장형*
@@ -90,26 +92,55 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 3. **슬라이드 분리자**: 슬라이드마다 `---` 한 줄로 구분. 전체 {slide_target}으로 박음.
    표지(첫 슬라이드)를 포함해 센다.
 
-4. **형식(body_type) 먼저 결정, 그다음 그 형식에 맞는 내용을 씀** — 슬라이드를 쓰기 전에
-   아래 4종 중 이 내용에 가장 맞는 형식을 스스로 판단해서 정한다. *모든 슬라이드를
-   하나의 형식(예: 짧은 카드 나열)으로 몰지 마* — PPT라고 무조건 키워드만 들어가는 게
-   아니다. 내용 성격에 따라 다르게 골라야 한다.
+3b. **형식 계약 마커 (필수, 기계 판독)**: 각 슬라이드 본문 *안*에 아래 주석 3종을
+   **정확히 한 번씩** 넣는다. 자연어로 “카드형이 적절하다”고만 쓰면 인정하지 않는다.
 
-   - **서술식** (배경·이유·설명이 필요한 내용) → 완전한 문장형 단락 또는 불릿 5~10개
-   - **요약식** (핵심만 추려도 되는 목록) → 짧은 불릿 5~10개, 각 항목은 완전한 구절
-   - **표형식** (비교·대응관계·수치 매트릭스) → markdown 표 그대로
-   - **도형식** (단계·구역·카드로 나뉘는 병렬 항목, N=3~8개) → 항목별 제목 + 한줄설명
+   <!-- IRIS_BODY: <body-type> -->
+   <!-- IRIS_PATTERN: <pattern-id> -->
+   <!-- IRIS_ROLES: <role>,<role>,... -->
 
-   **도형식을 고를 때 지켜야 할 것**: 카드/단계 목록 앞뒤에 남는 배경 설명·조건·요약
-   문장이 원본에 있으면 *카드에 억지로 욱여넣지 말고* 카드 목록 위(도입) 또는 아래
-   (요약)에 별도 문단으로 그대로 남긴다. 예: "SLA 4단계 + 지원 조건(7×24시간 기술지원,
-   2회/년 현장서비스, 무한수정)"이 원본에 있으면 4단계는 카드 4개로 쓰되, "지원 조건"
-   문장은 카드 아래에 반드시 별도 문단으로 남긴다 — **카드 4개만 쓰고 지원 조건 문장을
-   버리는 건 정보 손실이며 절대 금지.**
+   ### 최상위 축 — IRIS_BODY (이 페이지의 내용을 *어떻게 쓸지* 먼저 결정)
+   허용 body-type (이 4종만): 요약형 | 서술형 | 표형 | 도형형
+   - **요약형**: 핵심을 짧은 불릿 3~8개로 압축. 문장 늘어놓기 금지.
+   - **서술형**: 근거·배경·논리를 완전한 문장 단락(1~5개)으로 서술. 불릿·표 금지.
+   - **표형**: 행·열 대응이 핵심. 마크다운 표를 그대로 유지.
+   - **도형형**: 병렬 항목·비교·절차·수치·다차원 등 시각 구조로 표현.
+   *모든 슬라이드를 한 형식으로 몰지 마라.* 내용 성격에 맞춰 4종을 고르게 섞는다.
 
-5. **고유명사·코드 보존**: IM100, CMMI, SSIM, WBS, FAT 같은 표준 용어·코드·약어는
-   번역하지 말고 원문 표기 그대로 박는다. 단 *서술 문장·제목·설명*은 위 '출력 언어'
-   지시를 따른다 (즉 용어만 원문, 문장은 지정 언어).
+   ### 하위 축 — IRIS_PATTERN (선택한 body-type 안에서 구체 레이아웃)
+   허용 pattern-id (이 목록만):
+   cover | narrative | summary | table | agenda | exec-summary | metrics-row |
+   compare-2col | card-grid-4 | phase-roadmap | dimension-5
+
+   ### body-type → pattern 매핑 (반드시 일치)
+   - 요약형 → **summary**
+   - 서술형 → **narrative**
+   - 표형   → **table** (마크다운 표 유지, card-grid 금지)
+   - 도형형 → agenda | exec-summary | metrics-row | compare-2col | card-grid-4 |
+              phase-roadmap | dimension-5 중 내용에 맞는 하나
+   - 표지(첫 장)는 body-type 면제 — pattern=cover, IRIS_BODY 생략 가능
+
+   허용 role (해당되는 것만): context, items, relation, sequence, metrics,
+   comparison, condition, exception, conclusion, source, output
+
+   - 첫 슬라이드 pattern은 반드시 cover
+   - cover는 첫 장에만
+   - 도형형 안에서: 순서/절차→phase-roadmap, 두 축 대응→compare-2col/exec-summary,
+     수치 핵심→metrics-row, 병렬 독립 항목(3~8)→card-grid-4, 다차원 분류→dimension-5
+   - IRIS_ROLES에 condition/exception/conclusion/source가 있으면 그 문장을
+     카드 항목으로 삭제하지 말고 슬라이드 하단(또는 상단 context)에 보존
+
+4. **body-type·pattern·본문 구조 3자 일치** — IRIS_BODY, IRIS_PATTERN, 실제 본문이
+   서로 맞아야 한다. 예: IRIS_BODY 서술형이면 pattern=narrative이고 본문은 문장 단락.
+
+   - **서술형(narrative)** → 완전한 문장 단락 (context role)
+   - **요약형(summary)** → 짧은 불릿 3~8개
+   - **표형(table)** → markdown 표 유지 (card-grid로 변환 금지)
+   - **도형형** → card-grid-4/phase-roadmap 등. 공통 조건은 roles에 condition 등으로
+     표시 후 카드 밖 문단으로 보존. 원문에 없는 도입/결론을 꾸며내지 말 것.
+
+5. **고유명사·코드 보존**: 표준 용어·코드·약어는 번역하지 말고 원문 표기 그대로.
+   서술 문장·제목·설명은 위 '출력 언어' 지시를 따른다.
 
 6. **frontmatter 박지 마** (호출자가 박음).
 
@@ -119,56 +150,113 @@ _PROMPT = """당신은 컨설팅 회사의 PPT 작가입니다. 사용자가 박
 (슬라이드 마크다운만)
 {SLIDES_END}
 
-## 좋은 슬라이드 예시 (구조·풍부함의 참고용 — *언어는 무시*하고 위 '출력 언어' 지시를 따를 것)
+## 좋은 슬라이드 예시 (구조만 참고 — *실제 고객·전화·인증번호·프로젝트명 넣지 말 것*)
 
 ```markdown
-<!-- _class: cover -->
+<!-- IRIS_PATTERN: cover -->
+<!-- IRIS_ROLES: context -->
 
-# 赛美特SSIM项目实施方法论
-## 标准化·可复制·高可靠的产品交付体系
-> 2026年6月 · CMMI V3.0 5级认证企业
-
----
-
-## SSIM七大实施阶段 (1/2)
-
-| 阶段 | 编码 | 里程碑会议 | 核心任务 |
-|------|------|------------|----------|
-| 投入与准备 | IM100 (CMT) | 项目启动会 | 制定详细项目日程; 项目整体启动落地; WBS+SOW |
-| 业务分析 | IM200 (ANA) | 分析结果报告会 | 现场现状调研; 业务现状深度分析 |
-| 蓝图设计 | IM300 (DES) | 蓝图报告会 | 初步方案讲解; 详细方案讲解; 确认定稿业务蓝图 |
-| 功能开发 | IM400 (IMP) | 无独立节点 | 功能详细设计; 各功能开发与自测; 模块联动测试 |
+# 보고서 제목
+## 부제
+> 날짜 · 버전
 
 ---
 
-## 故障响应时效标准
+<!-- IRIS_BODY: 서술형 -->
+<!-- IRIS_PATTERN: narrative -->
+<!-- IRIS_ROLES: context -->
 
-四级故障分级与处理时效，确保业务连续性：
+## 왜 지금 이 과제가 중요한가
 
-- **1级故障 (重大火灾)**: 系统整体宕机，核心业务功能完全失效 → 响应≤30分钟, 解决≤2小时到场
-- **2级故障 (严重影响)**: 系统卡顿、运行不稳定，部分功能数据异常 → 响应≤1小时, 解决≤4小时闭环
-- **3级故障 (轻微影响)**: 系统小幅误差，非核心模块异常 → 响应≤2小时, 解决≤24小时方案
-- **4级故障 (咨询类)**: 功能咨询、配置调试、安装疑问 → 响应≤1工作日, 协商处理周期
+**핵심 메시지:** 시장 변화가 기존 방식의 한계를 드러냈다.
+
+최근 시장 환경은 기존 운영 방식의 구조적 한계를 드러내고 있다. 수요 변동성이
+커지면서 단순 대응으로는 품질과 납기를 동시에 맞추기 어려워졌다.
+
+따라서 본 과제는 근본 원인을 해소하는 체계적 접근을 목표로 한다.
+
+---
+
+<!-- IRIS_BODY: 도형형 -->
+<!-- IRIS_PATTERN: phase-roadmap -->
+<!-- IRIS_ROLES: sequence,items,output -->
+
+## 실행 단계로 리스크를 줄인다
+
+**핵심 메시지:** 4단계 절차로 범위·산출물을 고정한다.
+
+1. 준비: 일정과 범위 확정
+2. 분석: 현황 조사
+3. 설계: 방안 확정
+4. 이행: 적용과 점검
+
+---
+
+<!-- IRIS_BODY: 표형 -->
+<!-- IRIS_PATTERN: table -->
+<!-- IRIS_ROLES: relation,items -->
+
+## 단계별 업무와 산출물
+
+**핵심 메시지:** 행·열 대응으로 업무와 산출물을 함께 본다.
+
+| 단계 | 코드 | 주요 업무 | 산출물 |
+|---|---|---|---|
+| 준비 | IM100 | 일정 수립 | WBS |
+| 분석 | IM200 | 현황 조사 | 보고서 |
+
+---
+
+<!-- IRIS_BODY: 요약형 -->
+<!-- IRIS_PATTERN: summary -->
+<!-- IRIS_ROLES: items -->
+
+## 핵심 요약
+
+**핵심 메시지:** 세 가지만 기억하면 된다.
+
+- 범위와 산출물을 4단계로 고정한다
+- 행·열 대응 표로 업무를 한눈에 관리한다
+- 공통 조건 아래 네 모듈을 독립 운영한다
+
+---
+
+<!-- IRIS_BODY: 도형형 -->
+<!-- IRIS_PATTERN: card-grid-4 -->
+<!-- IRIS_ROLES: context,items,condition -->
+
+## 구성 요소를 병렬로 운영한다
+
+**핵심 메시지:** 네 모듈이 공통 조건 아래에서 독립 동작한다.
+
+공통 전제를 한 문장으로 적는다.
+
+- 항목 A: 설명 A
+- 항목 B: 설명 B
+- 항목 C: 설명 C
+- 항목 D: 설명 D
+
+모든 항목에 공통인 조건·예외·결론이 있으면 아래에 문단으로 남긴다.
 ```
 
 ## 나쁜 예시 (절대 박지 마)
 
 ```markdown
-## SSIM七大阶段
+## 단계 목록
 
-- 投入与准备
-- 业务分析
-- 蓝图设计
+- 준비
+- 분석
+- 설계
 ```
 
-→ 위는 *3단어 나열*. 빈약함. 풍부히 박지 않음.
+→ 빈약한 나열 + 형식 계약 마커 없음. 거부.
 
 ## 사용자 입력 마크다운
 
 {md_text}
 
 ## 출력
-위 '출력 언어'·페이지 수 지시를 지킨 슬라이드 마크다운만
+위 '출력 언어'·페이지 수·형식 계약 지시를 지킨 슬라이드 마크다운만
 {SLIDES_START} … {SLIDES_END} 사이에 넣는다. 다른 말 0.
 """
 
@@ -343,7 +431,19 @@ def _looks_like_english_reasoning(md: str, lang: str | None) -> bool:
     return False
 
 
-def _validate_expanded(md: str, *, pages: "str | int | None", lang: str | None) -> None:
+def _validate_expanded(
+    md: str,
+    *,
+    pages: "str | int | None",
+    lang: str | None,
+    contract_mode: str = "optional",
+) -> None:
+    from src.engine.output.deck.pattern_contract import (
+        PatternContractError,
+        has_pattern_contracts,
+        validate_expansion_contracts,
+    )
+
     if not md.strip():
         raise ExpansionValidationError("확장 결과가 비어 있습니다.")
     if SLIDES_START in md or SLIDES_END in md:
@@ -369,11 +469,22 @@ def _validate_expanded(md: str, *, pages: "str | int | None", lang: str | None) 
                 f"페이지 수 불일치: 요청 {n}장(±1), 결과 {count}장."
             )
     elif mode == "auto":
-        # 자동 모드: 25~30 권장. 너무 적으면 실패(잘림/계약 위반 신호).
         if count < 8:
             raise ExpansionValidationError(
                 f"자동 모드 결과가 너무 짧습니다({count}장). 확장을 다시 실행하세요."
             )
+
+    try:
+        if contract_mode == "required":
+            validate_expansion_contracts(
+                md, require_roles=True, check_richness=True, require_body=True,
+            )
+        elif has_pattern_contracts(md):
+            validate_expansion_contracts(
+                md, require_roles=False, check_richness=False, require_body=False,
+            )
+    except PatternContractError as e:
+        raise ExpansionValidationError(str(e)) from e
 
 
 def _postprocess_response(raw: str) -> str:
@@ -396,21 +507,9 @@ def expand_for_slides(
     pages: "str | int | None" = None,
     num_ctx: int = EXPAND_NUM_CTX,
     num_predict: int = EXPAND_NUM_PREDICT,
+    contract_mode: str = "optional",
 ) -> ExpandedResult:
-    """LLM이 사용자 마크다운을 풍부한 슬라이드용 마크다운으로 확장.
-
-    인자:
-      md_text: 사용자 원본 마크다운
-      meta: 회사·제목 등 (프롬프트 박힘)
-      timeout: 80b는 5~10분 가능 → 기본 10분
-      model: 사용자가 UI에서 박은 모델 (None이면 deep)
-      max_input_chars: 원본 입력 자르기 (기본 24k, 80b 컨텍스트 여유)
-      lang: 출력 언어 지시 (예: "한국어"). None이면 "입력과 동일한 언어".
-      pages: 목표 페이지 수 (예: "5장"/"10장"/"자동 (LLM 판단)"/5). None이면 자동.
-      num_ctx / num_predict: 생성 예산 (thinking 토큰 포함)
-
-    반환: ExpandedResult. length 종료·마커 실패·누출은 ExpansionError.
-    """
+    """LLM이 사용자 마크다운을 풍부한 슬라이드용 마크다운으로 확장."""
     original_chars = len(md_text)
     if not md_text.strip():
         raise ExpansionError("입력 마크다운 비어 있음")
@@ -422,7 +521,7 @@ def expand_for_slides(
     effective_lang = lang or meta.get("lang")
     directives = _build_directives(effective_lang, pages)
 
-    prompt = _PROMPT.format(
+    base_prompt = _PROMPT.format(
         company=meta.get("company", ""),
         title=meta.get("title", ""),
         subtitle=meta.get("subtitle", ""),
@@ -437,6 +536,7 @@ def expand_for_slides(
     last_err: Exception | None = None
     t0 = time.time()
     used_model = model or ""
+    prompt = base_prompt
 
     for attempt in range(EXPAND_MAX_ATTEMPTS):
         resp = llm.generate_text(
@@ -466,18 +566,40 @@ def expand_for_slides(
 
         try:
             out = _postprocess_response(resp.get("text", ""))
-            _validate_expanded(out, pages=pages, lang=effective_lang)
+            _validate_expanded(
+                out, pages=pages, lang=effective_lang, contract_mode=contract_mode,
+            )
         except ExpansionError as e:
             last_err = e
+            # 재시도 시 실패 이유만 추가 (특정 문서 텍스트 하드코딩 금지)
+            prompt = (
+                base_prompt
+                + "\n\n## 이전 출력 검증 실패 — 수정 후 전체 계약을 다시 출력하세요\n"
+                + str(e)
+                + "\n선언된 형식을 수정하고 IRIS_BODY/IRIS_PATTERN/IRIS_ROLES 계약을 완성하세요.\n"
+                + "cover 제외 모든 슬라이드에 IRIS_BODY(요약형/서술형/표형/도형형)와 "
+                + "`**핵심 메시지:**` 한 문장을 넣으세요.\n"
+                + "body-type→pattern 일치: 요약형=summary, 서술형=narrative, 표형=table, "
+                + "도형형=card-grid-4/phase-roadmap 등.\n"
+            )
             continue
 
         elapsed_ms = int((time.time() - t0) * 1000)
+        from src.engine.output.deck.pattern_contract import (
+            contracts_to_api,
+            has_pattern_contracts,
+            parse_pattern_contracts,
+        )
+        contract_dict = None
+        if contract_mode == "required" or has_pattern_contracts(out):
+            contract_dict = contracts_to_api(parse_pattern_contracts(out))
         return ExpandedResult(
             md=out,
             elapsed_ms=elapsed_ms,
             model=used_model,
             original_chars=original_chars,
             output_chars=len(out),
+            contract=contract_dict,
         )
 
     elapsed_ms = int((time.time() - t0) * 1000)

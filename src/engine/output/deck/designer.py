@@ -34,21 +34,26 @@ PATTERN_SLOTS = {
                      "phases=[{label, title, period, color, tasks=[str 2~6개]} 3~8개], footer_note?",
     "dimension-5": "title, subtitle, "
                    "dimensions=[{label, color, bullets=[str 2~6개]} 4~8개], footer_note?",
+    "table": "title, subtitle?, columns=[{key, label} 2~6개], "
+             "rows=[{key: value, ...} 2개 이상], footnote?",
+    "narrative": "title, subtitle?, key_message, "
+                 "paragraphs=[str 1~5개, 완전한 문장 단락. 불릿·표 금지]",
+    "summary": "title, subtitle?, key_message, "
+               "points=[str 3~8개, 짧은 핵심 불릿]",
 }
 
 
 def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
                   target_slides: int | None,
-                  density: str = "standard") -> str:
+                  density: str = "standard",
+                  contract_block: str = "") -> str:
     from src.engine.output.deck.theme import density_prompt_directive
 
     patterns_doc = "\n".join(f"- {pid}: {slots}" for pid, slots in PATTERN_SLOTS.items())
 
-    # V2.8.2 — 슬라이드 수 *확장*. pre_expanded면 입력이 이미 풍부하므로 더 박을 수 있음
     if target_slides:
         target_min, target_max = target_slides, target_slides + 3
     elif pre_expanded:
-        # Stage 1 확장 통과한 입력 → 글자당 슬라이드 밀도 ↑
         target_min = max(15, min(30, len(md_text) // 500))
         target_max = min(35, target_min + 5)
     else:
@@ -56,6 +61,31 @@ def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
         target_max = min(25, target_min + 5)
 
     density_block = density_prompt_directive(density)
+    forced = contract_block.strip()
+    if forced:
+        pattern_rules = f"""
+## ⚠️ 패턴 강제 계약 (최우선 — 추측 금지)
+{forced}
+
+입력 마크다운의 `<!-- IRIS_PATTERN: ... -->` / `<!-- IRIS_ROLES: ... -->` 주석을
+읽고, 위 계약과 동일한 pattern으로만 data 슬롯을 채운다.
+"""
+        matching = (
+            "패턴은 이미 결정됨. 위 강제 계약을 따르고 자유롭게 재선택하지 말 것.\n"
+            "card-grid-4에서 roles에 context가 있으면 intro에, "
+            "condition/exception/conclusion/source가 있으면 outro에 배치. "
+            "특정 카드 하나에만 속하면 cards 항목에. 원문에 없는 사실·장식 문구 금지."
+        )
+    else:
+        pattern_rules = ""
+        matching = """## 패턴 매칭 전략 (입력 구조 → 패턴) — 계약 마커가 없을 때만
+- 비교/대조 → exec-summary 또는 compare-2col
+- 순서·절차·로드맵 → phase-roadmap
+- 병렬 독립 항목 3~8 → card-grid-4 (공통 context→intro, 공통 condition→outro)
+- 다차원 분류 → dimension-5
+- KPI·수치 핵심 → metrics-row
+- 표의 행·열 대응이 중요하면 표를 카드로 바꾸지 말 것
+"""
 
     return f"""당신은 컨설팅급 PPT 슬라이드 디자이너입니다. 사용자가 박은 마크다운을
 *정보를 풍부하게 유지*하면서 슬라이드 사양으로 변환합니다. JSON으로만 답하세요.
@@ -70,74 +100,40 @@ def _build_prompt(md_text: str, meta: dict, *, pre_expanded: bool,
 ※ 밀도는 슬라이드 *장수*를 바꾸지 않는다. 목표 장수({target_min}~{target_max})는 유지하고
   슬라이드별 설명량·구조적 풍부함만 조절한다.
 
-## 사용 가능 슬라이드 패턴 (이 8종만 사용)
+## 사용 가능 슬라이드 패턴 (이 11종만 사용)
 {patterns_doc}
-
+{pattern_rules}
 ## ⚠️ 절대 출력 스키마 (이 형태 외 절대 금지)
 
 ```json
 {{
   "slides": [
-    {{"pattern": "<위 8종 중 하나>", "data": {{ ...해당 패턴의 슬롯... }}}}
+    {{"pattern": "<위 11종 중 하나>", "data": {{ ...해당 패턴의 슬롯... }}}}
   ]
 }}
 ```
 
 - **각 슬라이드는 정확히 두 키 `pattern`과 `data`만 가짐**
-- `pattern` 값은 위 8종 ID 중 하나의 *문자열* (예: "cover", "phase-roadmap")
-- `data` 값은 *객체* (해당 패턴의 슬롯을 다 채움)
+- `pattern` 값은 위 11종 ID 중 하나의 *문자열*
+- `data` 값은 *객체* (해당 패턴의 슬롯을 채움)
 - `slide_id`·`type`·`id` 같은 다른 키 박지 마
 
-## ⚠️ 풍부함 규칙 (V2.8.2 핵심)
+## ⚠️ 풍부함·보존 규칙
 
-1. **슬라이드 개수**: {target_min}~{target_max}장. 입력의 *모든 섹션·소절을 슬라이드로 전개*.
-2. **항목은 풍부하게**: 각 슬롯의 항목 수는 위 패턴 정의의 *범위 안에서 많은 쪽으로*.
-   예: phases는 3~8개면 6~8개 박음, dimensions 4~8개면 5~7개 박음.
-3. **항목 내용도 풍부하게**: title은 *완전한 구절* (10~30자), detail/summary는
-   *문장형* (40~150자). 단어 나열·줄임 금지. **3~4단어로 줄이지 마**.
-4. **원본 정보 손실 금지**: 마크다운의 표·리스트·인용을 *그대로* 슬롯에 박음.
-   원본이 27개 항목이면 27개 다 박음 (여러 슬라이드로 쪼개도 좋음).
-5. **표는 그대로 보존**: 마크다운 표가 있으면 compare-2col·exec-summary·dimension-5로 전개.
-6. **수치 인용**: 원본에 박힌 수치(99.9%, 24시간, 1년, 27항목, 7단계 등)는 슬라이드에 *그대로* 박음.
-7. **다국어 보존**: 입력이 중국어/영어면 슬라이드도 같은 언어로 박음.
-8. cover 1장 + agenda 1장 + 본문 {target_min - 2}~{target_max - 2}장.
-9. 색상 일관: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'.
-10. **card-grid-4의 intro/outro는 장식이 아니라 손실 방지 슬롯**: 스키마엔 `?`(선택)로
-    표시돼 있지만, 원본에 카드 목록 *앞*에 도입 설명이 있으면 반드시 `intro`에, *뒤*에
-    요약·조건·부가설명(예: "지원: 7×24시간 기술지원, 2회/년 현장서비스")이 있으면 반드시
-    `outro`에 채운다. 카드 3~8개 슬롯에 안 들어가는 문장이 하나라도 원본에 있다면
-    그건 버릴 항목이 아니라 intro/outro에 넣을 항목이다. **다 카드에 안 들어간다고
-    그 문장을 버리면 정보 손실.**
+1. **슬라이드 개수**: 계약이 있으면 계약 장수와 동일. 없으면 {target_min}~{target_max}장.
+2. **항목은 풍부하게**: 패턴별 허용 범위 안에서 충분한 항목 수.
+3. **원본 정보 손실 금지**: 수치·날짜·코드·조건·예외·결론·출처를 삭제하지 말 것.
+4. **다국어 보존**: 입력이 중국어/영어면 슬라이드도 같은 언어.
+5. **색상**: 진단·문제 'red', 해결·혁신 'green', 중립 'blue', 강조 'orange', 분기 'purple'.
+6. **card-grid-4 intro/outro는 조건부**: 스키마 optional 유지. roles/의미상 공통
+   문장만 채움. 장식 문구·환각·cards와 중복 금지.
 
-## 패턴 매칭 전략 (입력 구조 → 패턴)
-
-- 비교/대조 (As-Is vs To-Be 등) → exec-summary 또는 compare-2col
-- N단계·N구역·N카드 → card-grid-4 (N=3~8). 카드 앞뒤에 남는 문장은 규칙 10대로
-  intro/outro에 반드시 채움 — 버리면 정보 손실.
-- 시간·단계 로드맵 → phase-roadmap (단계 3~8)
-- N관점·N차원·N측면 → dimension-5 (N=4~8)
-- 지표·KPI 나열 → metrics-row (3~6 지표)
-- 일반 항목 리스트 → agenda 또는 dimension-5
-
-## 풍부한 예시 (이 정도 밀도로 박을 것)
-
-```json
-{{
-  "slides": [
-    {{"pattern": "cover", "data": {{"company": "赛美特 (SEMI-TECH)", "title": "SSIM项目实施方法论完整文档", "subtitle": "标准化·可复制·高可靠的产品交付体系", "target": "项目管理团队、客户方、实施顾问", "date_version": "2026.06 | CMMI 5级认证"}}}},
-    {{"pattern": "phase-roadmap", "data": {{"title": "SSIM七大实施阶段", "subtitle": "从启动到关闭的完整生命周期", "phases": [
-       {{"label": "IM100", "title": "投入与准备", "period": "项目启动会", "color": "blue", "tasks": ["制定详细项目日程", "项目整体启动落地", "输出WBS工作分解结构", "输出SOW工作说明书"]}},
-       {{"label": "IM200", "title": "业务分析", "period": "分析结果报告会", "color": "blue", "tasks": ["第一轮：现场现状调研", "第二轮：业务现状深度分析", "输出现状分析书"]}},
-       {{"label": "IM300", "title": "蓝图设计", "period": "蓝图报告会", "color": "green", "tasks": ["初步方案讲解", "详细方案讲解", "确认定稿业务蓝图", "签署蓝图完成报告书"]}}
-    ]}}}}
-  ]
-}}
-```
+{matching}
 
 ## 사용자 입력 마크다운
 {md_text[:24000] if pre_expanded else md_text[:16000]}
 
-## 출력 시작 (JSON만, 다른 말 절대 금지, 풍부하게)
+## 출력 시작 (JSON만, 다른 말 절대 금지)
 """
 
 
@@ -200,51 +196,8 @@ def _repair_truncated_json(raw: str) -> dict | None:
     return None
 
 
-def design_deck(md_text: str, meta: dict, *,
-                timeout: float = 300.0,
-                model: str | None = None,
-                pre_expanded: bool = False,
-                target_slides: int | None = None,
-                density: str = "standard") -> Deck:
-    """LLM이 마크다운을 받아 슬라이드 사양 출력.
-
-    V2.8.2 새 인자:
-      pre_expanded: Stage 1 확장 통과한 입력이면 True (자르기 24k, 더 밀도 높게)
-      target_slides: 사용자가 슬라이드 수 직접 박았으면 (auto면 None)
-
-    V2.8.4:
-      density: spacious|standard|dense — 슬라이드 장수는 유지, 콘텐츠 정보량만 조절.
-               기본 standard → 기존 8765 호출과 동일.
-    """
-    prompt = _build_prompt(
-        md_text, meta,
-        pre_expanded=pre_expanded, target_slides=target_slides,
-        density=density or "standard",
-    )
-    # V2.8.2 — num_predict 32768로 더 키움 (풍부한 슬라이드 30장 박을 여유)
-    resp = llm.generate_json(
-        prompt, role="deep", model=model, timeout=timeout,
-        num_ctx=32768, num_predict=32768,
-    )
-
-    data: dict | None = None
-    raw_text = resp.get("raw", "")
-
-    if resp.get("ok"):
-        data = resp.get("data", {})
-    else:
-        err = resp.get("error", "")
-        if "JSON 파싱 실패" in err or "Expecting" in err:
-            data = _repair_truncated_json(raw_text)
-            if data is None:
-                raise DesignError(
-                    f"LLM JSON 잘림 + 복구 실패. raw 앞 200자: {raw_text[:200]}"
-                )
-        else:
-            raise DesignError(f"LLM 실패: {err}")
-
+def _slides_from_payload(data: dict | None) -> list[Slide]:
     raw_slides = (data or {}).get("slides", [])
-
     slides: list[Slide] = []
     for sl in raw_slides:
         if not isinstance(sl, dict):
@@ -257,18 +210,251 @@ def design_deck(md_text: str, meta: dict, *,
             sl_data = {k: v for k, v in sl.items()
                        if k not in ("pattern", "slide_id", "type", "id")}
         slides.append(Slide(pattern=pid, data=sl_data))
+    return slides
 
-    if not slides:
-        raise DesignError("LLM 응답에서 유효한 슬라이드 0개")
 
+def _call_design_llm(prompt: str, *, model: str | None, timeout: float) -> dict:
+    resp = llm.generate_json(
+        prompt, role="deep", model=model, timeout=timeout,
+        num_ctx=32768, num_predict=32768,
+    )
+    raw_text = resp.get("raw", "")
+    if resp.get("ok"):
+        return resp.get("data", {}) or {}
+    err = resp.get("error", "")
+    if "JSON 파싱 실패" in err or "Expecting" in err:
+        data = _repair_truncated_json(raw_text)
+        if data is None:
+            raise DesignError(
+                f"LLM JSON 잘림 + 복구 실패. raw 앞 200자: {raw_text[:200]}"
+            )
+        return data
+    raise DesignError(f"LLM 실패: {err}")
+
+
+def _build_single_slide_prompt(
+    slide_index: int,
+    contract,
+    source_body: str,
+    meta: dict,
+    *,
+    validation_errors: list[str],
+    previous_output: dict | None = None,
+) -> str:
+    from src.engine.output.deck.pattern_contract import PATTERN_CONTRACTS
+
+    pattern = contract.pattern
+    slots = PATTERN_SLOTS.get(pattern, "")
+    err_block = "\n".join(f"- {e}" for e in validation_errors)
+    prev = json.dumps(previous_output or {}, ensure_ascii=False)[:2000]
+    return f"""슬라이드 {slide_index + 1}만 다시 설계하세요. pattern은 **{pattern}** 고정.
+roles: {",".join(contract.roles) or "-"}
+
+## 검증 실패 (수정 대상)
+{err_block}
+
+## 이전 출력 (참고)
+{prev}
+
+## 패턴 슬롯
+{slots}
+
+## 소스 마크다운 (이 슬라이드만)
+{source_body[:8000]}
+
+## 출력 (JSON 객체 하나만)
+```json
+{{"pattern": "{pattern}", "data": {{ ... }}}}
+```
+pattern 변경·다른 슬라이드 출력 금지.
+"""
+
+
+def _retry_single_slide(
+    deck: Deck,
+    slide_index: int,
+    contracts: list,
+    md_text: str,
+    meta: dict,
+    *,
+    model: str | None,
+    timeout: float,
+    errors: list[str],
+) -> Deck:
+    from src.engine.output.deck.pattern_contract import (
+        SlotValidationError,
+        split_slide_bodies,
+        validate_slide_slots,
+    )
+
+    bodies = split_slide_bodies(md_text)
+    source = bodies[slide_index] if slide_index < len(bodies) else md_text
+    contract = contracts[slide_index]
+    prev = deck.slides[slide_index].data if slide_index < len(deck.slides) else {}
+    prompt = _build_single_slide_prompt(
+        slide_index, contract, source, meta,
+        validation_errors=errors, previous_output=prev,
+    )
+    data = _call_design_llm(prompt, model=model, timeout=timeout)
+    if isinstance(data, dict) and "pattern" in data:
+        payload = data
+    elif isinstance(data, dict) and data.get("slides"):
+        payload = data["slides"][0]
+    else:
+        raise DesignError(f"슬라이드 {slide_index + 1} 교정 JSON 형식 오류")
+
+    pid = payload.get("pattern")
+    if pid != contract.pattern:
+        raise DesignError(
+            f"슬라이드 {slide_index + 1} 교정 시 pattern 변경 금지: {pid}"
+        )
+    sl_data = payload.get("data") or {}
+    validate_slide_slots(contract.pattern, sl_data, slide_no=slide_index + 1)
+    new_slides = list(deck.slides)
+    new_slides[slide_index] = Slide(pattern=contract.pattern, data=sl_data)
     return Deck(
-        title=meta.get("title", "보고서"),
-        subtitle=meta.get("subtitle", ""),
-        company_name=meta.get("company", ""),
-        date=meta.get("date", "2026.06"),
-        slides=slides,
+        title=deck.title, subtitle=deck.subtitle,
+        company_name=deck.company_name, date=deck.date,
+        slides=new_slides,
     )
 
 
-__all__ = ["DesignError", "design_deck", "PATTERN_SLOTS"]
+def _validate_and_guard_deck(
+    deck: Deck,
+    md_text: str,
+    contracts: list | None,
+    expected: list[str] | None,
+) -> None:
+    from src.engine.output.deck.pattern_contract import (
+        PatternContractError,
+        SlotValidationError,
+        validate_deck_patterns,
+    )
+    from src.engine.output.deck.card_content_guard import guard_deck_card_grids
+    from src.engine.output.deck.content_coverage import check_deck_coverage
 
+    guard_deck_card_grids(deck, md_text)
+    if expected is not None:
+        validate_deck_patterns(deck, expected)
+    warns = check_deck_coverage(deck, md_text, strict=False)
+    if expected is not None and len(warns) >= max(2, len(deck.slides) // 2):
+        raise PatternContractError(
+            "정보 보존 검증 실패: " + "; ".join(warns[:3])
+        )
+
+
+def design_deck(md_text: str, meta: dict, *,
+                timeout: float = 300.0,
+                model: str | None = None,
+                pre_expanded: bool = False,
+                target_slides: int | None = None,
+                density: str = "standard",
+                contract_mode: str = "optional",
+                contract: dict | None = None) -> Deck:
+    """LLM이 마크다운을 받아 슬라이드 사양 출력.
+
+    IRIS_PATTERN 계약이 있으면 pattern을 강제하고 슬롯·coverage를 검증한다.
+    계약이 없으면(8765 등 레거시) 기존처럼 자유 설계 + 가벼운 가드.
+    """
+    from src.engine.output.deck.pattern_contract import (
+        PatternContractError,
+        SlotValidationError,
+        format_contract_block_for_prompt,
+        resolve_contracts,
+    )
+
+    contracts, expected = resolve_contracts(
+        md_text, contract, contract_mode=contract_mode,  # type: ignore[arg-type]
+    )
+    contract_block = ""
+    if contracts:
+        contract_block = format_contract_block_for_prompt(contracts)
+
+    base_prompt = _build_prompt(
+        md_text, meta,
+        pre_expanded=pre_expanded, target_slides=target_slides,
+        density=density or "standard",
+        contract_block=contract_block,
+    )
+
+    last_err: Exception | None = None
+    prompt = base_prompt
+    deck: Deck | None = None
+
+    for attempt in range(2):  # 전체 설계: JSON 파싱 실패 등에만
+        try:
+            data = _call_design_llm(prompt, model=model, timeout=timeout)
+            slides = _slides_from_payload(data)
+            if not slides:
+                raise DesignError("LLM 응답에서 유효한 슬라이드 0개")
+            deck = Deck(
+                title=meta.get("title", "보고서"),
+                subtitle=meta.get("subtitle", ""),
+                company_name=meta.get("company", ""),
+                date=meta.get("date", "2026.06"),
+                slides=slides,
+            )
+            _validate_and_guard_deck(deck, md_text, contracts, expected)
+            return deck
+        except SlotValidationError as e:
+            # 슬라이드 단위 1회 교정
+            if contracts and deck is not None:
+                msg = str(e)
+                m = re.search(r"(\d+)번", msg)
+                idx = int(m.group(1)) - 1 if m else 0
+                if 0 <= idx < len(deck.slides):
+                    try:
+                        fixed = _retry_single_slide(
+                            deck, idx, contracts, md_text, meta,
+                            model=model, timeout=timeout, errors=[msg],
+                        )
+                        _validate_and_guard_deck(fixed, md_text, contracts, expected)
+                        return fixed
+                    except (DesignError, PatternContractError, SlotValidationError) as e2:
+                        raise DesignError(str(e2)) from e2
+            last_err = e
+            prompt = (
+                base_prompt
+                + "\n\n## 이전 설계 검증 실패 — 지정 pattern/슬롯을 수정해 다시 출력\n"
+                + str(e)
+                + "\npattern을 바꾸지 말고 계약된 pattern의 슬롯만 올바르게 채우세요.\n"
+            )
+            continue
+        except (DesignError, PatternContractError) as e:
+            # pattern 불일치 → 해당 슬라이드만 교정 시도
+            if contracts and deck is not None and "pattern 계약 불일치" in str(e):
+                actual = [s.pattern for s in deck.slides]
+                for i, (exp, act) in enumerate(zip(expected or [], actual)):
+                    if exp != act:
+                        try:
+                            fixed = _retry_single_slide(
+                                deck, i, contracts, md_text, meta,
+                                model=model, timeout=timeout,
+                                errors=[str(e)],
+                            )
+                            _validate_and_guard_deck(
+                                fixed, md_text, contracts, expected,
+                            )
+                            return fixed
+                        except (DesignError, PatternContractError, SlotValidationError) as e2:
+                            raise DesignError(str(e2)) from e2
+            last_err = e
+            prompt = (
+                base_prompt
+                + "\n\n## 이전 설계 검증 실패 — 지정 pattern/슬롯을 수정해 다시 출력\n"
+                + str(e)
+                + "\npattern을 바꾸지 말고 계약된 pattern의 슬롯만 올바르게 채우세요.\n"
+            )
+            continue
+
+    if last_err is not None:
+        raise DesignError(str(last_err)) from last_err
+    raise DesignError("설계 실패")
+
+
+__all__ = [
+    "DesignError",
+    "design_deck",
+    "PATTERN_SLOTS",
+    "_build_prompt",
+]

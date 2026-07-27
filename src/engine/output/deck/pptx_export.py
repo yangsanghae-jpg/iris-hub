@@ -3,9 +3,14 @@ from __future__ import annotations
 
 import math
 import tempfile
+from contextvars import ContextVar
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.engine.output.deck.schema import Deck, detect_deck_lang
+
+if TYPE_CHECKING:
+    from src.engine.output.deck.theme import ResolvedDeckStyle
 
 SLIDE_W_IN = 20.0
 SLIDE_H_IN = 11.25
@@ -27,13 +32,51 @@ _COVER_LABELS = {
 FONT = _FONT_BY_LANG["ko"]
 _cover_labels = _COVER_LABELS["ko"]
 
+# 요청별 스타일 — ContextVar로 동시성 안전 (module global 잔존 금지).
+_STYLE: ContextVar["ResolvedDeckStyle | None"] = ContextVar("pptx_style", default=None)
+_SLIDE_META: ContextVar[tuple[int, int, str]] = ContextVar(
+    "pptx_slide_meta", default=(1, 1, "cover"),
+)
+
 
 def _px_pt(px: float) -> float:
     return px * 0.75
 
 
+def _hex_rgb(hex_color: str):
+    from pptx.dml.color import RGBColor
+    h = hex_color.lstrip("#")
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
 def _colors():
     from pptx.dml.color import RGBColor
+
+    style = _STYLE.get()
+    if style is not None:
+        t = style.template
+        return {
+            "accent": _hex_rgb(t.accent_color),
+            "accent2": _hex_rgb(t.accent2),
+            "blue": _hex_rgb(t.accent_color),
+            "blue-light": _hex_rgb(t.accent2),
+            "bg_dark": _hex_rgb(t.cover_bg or t.accent_color),
+            "bg_card": _hex_rgb(t.surface_color),
+            "orange": RGBColor(0xE8, 0x93, 0x24),
+            "red": RGBColor(0xDC, 0x26, 0x26),
+            "green": RGBColor(0x15, 0x80, 0x3D),
+            "purple": RGBColor(0x7C, 0x3A, 0xED),
+            "fg": _hex_rgb(t.body_color),
+            "fg_muted": _hex_rgb(t.muted_color),
+            "line": RGBColor(0xE5, 0xE7, 0xEB),
+            "white": RGBColor(0xFF, 0xFF, 0xFF),
+            "note_bg": RGBColor(0xFE, 0xF3, 0xC7),
+            "note_fg": RGBColor(0x92, 0x40, 0x0E),
+            "cover_box": _hex_rgb(t.surface_color),
+            "cover_box_label": _hex_rgb(t.muted_color),
+            "title": _hex_rgb(style.title_color),
+            "page": _hex_rgb(t.page_number_color),
+        }
 
     return {
         "accent": RGBColor(0x1A, 0x3A, 0x6B),
@@ -54,6 +97,8 @@ def _colors():
         "note_fg": RGBColor(0x92, 0x40, 0x0E),
         "cover_box": RGBColor(0x2B, 0x4A, 0x78),
         "cover_box_label": RGBColor(0xCF, 0xD6, 0xE4),
+        "title": RGBColor(0xFF, 0xFF, 0xFF),
+        "page": RGBColor(0x6B, 0x72, 0x80),
     }
 
 
@@ -145,16 +190,64 @@ def _add_multiline(
 
 def _add_header(slide, title, pageno, total_pages):
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+    from pptx.util import Pt
 
     colors = _colors()
+    style = _STYLE.get()
     _add_rect(slide, 0, 0, SLIDE_W_IN, HEADER_H, colors["accent"])
-    _add_textbox(
+
+    title_size = _px_pt(34)
+    title_color = colors["white"]
+    title_font = FONT
+    if style is not None:
+        title_size = style.title_size_pt
+        title_color = colors["title"]
+        title_font = style.title_font
+
+    box = _add_textbox(
         slide, MARGIN, 0, SLIDE_W_IN - 2 * MARGIN - 1.6, HEADER_H, title,
-        size=_px_pt(34), bold=True, color=colors["white"], anchor=MSO_ANCHOR.MIDDLE,
+        size=title_size, bold=True, color=title_color, anchor=MSO_ANCHOR.MIDDLE,
     )
+    # _add_textbox uses FONT; override title font when styled
+    if style is not None:
+        for p in box.text_frame.paragraphs:
+            for run in p.runs:
+                run.font.name = title_font
+                run.font.size = Pt(title_size)
+
+    # 스타일 모드에서는 하단 공통 페이지 번호를 쓰므로 헤더 번호는 생략.
+    # 스타일 없음(8765)은 기존처럼 헤더에 번호 표시.
+    if style is None:
+        _add_textbox(
+            slide, SLIDE_W_IN - MARGIN - 1.4, 0, 1.4, HEADER_H, f"{pageno}/{total_pages}",
+            size=_px_pt(16), color=colors["white"], align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE,
+        )
+
+
+def _add_page_number(slide, pageno: int, total_pages: int, pattern: str) -> None:
+    """공통 페이지 번호. 표지 제외, pageno>=2, enabled일 때만."""
+    from pptx.enum.text import PP_ALIGN
+
+    style = _STYLE.get()
+    if style is None or not style.page_number.enabled:
+        return
+    if pattern == "cover" or pageno < 2:
+        return
+
+    colors = _colors()
+    pos = style.page_number.position
+    text = f"{pageno}/{total_pages}"
+    w, h = 1.6, 0.35
+    top = FOOTER_TOP + 0.06
+    if pos == "bottom-left":
+        left, align = MARGIN, PP_ALIGN.LEFT
+    elif pos == "bottom-center":
+        left, align = (SLIDE_W_IN - w) / 2, PP_ALIGN.CENTER
+    else:
+        left, align = SLIDE_W_IN - MARGIN - w, PP_ALIGN.RIGHT
     _add_textbox(
-        slide, SLIDE_W_IN - MARGIN - 1.4, 0, 1.4, HEADER_H, f"{pageno}/{total_pages}",
-        size=_px_pt(16), color=colors["white"], align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE,
+        slide, left, top, w, h, text,
+        size=_px_pt(14), color=colors["page"], align=align,
     )
 
 
@@ -191,8 +284,22 @@ def _build_cover(prs, d, deck, pageno, total_pages):
     cy = SLIDE_H_IN / 2 - 1.7
     _add_textbox(slide, 1.05, cy, left_w, 0.55, d.get("company", ""),
                  size=_px_pt(36), bold=True, color=colors["orange"])
-    _add_textbox(slide, 1.05, cy + 0.65, left_w, 2.0, d.get("title", ""),
-                 size=_px_pt(72), bold=True, color=colors["white"])
+    style = _STYLE.get()
+    cover_title_size = _px_pt(72)
+    cover_title_color = colors["white"]
+    cover_title_font = FONT
+    if style is not None:
+        cover_title_size = max(style.title_size_pt * 2, style.title_size_pt + 20)
+        cover_title_color = colors["title"]
+        cover_title_font = style.title_font
+    title_box = _add_textbox(slide, 1.05, cy + 0.65, left_w, 2.0, d.get("title", ""),
+                 size=cover_title_size, bold=True, color=cover_title_color)
+    if style is not None:
+        from pptx.util import Pt
+        for p in title_box.text_frame.paragraphs:
+            for run in p.runs:
+                run.font.name = cover_title_font
+                run.font.size = Pt(cover_title_size)
     _add_rect(slide, 1.05, cy + 2.55, 1.25, 0.05, colors["orange"])
     _add_textbox(slide, 1.05, cy + 2.75, left_w, 0.6, d.get("subtitle", ""),
                  size=_px_pt(24), color=colors["white"])
@@ -396,24 +503,42 @@ def _build_card_grid_4(prs, d, deck, pageno, total_pages):
     _add_header(slide, d.get("title", deck.title), pageno, total_pages)
     _add_subtitle(slide, d.get("subtitle", ""))
 
+    from src.engine.output.deck.card_content_guard import coerce_intro, coerce_outro
+
     y = CONTENT_TOP + 0.5
-    intro = d.get("intro")
+    intro = coerce_intro(d.get("intro"))
     if intro:
         lines = intro.get("lines", []) or []
-        h = 0.4 + 0.3 * max(len(lines), 1)
+        label = intro.get("label", "") or ""
+        # label만 있으면 1줄, lines만 있으면 lines 높이 (빈 textbox 방지)
+        h = 0.28 + (0.28 if label else 0) + 0.28 * max(len(lines), 0)
+        h = max(h, 0.45)
         _add_rect(slide, MARGIN, y, CONTENT_W, h, colors["bg_card"])
-        _add_textbox(slide, MARGIN + 0.2, y + 0.08, CONTENT_W - 0.4, 0.3, intro.get("label", ""),
-                     size=_px_pt(20), bold=True, color=colors["accent"])
-        _add_multiline(slide, MARGIN + 0.2, y + 0.4, CONTENT_W - 0.4, h - 0.4, lines, size=_px_pt(15))
+        ty = y + 0.08
+        if label:
+            _add_textbox(slide, MARGIN + 0.2, ty, CONTENT_W - 0.4, 0.28, label,
+                         size=_px_pt(20), bold=True, color=colors["accent"])
+            ty += 0.3
+        if lines:
+            _add_multiline(slide, MARGIN + 0.2, ty, CONTENT_W - 0.4, h - (ty - y),
+                           lines, size=_px_pt(15))
         y += h + 0.25
 
-    _add_textbox(slide, MARGIN, y, CONTENT_W, 0.35, d.get("section_title", ""),
-                 size=_px_pt(20), bold=True, color=colors["accent"])
-    y += 0.45
+    section_title = (d.get("section_title") or "").strip()
+    if section_title:
+        _add_textbox(slide, MARGIN, y, CONTENT_W, 0.35, section_title,
+                     size=_px_pt(20), bold=True, color=colors["accent"])
+        y += 0.45
 
     cards = d.get("cards", []) or []
-    outro = d.get("outro")
-    outro_h = (0.4 + 0.3 * max(len(outro.get("bullets", []) or []), 1)) if outro else 0
+    outro = coerce_outro(d.get("outro"))
+    if outro:
+        bullets = outro.get("bullets", []) or []
+        olabel = outro.get("label", "") or ""
+        outro_h = 0.28 + (0.28 if olabel else 0) + 0.28 * max(len(bullets), 0)
+        outro_h = max(outro_h, 0.45)
+    else:
+        outro_h = 0
     grid_bottom = CONTENT_BOTTOM - (outro_h + 0.25 if outro else 0)
     grid_h = grid_bottom - y
     cols = min(len(cards), 4) or 1
@@ -430,12 +555,18 @@ def _build_card_grid_4(prs, d, deck, pageno, total_pages):
                      size=_px_pt(15), color=colors["fg_muted"])
 
     if outro:
+        bullets = outro.get("bullets", []) or []
+        olabel = outro.get("label", "") or ""
         oy = CONTENT_BOTTOM - outro_h
         _add_rect(slide, MARGIN, oy, CONTENT_W, outro_h, colors["bg_card"])
-        _add_textbox(slide, MARGIN + 0.2, oy + 0.08, CONTENT_W - 0.4, 0.3, outro.get("label", ""),
-                     size=_px_pt(20), bold=True, color=colors["accent"])
-        _add_multiline(slide, MARGIN + 0.2, oy + 0.4, CONTENT_W - 0.4, outro_h - 0.4,
-                       outro.get("bullets", []), size=_px_pt(15), bullet=True)
+        ty = oy + 0.08
+        if olabel:
+            _add_textbox(slide, MARGIN + 0.2, ty, CONTENT_W - 0.4, 0.28, olabel,
+                         size=_px_pt(20), bold=True, color=colors["accent"])
+            ty += 0.3
+        if bullets:
+            _add_multiline(slide, MARGIN + 0.2, ty, CONTENT_W - 0.4, outro_h - (ty - oy),
+                           bullets, size=_px_pt(15), bullet=True)
 
     _add_footer(slide, deck.company_name, deck.title, deck.date)
     return slide
@@ -515,6 +646,111 @@ def _build_dimension_5(prs, d, deck, pageno, total_pages):
     return slide
 
 
+def _build_table(prs, d, deck, pageno, total_pages):
+    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+
+    colors = _colors()
+    slide = _new_slide(prs)
+    _add_header(slide, d.get("title", deck.title), pageno, total_pages)
+    _add_subtitle(slide, d.get("subtitle", ""))
+
+    columns = d.get("columns") or []
+    rows = d.get("rows") or []
+    ncols = max(len(columns), 1)
+    nrows = len(rows)
+    top = CONTENT_TOP + 0.55
+    bottom = CONTENT_BOTTOM - (0.55 if d.get("footnote") else 0)
+    avail_h = bottom - top
+    row_h = min(0.55, avail_h / max(nrows + 1, 1))
+    col_w = CONTENT_W / ncols
+    hdr_h = min(0.45, row_h)
+
+    for ci, col in enumerate(columns):
+        x = MARGIN + ci * col_w
+        _add_rect(slide, x, top, col_w - 0.05, hdr_h, colors["accent"])
+        _add_textbox(
+            slide, x + 0.08, top, col_w - 0.16, hdr_h,
+            str(col.get("label", "")),
+            size=_px_pt(14), bold=True, color=colors["white"],
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+
+    y = top + hdr_h
+    for ri, row in enumerate(rows):
+        for ci, col in enumerate(columns):
+            x = MARGIN + ci * col_w
+            key = col.get("key", "")
+            val = str(row.get(key, "")) if isinstance(row, dict) else ""
+            bg = colors["bg_card"] if ri % 2 else colors["white"]
+            _add_rect(slide, x, y, col_w - 0.05, row_h, bg)
+            _add_textbox(
+                slide, x + 0.08, y + 0.04, col_w - 0.16, row_h - 0.08, val,
+                size=_px_pt(13), anchor=MSO_ANCHOR.TOP,
+            )
+        y += row_h
+
+    if d.get("footnote"):
+        _add_note(slide, str(d.get("footnote")))
+
+    _add_footer(slide, deck.company_name, deck.title, deck.date)
+    return slide
+
+
+def _add_key_message(slide, text, top):
+    """서술형/요약형 공통 — 핵심 메시지 콜아웃 박스. 반환: 다음 y."""
+    colors = _colors()
+    if not text:
+        return top
+    box_h = 0.9
+    _add_rect(slide, MARGIN, top, 0.09, box_h, colors["accent"])
+    _add_rect(slide, MARGIN + 0.09, top, CONTENT_W - 0.09, box_h, colors["bg_card"])
+    from pptx.enum.text import MSO_ANCHOR
+    _add_textbox(
+        slide, MARGIN + 0.42, top, CONTENT_W - 0.7, box_h, str(text),
+        size=_px_pt(24), bold=True, anchor=MSO_ANCHOR.MIDDLE,
+    )
+    return top + box_h + 0.4
+
+
+def _build_narrative(prs, d, deck, pageno, total_pages):
+    """서술형(narrative) — 핵심 메시지 + 문장형 단락."""
+    slide = _new_slide(prs)
+    _add_header(slide, d.get("title", deck.title), pageno, total_pages)
+    _add_subtitle(slide, d.get("subtitle", ""))
+
+    top = CONTENT_TOP + 0.55
+    top = _add_key_message(slide, d.get("key_message"), top)
+
+    paragraphs = [str(p) for p in (d.get("paragraphs") or []) if str(p).strip()]
+    _add_multiline(
+        slide, MARGIN, top, CONTENT_W, CONTENT_BOTTOM - top, paragraphs,
+        size=_px_pt(23), space_after=16,
+    )
+
+    _add_footer(slide, deck.company_name, deck.title, deck.date)
+    return slide
+
+
+def _build_summary(prs, d, deck, pageno, total_pages):
+    """요약형(summary) — 핵심 메시지 + 짧은 불릿."""
+    colors = _colors()
+    slide = _new_slide(prs)
+    _add_header(slide, d.get("title", deck.title), pageno, total_pages)
+    _add_subtitle(slide, d.get("subtitle", ""))
+
+    top = CONTENT_TOP + 0.55
+    top = _add_key_message(slide, d.get("key_message"), top)
+
+    points = [str(p) for p in (d.get("points") or []) if str(p).strip()]
+    _add_multiline(
+        slide, MARGIN, top, CONTENT_W, CONTENT_BOTTOM - top, points,
+        size=_px_pt(24), bullet=True, space_after=14, color=colors["fg"],
+    )
+
+    _add_footer(slide, deck.company_name, deck.title, deck.date)
+    return slide
+
+
 _PATTERN_BUILDERS = {
     "cover": _build_cover,
     "agenda": _build_agenda,
@@ -524,12 +760,19 @@ _PATTERN_BUILDERS = {
     "card-grid-4": _build_card_grid_4,
     "phase-roadmap": _build_phase_roadmap,
     "dimension-5": _build_dimension_5,
+    "table": _build_table,
+    "narrative": _build_narrative,
+    "summary": _build_summary,
 }
 
 
 def render_deck_to_pptx(
     deck: Deck, out_path: Path | None = None,
     *, on_progress: "ProgressFn | None" = None,
+    template_id: str | None = None,
+    master_style: dict | None = None,
+    page_number: dict | None = None,
+    style: "ResolvedDeckStyle | None" = None,
 ) -> Path:
     from pptx import Presentation
     from pptx.util import Inches
@@ -538,6 +781,14 @@ def render_deck_to_pptx(
         out_path = Path(tempfile.mkdtemp(prefix="iris_pptx_")) / "deck.pptx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if style is None and (template_id or master_style or page_number):
+        from src.engine.output.deck.theme import resolve_deck_style
+        style = resolve_deck_style(
+            template_id or "clean-light",
+            master_style=master_style,
+            page_number=page_number,
+        )
+
     # 슬라이드 전체가 같은 폰트/커버 라벨 언어를 쓰도록 첫 판단을 한 번만
     # 하고 모듈 전역에 담아둠 — 콘텐츠 언어(소스 문서 언어)를 따라감.
     global FONT, _cover_labels
@@ -545,22 +796,27 @@ def render_deck_to_pptx(
     FONT = _FONT_BY_LANG[lang]
     _cover_labels = _COVER_LABELS[lang]
 
-    prs = Presentation()
-    prs.slide_width = Inches(SLIDE_W_IN)
-    prs.slide_height = Inches(SLIDE_H_IN)
+    token = _STYLE.set(style)
+    try:
+        prs = Presentation()
+        prs.slide_width = Inches(SLIDE_W_IN)
+        prs.slide_height = Inches(SLIDE_H_IN)
 
-    total = len(deck.slides)
-    for i, slide in enumerate(deck.slides, 1):
-        builder = _PATTERN_BUILDERS.get(slide.pattern)
-        if builder is None:
-            raise ValueError(f"미지 패턴: {slide.pattern}")
-        builder(prs, slide.data, deck, i, total)
-        if on_progress is not None:
-            label = str(slide.data.get("title", slide.data.get("company", slide.pattern)))[:40]
-            on_progress(i, total, label)
+        total = len(deck.slides)
+        for i, slide in enumerate(deck.slides, 1):
+            builder = _PATTERN_BUILDERS.get(slide.pattern)
+            if builder is None:
+                raise ValueError(f"미지 패턴: {slide.pattern}")
+            built = builder(prs, slide.data, deck, i, total)
+            _add_page_number(built, i, total, slide.pattern)
+            if on_progress is not None:
+                label = str(slide.data.get("title", slide.data.get("company", slide.pattern)))[:40]
+                on_progress(i, total, label)
 
-    prs.save(str(out_path))
-    return out_path
+        prs.save(str(out_path))
+        return out_path
+    finally:
+        _STYLE.reset(token)
 
 
 __all__ = ["render_deck_to_pptx"]
