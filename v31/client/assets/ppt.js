@@ -187,40 +187,39 @@ function scalePreviewFrames() {
   });
 }
 
-function buildKPI() {
-  const sourceCount = (state.sourceMode === 'direct' && state.mdText) ? 1
-    : (state.sourceMode === 'upload' && state.uploadName) ? 1
-    : (state.sourceMode === 'archive' ? state.sources.archive.length : 0)
-    + (state.sourceMode === 'docs' ? state.sources.docs.length : 0);
-  const activeSource = sourceModeHasContent() ? 'on' : '';
-  const hasRender = state.renderResult;
-  const fmt = hasRender ? state.renderResult.fmt : state.outputFormat;
-  const fmtBadge = hasRender ? 'on' : '';
+function buildStatusStrip() {
+  const modeLabel = {
+    direct: '직접 입력',
+    upload: '파일 업로드',
+    archive: 'archive',
+    docs: 'docs',
+  }[state.sourceMode] || state.sourceMode;
+  const srcReady = sourceModeHasContent();
+  const srcDetail = state.sourceMode === 'direct'
+    ? `${state.mdText.length.toLocaleString()}자`
+    : state.sourceMode === 'upload'
+      ? (state.uploadName || '미선택')
+      : state.sourceMode === 'archive'
+        ? `${state.sources.archive.length}건`
+        : `${state.sources.docs.length}건`;
+  const tpl = selectedTemplate()?.name || state.templateId || '—';
+  const stepLab = STEP_LABELS[step] || '—';
+  const out = state.renderResult
+    ? `${state.renderResult.fmt} 완료`
+    : `${state.outputFormat} 대기`;
 
-  document.getElementById('kpi-bar').innerHTML = `
-    <div class="kpi-card">
-      <span class="kpi-badge ${activeSource}">${sourceModeHasContent() ? 'ACTIVE' : '—'}</span>
-      <div class="kpi-k">소스</div>
-      <div class="kpi-v">${sourceCount}</div>
-      <div class="kpi-f">${sourceModeHasContent() ? '업로드된 마크다운' : '선택 대기'}</div>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-k">템플릿</span>
-      <div class="kpi-v">${state.templates.length}</div>
-      <div class="kpi-f">선택 가능한 디자인</div>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-k">언어</span>
-      <div class="kpi-v">${state.lang ? 1 : 0}</div>
-      <div class="kpi-f">ko / en / zh 지원</div>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-badge ${fmtBadge}">${hasRender ? 'READY' : '—'}</span>
-      <div class="kpi-k">내보내기</div>
-      <div class="kpi-v">${fmt}</div>
-      <div class="kpi-f">${hasRender ? 'PDF/PPTX 2종' : '대기 중'}</div>
-    </div>`;
+  const el = document.getElementById('ppt-status-strip');
+  if (!el) return;
+  el.innerHTML = `
+    단계 <strong>${step + 1}/4 ${esc(stepLab)}</strong> ·
+    소스 <strong>${esc(modeLabel)}</strong>${srcReady ? ` · ${esc(srcDetail)}` : ' · 선택 대기'} ·
+    언어 <strong>${esc(state.lang)}</strong> ·
+    템플릿 <strong>${esc(tpl)}</strong> ·
+    내보내기 <strong>${esc(out)}</strong>`;
 }
+
+/** @deprecated alias — 호출부 호환 */
+function buildKPI() { buildStatusStrip(); }
 
 function sourceModeHasContent() {
   if (state.sourceMode === 'direct' && state.mdText) return true;

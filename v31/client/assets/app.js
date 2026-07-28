@@ -12,7 +12,7 @@
 
   // Tab definitions (matches sidebar nav-item[data-section])
   var TABS = {
-    ppt:     { phase: "작성", phaseClass: "create", bcPhase: "Create", bcCur: "PPT · DECK CONSOLE" },
+    ppt:     { phase: "작성", phaseClass: "create", bcPhase: "Create", bcCur: "PPT" },
     truth:   { phase: "핵심", phaseClass: "core", bcPhase: "Core", bcCur: "진실원" },
     input:   { phase: "핵심", phaseClass: "core", bcPhase: "Core", bcCur: "입력" },
     flow:    { phase: "핵심", phaseClass: "core", bcPhase: "Core", bcCur: "흐름" },
