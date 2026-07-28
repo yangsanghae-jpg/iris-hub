@@ -66,23 +66,29 @@
               </div>
               <p class="card-cap">스캔 → 선택 → 일괄 인덱싱</p>
 
-              <div class="intake-b-grid">
-                <label class="input-label b-lbl-src" for="fl_folder">소스</label>
-                <input type="text" class="input-field b-in-src" id="fl_folder" placeholder="경로" />
-                <button type="button" class="btn-sm b-btn-src" onclick="window.v31.pickFolder('fl_folder')">선택</button>
-                <label class="intake-check intake-b-chk b-chk-rec"><input type="checkbox" id="folderRecursive" checked /> 하위</label>
-                <button type="button" class="header-btn primary b-btn-scan" onclick="window.v31.scanFolder(document.getElementById('fl_folder').value)">스캔</button>
-
-                <label class="input-label b-lbl-arch" for="archiveRoot">archive</label>
-                <input type="text" class="input-field b-in-arch" id="archiveRoot" placeholder="기본값" />
-                <button type="button" class="btn-sm b-btn-arch" onclick="window.v31.pickFolder('archiveRoot')">선택</button>
-                <select class="select-field b-sel-lane" id="folderLane">
-                  <option value="reference">reference</option>
-                  <option value="bronze">bronze</option>
-                </select>
-                <label class="intake-check intake-b-chk b-chk-force"><input type="checkbox" id="folderForce" /> 재파싱</label>
+              <div class="intake-b-block">
+                <p class="input-label">소스 폴더</p>
+                <div class="intake-b-pathrow">
+                  <input type="text" class="input-field" id="fl_folder" placeholder="폴더 선택 또는 경로 붙여넣기" />
+                  <button type="button" class="btn-sm" onclick="window.v31.pickFolder('fl_folder')">폴더 선택</button>
+                  <label class="intake-check"><input type="checkbox" id="folderRecursive" checked /> 하위 포함</label>
+                  <button type="button" class="header-btn primary" onclick="window.v31.scanFolder(document.getElementById('fl_folder').value)">스캔</button>
+                </div>
               </div>
-              <p class="intake-hint-line" id="archiveDefaultHint"></p>
+
+              <div class="intake-b-block">
+                <p class="input-label">archive 루트</p>
+                <div class="intake-b-pathrow">
+                  <input type="text" class="input-field" id="archiveRoot" placeholder="비워두면 기본 (3-archive/)" />
+                  <button type="button" class="btn-sm" onclick="window.v31.pickFolder('archiveRoot')">폴더 선택</button>
+                  <select class="select-field intake-b-lane" id="folderLane">
+                    <option value="reference">reference</option>
+                    <option value="bronze">bronze</option>
+                  </select>
+                  <label class="intake-check"><input type="checkbox" id="folderForce" /> 강제 재파싱</label>
+                </div>
+                <p class="intake-hint-line" id="archiveDefaultHint"></p>
+              </div>
 
               <div id="folderEmptyHint" class="intake-hint">폴더 선택 후 스캔</div>
 

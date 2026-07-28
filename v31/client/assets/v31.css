@@ -782,7 +782,7 @@
     }
     @media (min-width: 1180px) {
       .intake-abc {
-        grid-template-columns: minmax(200px, 0.9fr) minmax(340px, 1.35fr) minmax(240px, 1fr);
+        grid-template-columns: minmax(200px, 0.85fr) minmax(380px, 1.5fr) minmax(220px, 0.95fr);
         grid-template-areas: "a b c";
       }
       .intake-col-c { display: flex; flex-direction: column; }
@@ -791,43 +791,34 @@
       #tab-input .intake-drop { min-height: 120px; display: flex; align-items: center; justify-content: center; }
     }
 
-    /* B 폴더 — 컴팩트 그리드 */
-    .intake-b-grid {
-      display: grid; gap: 6px 8px; align-items: center;
-      grid-template-columns: 52px 1fr auto auto auto;
-      grid-template-areas:
-        "ls1 in1 in1 in1 in1"
-        ". p1 c1 s1 ."
-        "ls2 in2 in2 in2 in2"
-        ". p2 lane f2 .";
+    /* B 폴더 — 소스 / archive 두 블록, 경로 입력 전폭 사용 */
+    .intake-b-block { margin-bottom: 12px; }
+    .intake-b-block .input-label {
+      margin: 0 0 6px; font-size: 13.5px; font-weight: 650; color: #3f3f46;
     }
-    .intake-b-grid .input-label { margin: 0; font-size: 12.5px; }
-    .intake-b-grid .b-lbl-src { grid-area: ls1; }
-    .intake-b-grid .b-in-src { grid-area: in1; }
-    .intake-b-grid .b-btn-src { grid-area: p1; }
-    .intake-b-grid .b-chk-rec { grid-area: c1; }
-    .intake-b-grid .b-btn-scan { grid-area: s1; }
-    .intake-b-grid .b-lbl-arch { grid-area: ls2; }
-    .intake-b-grid .b-in-arch { grid-area: in2; }
-    .intake-b-grid .b-btn-arch { grid-area: p2; }
-    .intake-b-grid .b-sel-lane { grid-area: lane; min-width: 0; }
-    .intake-b-grid .b-chk-force { grid-area: f2; }
-    .intake-b-chk { font-size: 13px; }
-    @media (min-width: 1180px) {
-      .intake-b-grid {
-        grid-template-columns: 44px minmax(120px, 1.4fr) auto auto auto 44px minmax(100px, 1fr) auto auto auto;
-        grid-template-areas: "ls1 in1 p1 c1 s1 ls2 in2 p2 lane f2";
+    .intake-b-pathrow {
+      display: grid; gap: 8px; align-items: center;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .intake-b-pathrow .input-field { min-width: 0; width: 100%; }
+    .intake-b-pathrow .intake-check {
+      white-space: nowrap; font-size: 13.5px; color: #3f3f46;
+    }
+    .intake-b-lane { min-width: 7.5rem; }
+    @media (min-width: 700px) {
+      .intake-b-pathrow {
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
       }
-      .intake-b-grid .b-lbl-src { grid-area: ls1; }
-      .intake-b-grid .b-in-src { grid-area: in1; }
-      .intake-b-grid .b-btn-src { grid-area: p1; }
-      .intake-b-grid .b-chk-rec { grid-area: c1; margin: 0; justify-self: start; }
-      .intake-b-grid .b-btn-scan { grid-area: s1; margin: 0; justify-self: start; }
-      .intake-b-grid .b-lbl-arch { grid-area: ls2; }
-      .intake-b-grid .b-in-arch { grid-area: in2; }
-      .intake-b-grid .b-btn-arch { grid-area: p2; }
-      .intake-b-grid .b-sel-lane { grid-area: lane; margin: 0; justify-self: stretch; }
-      .intake-b-grid .b-chk-force { grid-area: f2; margin: 0; justify-self: start; }
+    }
+    @media (min-width: 1100px) {
+      .intake-col-b .intake-b-pathrow {
+        grid-template-columns: minmax(0, 1fr) 7.5rem auto auto;
+      }
+      .intake-col-b .intake-b-pathrow .btn-sm,
+      .intake-col-b .intake-b-pathrow .header-btn {
+        min-height: 38px; padding: 0 14px;
+      }
+      .intake-col-b .intake-b-lane { min-width: 8.5rem; }
     }
 
     .intake-c-meta {
