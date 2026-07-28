@@ -295,7 +295,28 @@
 #tab-ppt .issue-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 14px; font-weight: 600; color: var(--ppt-text); cursor: pointer; border-bottom: 1px solid #f4f4f5; }
 #tab-ppt .issue-item:last-child { border-bottom: none; }
 #tab-ppt .issue-item input { width: auto; margin-top: 2px; accent-color: var(--ppt-accent); }
-#tab-ppt .review-hint { font-size: 13.5px; line-height: 1.45; color: var(--ppt-muted); font-weight: 500; background: #fafafa; border-radius: 8px; padding: 10px 12px; margin-top: 4px; }
+#tab-ppt .review-hint { font-size: 13.5px; line-height: 1.45; color: var(--ppt-muted); font-weight: 500; background: #fafafa; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+#tab-ppt .review-tabs {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;
+}
+#tab-ppt .review-tab {
+  border: 1px solid #e5e5e5; background: #fff; border-radius: 8px;
+  padding: 8px 6px; font-size: 13.5px; font-weight: 650; color: #71717a; cursor: pointer;
+}
+#tab-ppt .review-tab.on {
+  background: #18181b; color: #fafafa; border-color: #18181b;
+}
+#tab-ppt .review-pane { margin-bottom: 4px; }
+#tab-ppt .format-pills {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+#tab-ppt .format-pill {
+  border: 1px solid #e5e5e5; background: #f4f4f5; border-radius: 8px;
+  padding: 7px 10px; font-size: 13px; font-weight: 650; color: #3f3f46; cursor: pointer;
+}
+#tab-ppt .format-pill.on {
+  background: #18181b; color: #fafafa; border-color: #18181b;
+}
 
 /* Progress strip */
 #tab-ppt .progress-strip {

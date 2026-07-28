@@ -26,6 +26,58 @@ def _deck():
     )
 
 
+def test_coerce_rewrite_payload_flat_slots():
+    out = designer._coerce_rewrite_payload(
+        {"title": "t", "points": ["a", "b", "c"], "key_message": "k"},
+        "summary",
+    )
+    assert out["pattern"] == "summary"
+    assert out["data"]["title"] == "t"
+
+
+def test_coerce_rewrite_payload_nested_data():
+    out = designer._coerce_rewrite_payload(
+        {"data": {"title": "t", "paragraphs": ["p1"]}},
+        "narrative",
+    )
+    assert out["pattern"] == "narrative"
+    assert "paragraphs" in out["data"]
+
+
+def test_coerce_rewrite_payload_slides_wrapper():
+    out = designer._coerce_rewrite_payload(
+        {
+            "slides": [
+                {
+                    "pattern": "narrative",
+                    "data": {"title": "t", "paragraphs": ["p1"]},
+                }
+            ]
+        },
+        "narrative",
+    )
+    assert out["pattern"] == "narrative"
+    assert out["data"]["paragraphs"] == ["p1"]
+
+
+def test_rewrite_slides_accepts_flat_llm_slots():
+    """LLM이 pattern 래핑 없이 슬롯만 줘도 coerce 후 성공."""
+    flat = {
+        "title": "전략",
+        "key_message": "핵심",
+        "points": ["짧은1", "짧은2", "짧은3"],
+    }
+    with patch.object(designer, "_call_design_llm", return_value=flat):
+        out = designer.rewrite_slides(
+            _deck(), [1],
+            md_text="## 전략\n\n긴 본문",
+            meta={},
+            density_action="condense",
+        )
+    assert out.slides[1].pattern == "summary"
+    assert out.slides[1].data["points"] == ["짧은1", "짧은2", "짧은3"]
+
+
 def test_rewrite_slides_changes_pattern_to_table():
     fake = {
         "pattern": "table",

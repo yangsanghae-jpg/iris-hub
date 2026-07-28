@@ -232,6 +232,57 @@ def _call_design_llm(prompt: str, *, model: str | None, timeout: float) -> dict:
     raise DesignError(f"LLM 실패: {err}")
 
 
+def _coerce_rewrite_payload(data: object, target_pattern: str) -> dict:
+    """단일 슬라이드 교정 응답을 {{pattern, data}}로 정규화.
+
+    모델이 pattern 래핑 없이 슬롯만 주거나, slides[0] / data 중첩으로
+    주는 경우가 많아 rewrite 경로에서만 완화한다.
+    """
+    if not isinstance(data, dict):
+        raise DesignError(
+            f"교정 JSON이 객체가 아닙니다: {type(data).__name__}"
+        )
+
+    payload: dict = data
+    if isinstance(payload.get("slides"), list) and payload["slides"]:
+        first = payload["slides"][0]
+        if not isinstance(first, dict):
+            raise DesignError("slides[0]이 객체가 아닙니다")
+        payload = first
+    elif isinstance(payload.get("slide"), dict):
+        payload = payload["slide"]
+
+    if "pattern" in payload or "slide_id" in payload or "type" in payload:
+        pid = payload.get("pattern") or payload.get("slide_id") or payload.get("type")
+        sl_data = payload.get("data")
+        if not isinstance(sl_data, dict):
+            sl_data = {
+                k: v for k, v in payload.items()
+                if k not in ("pattern", "slide_id", "type", "id", "data")
+            }
+        return {"pattern": pid or target_pattern, "data": sl_data}
+
+    if isinstance(payload.get("data"), dict) and not any(
+        k in payload for k in ("title", "paragraphs", "points", "cards", "rows")
+    ):
+        return {"pattern": target_pattern, "data": payload["data"]}
+
+    # 슬롯 객체만 온 경우
+    slot_keys = (
+        "title", "subtitle", "key_message", "paragraphs", "points",
+        "cards", "rows", "columns", "metrics", "phases", "dimensions",
+        "items", "left_items", "right_items", "company",
+    )
+    if any(k in payload for k in slot_keys):
+        return {"pattern": target_pattern, "data": payload}
+
+    keys = list(payload.keys())[:12]
+    raise DesignError(
+        f"교정 JSON 형식 오류 (keys={keys}). "
+        f'기대: {{"pattern":"{target_pattern}","data":{{...}}}}'
+    )
+
+
 def _build_single_slide_prompt(
     slide_index: int,
     contract,
@@ -590,44 +641,58 @@ def rewrite_slides(
         bt = PATTERN_BODY_TYPE.get(target_pattern) or body_type or ""
         slots = PATTERN_SLOTS.get(target_pattern, "")
         prev = json.dumps(old.data, ensure_ascii=False)[:3000]
-        prompt = f"""슬라이드 {idx + 1}만 다시 설계하세요.
+        base_prompt = f"""당신은 PPT 슬라이드 교정기입니다. *슬라이드 {idx + 1} 하나*만 다시 설계하세요.
 
-## 목표 pattern
-**{target_pattern}** (body-type: {bt or "—"})
-이전 pattern: {old.pattern}
+## 목표
+- pattern: **{target_pattern}** (body-type: {bt or "—"})
+- 이전 pattern: {old.pattern}
+- 반드시 JSON *객체 하나*만 출력. 설명·마크다운·코드펜스 금지.
 
 {density_block}
-## 패턴 슬롯
+## 패턴 슬롯 스키마
 {slots}
 
-## 이전 슬라이드 data (참고 — 정보 보존)
+## 이전 슬라이드 data (정보 보존용 참고)
 {prev}
 
-## 소스 마크다운 (이 슬라이드)
-{source[:8000]}
+## 소스 마크다운
+{source[:6000]}
 
-## 출력 규칙
-- JSON 객체 하나만: {{"pattern": "{target_pattern}", "data": {{ ... }}}}
-- pattern은 반드시 "{target_pattern}"
-- 원문에 없는 사실·장식 문구 금지
-- 다른 슬라이드 출력 금지
+## 출력 예시 (이 형식만)
+{{"pattern":"{target_pattern}","data":{{ ...슬롯... }}}}
 """
-        data = _call_design_llm(prompt, model=model, timeout=timeout)
-        if isinstance(data, dict) and "pattern" in data:
-            payload = data
-        elif isinstance(data, dict) and data.get("slides"):
-            payload = data["slides"][0]
-        else:
-            raise DesignError(f"슬라이드 {idx + 1} 교정 JSON 형식 오류")
-
-        pid = payload.get("pattern")
-        if pid != target_pattern:
+        last_err: Exception | None = None
+        payload = None
+        for attempt in range(3):
+            prompt = base_prompt
+            if last_err is not None:
+                prompt += (
+                    f"\n## 이전 실패\n{last_err}\n"
+                    f'다시: {{"pattern":"{target_pattern}","data":{{...}}}} 만 출력.\n'
+                )
+            try:
+                data = _call_design_llm(prompt, model=model, timeout=timeout)
+                payload = _coerce_rewrite_payload(data, target_pattern)
+                pid = payload.get("pattern")
+                if pid != target_pattern:
+                    raise DesignError(
+                        f"pattern이 {target_pattern}이어야 하는데 {pid}"
+                    )
+                sl_data = payload.get("data") or {}
+                if not isinstance(sl_data, dict):
+                    raise DesignError("data가 객체가 아닙니다")
+                validate_slide_slots(target_pattern, sl_data, slide_no=idx + 1)
+                new_slides[idx] = Slide(pattern=target_pattern, data=sl_data)
+                last_err = None
+                break
+            except (DesignError, Exception) as e:
+                last_err = e
+                payload = None
+                continue
+        if last_err is not None or payload is None:
             raise DesignError(
-                f"슬라이드 {idx + 1}: pattern이 {target_pattern}이어야 하는데 {pid}"
-            )
-        sl_data = payload.get("data") or {}
-        validate_slide_slots(target_pattern, sl_data, slide_no=idx + 1)
-        new_slides[idx] = Slide(pattern=target_pattern, data=sl_data)
+                f"슬라이드 {idx + 1} 교정 실패: {last_err}"
+            ) from last_err
 
     return Deck(
         title=deck.title,
