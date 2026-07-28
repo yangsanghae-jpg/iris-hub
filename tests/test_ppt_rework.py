@@ -128,9 +128,50 @@ def test_rewrite_slides_shape_pattern():
             meta={},
             body_type="도형형",
             new_pattern="card-grid-4",
-            density_action="expand",
+            rework_mode="format",
         )
     assert out.slides[1].pattern == "card-grid-4"
     prompt = mock.call_args[0][0]
-    assert "내용 추가" in prompt
+    assert "형식 변환" in prompt
     assert "card-grid-4" in prompt
+
+
+def test_rewrite_slides_density_keeps_pattern():
+    flat = {
+        "title": "전략",
+        "key_message": "핵심",
+        "points": ["a", "b", "c", "d"],
+    }
+    with patch.object(designer, "_call_design_llm", return_value=flat) as mock:
+        out = designer.rewrite_slides(
+            _deck(), [1],
+            md_text="## 전략",
+            meta={},
+            density_action="expand",
+            rework_mode="density",
+        )
+    assert out.slides[1].pattern == "summary"
+    prompt = mock.call_args[0][0]
+    assert "내용 추가" in prompt
+    assert "형식 변환" not in prompt
+
+
+def test_rewrite_slides_issues_keeps_pattern():
+    flat = {
+        "title": "전략",
+        "key_message": "핵심",
+        "points": ["a", "b", "c"],
+    }
+    with patch.object(designer, "_call_design_llm", return_value=flat) as mock:
+        out = designer.rewrite_slides(
+            _deck(), [1],
+            md_text="## 전략",
+            meta={},
+            rework_mode="issues",
+            issue_types=["language"],
+            other_note="번역체 제거",
+        )
+    assert out.slides[1].pattern == "summary"
+    prompt = mock.call_args[0][0]
+    assert "문제 교정" in prompt
+    assert "번역체 제거" in prompt

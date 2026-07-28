@@ -911,9 +911,12 @@ class PageNumberReq(BaseModel):
 
 class ReworkReq(BaseModel):
     slide_indices: list[int]
+    mode: Literal["format", "density", "issues"] = "format"
     body_type: Optional[str] = None  # 요약형|서술형|표형|도형형
     pattern: Optional[str] = None
     density_action: Optional[Literal["expand", "condense"]] = None
+    issue_types: list[str] = Field(default_factory=list)
+    other_note: Optional[str] = None
     model: Optional[str] = None
     template_id: Optional[str] = None
     master_style: Optional[MasterStyleReq] = None
@@ -922,7 +925,7 @@ class ReworkReq(BaseModel):
 
 @app.post("/api/design/rework")
 def run_design_rework(req: ReworkReq) -> dict:
-    """선택 페이지 형식 변경 · 밀도(추가/간략) 교정."""
+    """선택 페이지 — 형식 변경 / 밀도 조정 / 문제 교정 (mode별 분리)."""
     from src import llm
     from src.config import IRIS_LLM_DEEP
     from src.engine.output.deck import designer
@@ -931,6 +934,44 @@ def run_design_rework(req: ReworkReq) -> dict:
     deck = _state.get("deck")
     if not deck:
         raise HTTPException(400, "먼저 ③설계를 실행하세요")
+    if not req.slide_indices:
+        return JSONResponse({"ok": False, "error": "교정할 페이지를 선택하세요."}, status_code=422)
+
+    if req.mode == "format":
+        if not req.body_type and not req.pattern:
+            return JSONResponse(
+                {"ok": False, "error": "형식(요약/서술/표/도형)을 선택하세요."},
+                status_code=422,
+            )
+        body_type = req.body_type
+        pattern = req.pattern
+        density_action = None
+        issue_types: list[str] = []
+        other_note = None
+    elif req.mode == "density":
+        if not req.density_action:
+            return JSONResponse(
+                {"ok": False, "error": "밀도 조치(내용 추가/간략히)를 선택하세요."},
+                status_code=422,
+            )
+        body_type = None
+        pattern = None
+        density_action = req.density_action
+        issue_types = []
+        other_note = None
+    else:  # issues
+        note = (req.other_note or "").strip()
+        if not req.issue_types and not note:
+            return JSONResponse(
+                {"ok": False, "error": "문제 유형을 선택하거나 수정 요청을 입력하세요."},
+                status_code=422,
+            )
+        body_type = None
+        pattern = None
+        density_action = None
+        issue_types = list(req.issue_types)
+        other_note = note or None
+
     md = _state.get("expand_md") or ""
     meta = _state.get("expand_meta") or _default_meta("한국어")
     used_model = req.model or llm.resolve_available_model(IRIS_LLM_DEEP) or IRIS_LLM_DEEP
@@ -941,9 +982,12 @@ def run_design_rework(req: ReworkReq) -> dict:
             list(req.slide_indices),
             md_text=md,
             meta=meta,
-            new_pattern=req.pattern,
-            body_type=req.body_type,
-            density_action=req.density_action,
+            new_pattern=pattern,
+            body_type=body_type,
+            density_action=density_action,
+            rework_mode=req.mode,
+            issue_types=issue_types,
+            other_note=other_note,
             model=used_model,
             timeout=600,
         )

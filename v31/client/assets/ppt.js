@@ -287,14 +287,6 @@ function clearAllPages() {
 
 function onIssueTypeToggle(typeId) {
   state.renderReview.issueTypes = toggleIssueType(state.renderReview.issueTypes, typeId);
-  if (!state.renderReview.issueTypes.includes('content-density')) {
-    state.renderReview.densityAction = '';
-  } else if (!state.renderReview.densityAction) {
-    state.renderReview.densityAction = 'expand';
-  }
-  if (state.renderReview.issueTypes.includes('layout') && !state.renderReview.targetBodyType) {
-    state.renderReview.targetBodyType = '도형형';
-  }
   render();
 }
 
@@ -304,11 +296,6 @@ function onOtherNoteChange(v) {
 
 function onDensityActionChange(v) {
   state.renderReview.densityAction = v;
-  if (v) {
-    if (!state.renderReview.issueTypes.includes('content-density')) {
-      state.renderReview.issueTypes = [...state.renderReview.issueTypes, 'content-density'];
-    }
-  }
   render();
 }
 
@@ -345,81 +332,76 @@ const SHAPE_PATTERN_OPTS = [
   ['agenda', '아젠다'],
 ];
 
-function reviewHint() {
+function resolveTargetPattern(bodyType) {
+  if (bodyType === '도형형') return state.renderReview.targetPattern || 'card-grid-4';
+  if (bodyType === '요약형') return 'summary';
+  if (bodyType === '서술형') return 'narrative';
+  if (bodyType === '표형') return 'table';
+  return null;
+}
+
+function reviewHintForTab(tab) {
   const n = state.renderReview.selectedPages.length;
-  const issues = state.renderReview.issueTypes;
   if (!n) return '문제가 있는 페이지를 먼저 선택하세요.';
-  if (!issues.length && !state.renderReview.targetBodyType && !state.renderReview.densityAction) {
-    return '형식 변경 또는 문제 유형을 선택하세요.';
-  }
-  const parts = [];
-  if (state.renderReview.targetBodyType) {
+  if (tab === 'format') {
+    if (!state.renderReview.targetBodyType) {
+      return '형식(요약/서술/표/도형)을 선택한 뒤 [형식 적용]을 누르세요.';
+    }
     let fmt = state.renderReview.targetBodyType;
     if (fmt === '도형형') fmt += ` · ${state.renderReview.targetPattern}`;
-    parts.push(`형식 → ${fmt}`);
+    return `선택 ${n}페이지 → ${fmt} 으로 변환`;
   }
-  if (issues.includes('content-density') && state.renderReview.densityAction) {
-    parts.push(state.renderReview.densityAction === 'expand' ? '내용 추가' : '내용 간략히');
+  if (tab === 'density') {
+    if (!state.renderReview.densityAction) {
+      return '내용 추가 또는 간략히를 선택한 뒤 [밀도 조정]을 누르세요.';
+    }
+    const lab = state.renderReview.densityAction === 'expand' ? '내용 추가' : '내용 간략히';
+    return `선택 ${n}페이지 · 현재 형식 유지 · ${lab}`;
   }
   const labels = {
     language: '언어 오류',
-    'content-density': '내용 밀도',
     'text-overflow': '글자 겹침',
     layout: '레이아웃',
     other: '기타',
   };
-  const issueLab = issues.map((t) => labels[t] || t).join(' · ');
-  if (issueLab) parts.push(issueLab);
-  return `선택한 ${n}개 페이지: ${parts.join(' · ') || '교정 준비'}`;
-}
-
-function canRework() {
-  const n = state.renderReview.selectedPages.length;
-  if (!n || state.reworkBusy) return false;
-  const hasFmt = !!state.renderReview.targetBodyType;
-  const hasDensity = !!state.renderReview.densityAction;
-  return hasFmt || hasDensity;
-}
-
-async function runRework() {
-  if (!canRework()) {
-    error = '페이지를 선택하고 [형식] 또는 [밀도] 옵션을 지정하세요.';
-    render();
-    return;
+  const issues = state.renderReview.issueTypes.map((t) => labels[t] || t);
+  if (!issues.length && !state.renderReview.otherNote.trim()) {
+    return '문제 유형을 선택하거나 수정 요청을 입력하세요.';
   }
+  return `선택 ${n}페이지 · ${issues.join(' · ') || '기타 요청'}`;
+}
+
+function canFormatApply() {
+  return state.renderReview.selectedPages.length > 0
+    && !!state.renderReview.targetBodyType
+    && !state.reworkBusy;
+}
+
+function canDensityAdjust() {
+  return state.renderReview.selectedPages.length > 0
+    && !!state.renderReview.densityAction
+    && !state.reworkBusy;
+}
+
+function canIssueFix() {
+  return state.renderReview.selectedPages.length > 0
+    && (state.renderReview.issueTypes.length > 0 || !!state.renderReview.otherNote.trim())
+    && !state.reworkBusy;
+}
+
+async function applyRework(payload) {
   state.reworkBusy = true;
   error = null;
   render();
   const keptSelection = [...state.renderReview.selectedPages];
   try {
-    const bodyType = state.renderReview.targetBodyType || null;
-    let pattern = null;
-    if (bodyType === '도형형') {
-      pattern = state.renderReview.targetPattern || 'card-grid-4';
-    } else if (bodyType === '요약형') {
-      pattern = 'summary';
-    } else if (bodyType === '서술형') {
-      pattern = 'narrative';
-    } else if (bodyType === '표형') {
-      pattern = 'table';
-    }
-    const densityAction = state.renderReview.issueTypes.includes('content-density')
-      || state.renderReview.panelTab === 'density'
-      || state.renderReview.densityAction
-      ? (state.renderReview.densityAction || null)
-      : null;
-    // 밀도만 쓸 때도 issue에 content-density 없으면 옵션만으로 통과
-    const effectiveDensity = state.renderReview.densityAction || densityAction;
-
     const data = await api('/api/design/rework', {
       method: 'POST',
       body: JSON.stringify({
         slide_indices: keptSelection,
-        body_type: bodyType,
-        pattern,
-        density_action: effectiveDensity || null,
         model: effectiveDesignModel(),
         ...stylePayload(),
+        ...payload,
       }),
     });
     if (state.designResult) {
@@ -438,7 +420,6 @@ async function runRework() {
       }));
       state.previewError = null;
     } else {
-      // 선택 유지한 채 프리뷰만 재생성
       state.previewBusy = true;
       render();
       try {
@@ -463,11 +444,68 @@ async function runRework() {
     state.renderReview.selectedPages = keptSelection;
     error = null;
   } catch (e) {
-    error = '페이지 교정 실패: ' + e.message;
+    error = e.message;
   }
   state.reworkBusy = false;
   render();
   requestAnimationFrame(scalePreviewFrames);
+}
+
+async function runFormatApply() {
+  if (!canFormatApply()) {
+    error = '페이지를 선택하고 형식(요약/서술/표/도형)을 지정하세요.';
+    render();
+    return;
+  }
+  const bodyType = state.renderReview.targetBodyType;
+  await applyRework({
+    mode: 'format',
+    body_type: bodyType,
+    pattern: resolveTargetPattern(bodyType),
+    density_action: null,
+    issue_types: [],
+    other_note: null,
+  });
+}
+
+async function runDensityAdjust() {
+  if (!canDensityAdjust()) {
+    error = '페이지를 선택하고 밀도 조치(추가/간략)를 지정하세요.';
+    render();
+    return;
+  }
+  await applyRework({
+    mode: 'density',
+    body_type: null,
+    pattern: null,
+    density_action: state.renderReview.densityAction,
+    issue_types: [],
+    other_note: null,
+  });
+}
+
+async function runIssueFix() {
+  if (!canIssueFix()) {
+    error = '페이지를 선택하고 문제 유형 또는 수정 요청을 입력하세요.';
+    render();
+    return;
+  }
+  await applyRework({
+    mode: 'issues',
+    body_type: null,
+    pattern: null,
+    density_action: null,
+    issue_types: [...state.renderReview.issueTypes],
+    other_note: state.renderReview.otherNote.trim() || null,
+  });
+}
+
+// 구 호환 — 외부에서 runRework 호출 시 현재 탭에 맞게 위임
+async function runRework() {
+  const tab = state.renderReview.panelTab || 'format';
+  if (tab === 'density') await runDensityAdjust();
+  else if (tab === 'issues') await runIssueFix();
+  else await runFormatApply();
 }
 
 async function api(path, opts) {
@@ -1338,7 +1376,6 @@ const PANEL_FNS = [panelSource, panelExpand, panelDesign, panelRender];
 
 const ISSUE_TYPES = [
   ['language', '언어 오류'],
-  ['content-density', '내용 밀도 오류'],
   ['text-overflow', '글자 겹침 또는 잘림'],
   ['layout', '페이지 형식·레이아웃 오류'],
   ['other', '기타'],
@@ -1354,10 +1391,7 @@ function sideReviewPanel() {
     </label>`;
   }).join('');
   const showOther = state.renderReview.issueTypes.includes('other');
-  const ready = canRework();
-  const btnLab = state.reworkBusy
-    ? '<span class="spin"></span>LLM 교정 중…'
-    : '선택 페이지 교정';
+  const busyLab = state.reworkBusy ? '<span class="spin"></span>LLM 처리 중…' : null;
 
   const tabs = [
     ['format', '형식'],
@@ -1369,27 +1403,30 @@ function sideReviewPanel() {
   ).join('');
 
   const formatPane = `
-    <p class="expand-note" style="margin-bottom:10px">선택 페이지의 표현 형식을 바꿉니다. 서술형→도형형/표형 등이 가능합니다.</p>
+    <p class="expand-note" style="margin-bottom:10px">선택 페이지의 <strong>표현 형식</strong>만 바꿉니다. 서술형→도형형/표형 등.</p>
     <div class="format-pills">
       ${BODY_TYPE_OPTS.filter(([v]) => v).map(([v, lab]) =>
         `<button type="button" class="format-pill ${state.renderReview.targetBodyType === v ? 'on' : ''}"
           onclick="onTargetBodyTypeChange('${v}')" ${state.reworkBusy ? 'disabled' : ''}>${lab}</button>`
       ).join('')}
-      <button type="button" class="format-pill ${!state.renderReview.targetBodyType ? 'on' : ''}"
-        onclick="onTargetBodyTypeChange('')" ${state.reworkBusy ? 'disabled' : ''}>유지</button>
     </div>
     ${state.renderReview.targetBodyType === '도형형' ? `
     <div class="input-group" style="margin-top:12px">
       <label class="input-label">도형 레이아웃</label>
-      <select class="select-field" onchange="onTargetPatternChange(this.value)" ${state.reworkBusy ? 'disabled' : ''}>
+      <select class="select-field review-select" onchange="onTargetPatternChange(this.value)" ${state.reworkBusy ? 'disabled' : ''}>
         ${SHAPE_PATTERN_OPTS.map(([v, lab]) =>
           `<option value="${esc(v)}" ${state.renderReview.targetPattern === v ? 'selected' : ''}>${esc(lab)}</option>`
         ).join('')}
       </select>
-    </div>` : ''}`;
+    </div>` : ''}
+    <div class="review-hint">${esc(reviewHintForTab('format'))}</div>
+    <button type="button" class="header-btn primary review-action"
+      ${canFormatApply() ? '' : 'disabled'} onclick="runFormatApply()">
+      ${busyLab && tab === 'format' ? busyLab : '형식 적용'}
+    </button>`;
 
   const densityPane = `
-    <p class="expand-note" style="margin-bottom:10px">선택 페이지 분량을 LLM으로 늘리거나 줄입니다.</p>
+    <p class="expand-note" style="margin-bottom:10px">선택 페이지 <strong>분량만</strong> 조정합니다. 형식은 유지됩니다.</p>
     <label class="issue-item">
       <input type="radio" name="densityAction" value="expand"
         ${state.renderReview.densityAction === 'expand' ? 'checked' : ''}
@@ -1403,9 +1440,15 @@ function sideReviewPanel() {
       <span>내용 간략히</span>
     </label>
     <button type="button" class="btn-ghost btn-sm" style="margin-top:8px"
-      onclick="onDensityActionChange('')" ${state.reworkBusy ? 'disabled' : ''}>밀도 조치 해제</button>`;
+      onclick="onDensityActionChange('')" ${state.reworkBusy ? 'disabled' : ''}>밀도 조치 해제</button>
+    <div class="review-hint">${esc(reviewHintForTab('density'))}</div>
+    <button type="button" class="header-btn primary review-action"
+      ${canDensityAdjust() ? '' : 'disabled'} onclick="runDensityAdjust()">
+      ${busyLab && tab === 'density' ? busyLab : '밀도 조정'}
+    </button>`;
 
   const issuesPane = `
+    <p class="expand-note" style="margin-bottom:10px">선택 페이지의 <strong>오류만</strong> 교정합니다. 형식·밀도는 바꾸지 않습니다.</p>
     <fieldset class="issue-fieldset">
       <legend>문제 유형</legend>
       ${checks}
@@ -1413,7 +1456,12 @@ function sideReviewPanel() {
     ${showOther ? `<div class="field" style="margin-top:10px">
       <label>수정 요청을 입력하세요</label>
       <textarea rows="3" oninput="onOtherNoteChange(this.value)">${esc(state.renderReview.otherNote)}</textarea>
-    </div>` : ''}`;
+    </div>` : ''}
+    <div class="review-hint">${esc(reviewHintForTab('issues'))}</div>
+    <button type="button" class="header-btn primary review-action"
+      ${canIssueFix() ? '' : 'disabled'} onclick="runIssueFix()">
+      ${busyLab && tab === 'issues' ? busyLab : '문제 교정'}
+    </button>`;
 
   const pane = tab === 'density' ? densityPane : (tab === 'issues' ? issuesPane : formatPane);
 
@@ -1424,10 +1472,7 @@ function sideReviewPanel() {
     <div class="card-body">
       <div class="review-tabs">${tabs}</div>
       <div class="review-pane">${pane}</div>
-      <div class="review-hint">${esc(reviewHint())}</div>
-      <button type="button" class="header-btn primary" style="width:100%;margin-top:12px"
-        ${ready ? '' : 'disabled'} onclick="runRework()">${btnLab}</button>
-      <div class="src-settings-note" style="margin-top:10px">선택한 페이지만 LLM으로 다시 그립니다. 실패 시 상단 오류 메시지를 확인하세요.</div>
+      <div class="src-settings-note" style="margin-top:10px">형식·밀도·문제는 각 탭에서 독립 실행됩니다. 실패 시 상단 오류를 확인하세요.</div>
     </div>`;
 }
 
@@ -1479,7 +1524,7 @@ function render() {
   const phaseBusy = busy || !!state.expandBusy || state.reworkBusy;
   const nextLab = state.expandBusy === 'regen' ? '1차 변환 중…'
     : state.expandBusy === 'classify' ? '2차 분류 중…'
-    : state.reworkBusy ? '페이지 교정 중…'
+    : state.reworkBusy ? 'LLM 처리 중…'
     : (busy ? '처리 중…' : nextLabels()[step]);
   document.getElementById('next-btn').textContent = nextLab;
   document.getElementById('next-btn').disabled = phaseBusy;

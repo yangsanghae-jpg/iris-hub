@@ -584,6 +584,44 @@ def _density_action_directive(action: str | None) -> str:
     return ""
 
 
+def _format_change_directive(old_pattern: str, target_pattern: str) -> str:
+    if old_pattern == target_pattern:
+        return ""
+    return (
+        f"## 형식 변환 (필수)\n"
+        f"- 이전 pattern: {old_pattern}\n"
+        f"- 새 pattern: **{target_pattern}**\n"
+        f"- 사실·주제는 보존하되 슬롯 구조를 *{target_pattern}* 에 맞게 "
+        f"완전히 재구성한다.\n"
+        f"- {old_pattern} 전용 필드를 그대로 두지 말고 "
+        f"{target_pattern} 슬롯 스키마만 채운다.\n"
+    )
+
+
+_ISSUE_DIRECTIVES = {
+    "language": "언어·표현 오류 — 맞춤법, 번역체, 부적절한 어휘를 고친다.",
+    "text-overflow": "글자 겹침·잘림 — 텍스트 길이를 줄이거나 슬롯 분배를 조정한다.",
+    "layout": "레이아웃·정렬 — 같은 pattern 안에서 배치·구조를 개선한다.",
+    "other": "기타 — 사용자 메모를 반영한다.",
+}
+
+
+def _issue_directive(issue_types: list[str] | None, other_note: str | None) -> str:
+    items = [t for t in (issue_types or []) if t]
+    note = (other_note or "").strip()
+    if not items and not note:
+        return ""
+    lines = [_ISSUE_DIRECTIVES.get(t, t) for t in items]
+    if note:
+        lines.append(f"사용자 요청: {note}")
+    body = "\n".join(f"- {ln}" for ln in lines)
+    return (
+        "## 문제 교정 지시\n"
+        f"{body}\n"
+        "- pattern·body-type은 유지하고 위 문제만 해결한다.\n"
+    )
+
+
 def rewrite_slides(
     deck: Deck,
     slide_indices: list[int],
@@ -593,13 +631,18 @@ def rewrite_slides(
     new_pattern: str | None = None,
     body_type: str | None = None,
     density_action: str | None = None,
+    rework_mode: str | None = None,
+    issue_types: list[str] | None = None,
+    other_note: str | None = None,
     model: str | None = None,
     timeout: float = 300.0,
 ) -> Deck:
-    """선택 슬라이드를 새 pattern(또는 동일 pattern)으로 LLM 재작성.
+    """선택 슬라이드를 LLM 재작성.
 
-    - new_pattern / body_type 이 있으면 해당 pattern으로 변환
-    - density_action: expand | condense | None
+    rework_mode:
+    - format: body_type/pattern 으로 형식 변환 (밀도·문제 무시)
+    - density: 같은 pattern 유지 + 밀도 조정
+    - issues: 같은 pattern 유지 + 문제 유형 교정
     """
     from src.engine.output.deck.pattern_contract import (
         PATTERN_BODY_TYPE,
@@ -619,10 +662,11 @@ def rewrite_slides(
         raise DesignError(f"알 수 없는 body_type: {body_type}")
     if density_action and density_action not in ("expand", "condense"):
         raise DesignError(f"알 수 없는 density_action: {density_action}")
+    if rework_mode and rework_mode not in ("format", "density", "issues"):
+        raise DesignError(f"알 수 없는 rework_mode: {rework_mode}")
 
     bodies = split_slide_bodies(md_text) if md_text else []
     new_slides = list(deck.slides)
-    density_block = _density_action_directive(density_action)
 
     for idx in slide_indices:
         if idx < 0 or idx >= len(new_slides):
@@ -630,7 +674,23 @@ def rewrite_slides(
         old = new_slides[idx]
         if old.pattern == "cover":
             raise DesignError("표지(cover) 패턴은 교정 대상이 아닙니다")
-        target_pattern = pattern or old.pattern
+
+        if rework_mode == "density":
+            target_pattern = old.pattern
+            density_block = _density_action_directive(density_action)
+            format_block = ""
+            issue_block = ""
+        elif rework_mode == "issues":
+            target_pattern = old.pattern
+            density_block = ""
+            format_block = ""
+            issue_block = _issue_directive(issue_types, other_note)
+        else:
+            target_pattern = pattern or old.pattern
+            density_block = _density_action_directive(density_action)
+            format_block = _format_change_directive(old.pattern, target_pattern)
+            issue_block = ""
+
         if target_pattern == "cover":
             raise DesignError("표지(cover) 패턴으로 변경할 수 없습니다")
 
@@ -648,7 +708,7 @@ def rewrite_slides(
 - 이전 pattern: {old.pattern}
 - 반드시 JSON *객체 하나*만 출력. 설명·마크다운·코드펜스 금지.
 
-{density_block}
+{format_block}{density_block}{issue_block}
 ## 패턴 슬롯 스키마
 {slots}
 

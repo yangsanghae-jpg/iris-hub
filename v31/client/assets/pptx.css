@@ -317,6 +317,15 @@
 #tab-ppt .format-pill.on {
   background: #18181b; color: #fafafa; border-color: #18181b;
 }
+#tab-ppt .review-action {
+  width: 100%; margin-top: 12px;
+}
+#tab-ppt .review-select option:checked {
+  background: #18181b; color: #fafafa;
+}
+#tab-ppt .review-select:focus {
+  outline: 2px solid #a1a1aa; outline-offset: 1px;
+}
 
 /* Progress strip */
 #tab-ppt .progress-strip {
