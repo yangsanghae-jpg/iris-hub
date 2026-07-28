@@ -1005,6 +1005,85 @@ def ppt_templates() -> dict:
     return templates_api_payload()
 
 
+# ---- PPT source upload (multi-format) ------------------------------------
+# V2.9 — PPT 탭 ①소스에서 .md/.txt 외에 .pdf/.docx/.pptx/.xlsx도 서버 변환으로
+# 받는다. intake_upload(/api/intake/upload)와는 별도 경로 — PPT 탭은 raw 폴더에
+# 저장하지 않고 변환된 마크다운 텍스트만 클라이언트에 돌려준다.
+PPT_UPLOAD_MAX_BYTES = 20 * 1024 * 1024  # 20MB
+PPT_SOURCE_EXTENSIONS = [".md", ".txt", ".pdf", ".docx", ".pptx", ".xlsx"]
+
+_LEGACY_UPGRADE_HINT = {".ppt": ".pptx", ".doc": ".docx", ".xls": ".xlsx"}
+
+
+@app.get("/api/ppt/source/formats")
+def ppt_source_formats() -> dict:
+    """PPT 탭 소스 업로드가 허용하는 포맷 메타. 클라이언트 dropzone accept/label 배선용."""
+    mb = PPT_UPLOAD_MAX_BYTES // (1024 * 1024)
+    return {
+        "ok": True,
+        "extensions": PPT_SOURCE_EXTENSIONS,
+        "accept": ",".join(PPT_SOURCE_EXTENSIONS),
+        "max_bytes": PPT_UPLOAD_MAX_BYTES,
+        "label": f"{' · '.join(PPT_SOURCE_EXTENSIONS)} · 최대 {mb}MB",
+    }
+
+
+@app.post("/api/ppt/source/convert")
+def ppt_source_convert(file: _UploadFile = None):
+    """업로드된 파일을 마크다운으로 변환해 반환. 파일은 디스크에 남기지 않는다."""
+    from src.engine.intake import converter
+
+    if file is None or not file.filename:
+        return JSONResponse({"error": "file required"}, status_code=400)
+
+    filename = file.filename
+    suffix = Path(filename).suffix.lower()
+    content = file.file.read()
+    size = len(content)
+
+    if size == 0:
+        return JSONResponse({"error": "빈 파일은 업로드할 수 없습니다"}, status_code=400)
+    if size > PPT_UPLOAD_MAX_BYTES:
+        mb = PPT_UPLOAD_MAX_BYTES // (1024 * 1024)
+        return JSONResponse(
+            {"error": f"파일이 너무 큽니다 (최대 {mb}MB)"}, status_code=413,
+        )
+    if suffix in converter.LEGACY_BINARY_SUFFIXES:
+        upgrade = _LEGACY_UPGRADE_HINT.get(suffix, "")
+        return JSONResponse(
+            {"error": f"레거시 포맷({suffix})은 지원하지 않습니다. {upgrade}로 저장한 뒤 다시 업로드하세요."},
+            status_code=415,
+        )
+    if suffix not in PPT_SOURCE_EXTENSIONS:
+        return JSONResponse(
+            {"error": f"지원하지 않는 포맷입니다: {suffix or '(확장자 없음)'}"}, status_code=415,
+        )
+
+    tmp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+        result = converter.convert_with_meta(tmp_path, enable_ocr=True)
+    except converter.ConversionError as e:
+        return JSONResponse({"error": f"변환 실패: {e}"}, status_code=422)
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+
+    return {
+        "ok": True,
+        "filename": filename,
+        "text": result.body,
+        "extraction_method": result.extraction_method,
+        "pages": result.pages,
+        "ocr_pages": result.ocr_pages,
+    }
+
+
 # =========================================================================
 # Static files mount — API routes AFTER (order matters in FastAPI)
 # =========================================================================

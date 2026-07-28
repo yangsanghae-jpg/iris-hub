@@ -1,7 +1,8 @@
 """V2.6.3.10 — 비-마크다운 → 마크다운 변환기.
 V2.6.3.11 — 스캔 PDF OCR fallback 추가.
+V2.9 — PPT 탭 소스 업로드: .xlsx 지원 추가, enable_ocr 플래그.
 
-목적: PDF/PPTX/DOCX 등 비-텍스트 포맷도 archive 우선 파이프라인에 박을 수 있게.
+목적: PDF/PPTX/DOCX/XLSX 등 비-텍스트 포맷도 archive 우선 파이프라인에 박을 수 있게.
       original.<ext>는 그대로 보존, content.md는 변환된 마크다운.
 
 지원 포맷:
@@ -9,6 +10,10 @@ V2.6.3.11 — 스캔 PDF OCR fallback 추가.
   .pdf          → pdfplumber 추출 (페이지 단위), 스캔본 의심 시 Tesseract OCR fallback
   .pptx, .ppt   → python-pptx (슬라이드 단위)
   .docx, .doc   → mammoth (마크다운 직접 변환)
+  .xlsx         → openpyxl (시트 단위 표)
+
+레거시 바이너리 포맷(.ppt/.doc/.xls)은 converter 자체는 계속 지원하지만,
+PPT 탭 업로드 API(v31/server.py)는 OOXML만 받는다 — LEGACY_BINARY_SUFFIXES 참조.
 
 OCR 정책 (V2.6.3.11):
   - PDF 추출 결과의 페이지당 평균 글자수 < IRIS_OCR_MIN_CHARS (기본 20)
@@ -27,8 +32,12 @@ import os
 from pathlib import Path
 
 
-SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf", ".pptx", ".ppt", ".docx", ".doc"}
+SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf", ".pptx", ".ppt", ".docx", ".doc", ".xlsx"}
 LOSSLESS_SUFFIXES = {".md", ".txt"}   # 마크다운/텍스트 = original==content
+
+# PPT 탭 업로드 등에서 "레거시 바이너리 → OOXML로 저장 요청" 안내에 사용.
+# converter 자체는 .ppt/.doc를 계속 변환하지만, 신규 업로드 경로는 거부한다.
+LEGACY_BINARY_SUFFIXES = {".ppt", ".doc", ".xls"}
 
 
 class ConversionError(Exception):
@@ -56,8 +65,12 @@ def convert_to_markdown(src: Path) -> str:
     return convert_with_meta(src).body
 
 
-def convert_with_meta(src: Path) -> ConversionResult:
-    """변환 + 메타 반환. PDF의 OCR 사용 여부 등 호출자가 manifest에 박을 수 있게."""
+def convert_with_meta(src: Path, enable_ocr: bool = True) -> ConversionResult:
+    """변환 + 메타 반환. PDF의 OCR 사용 여부 등 호출자가 manifest에 박을 수 있게.
+
+    enable_ocr=False면 PDF 변환 시 OCR fallback을 건너뛰고 텍스트 추출만 사용한다
+    (빠른 미리보기 등). 기본값 True — 기존 호출자(folder_load 등) 동작 보존.
+    """
     if not src.exists():
         raise ConversionError(f"파일 없음: {src}")
 
@@ -65,11 +78,13 @@ def convert_with_meta(src: Path) -> ConversionResult:
     if suf in {".md", ".txt"}:
         return ConversionResult(_convert_text(src), extraction_method="text")
     elif suf == ".pdf":
-        return _convert_pdf_with_meta(src)
+        return _convert_pdf_with_meta(src, enable_ocr=enable_ocr)
     elif suf in {".pptx", ".ppt"}:
         return ConversionResult(_convert_pptx(src), extraction_method="text")
     elif suf in {".docx", ".doc"}:
         return ConversionResult(_convert_docx(src), extraction_method="text")
+    elif suf == ".xlsx":
+        return ConversionResult(_convert_xlsx(src), extraction_method="text")
     else:
         raise ConversionError(f"지원 안 함: {suf}")
 
@@ -88,7 +103,7 @@ def _convert_text(src: Path) -> str:
     return text
 
 
-def _convert_pdf_with_meta(src: Path) -> ConversionResult:
+def _convert_pdf_with_meta(src: Path, enable_ocr: bool = True) -> ConversionResult:
     """PDF — 페이지별 분기 (V2.7.4 hybrid).
 
     페이지마다:
@@ -97,6 +112,8 @@ def _convert_pdf_with_meta(src: Path) -> ConversionResult:
 
     이전 V2.6.3.11은 *전체 평균*으로 판단 → 부분 스캔 PDF에서 텍스트 페이지 손실
     또는 불필요한 전체 OCR 발생. V2.7.4는 페이지별 결정으로 정밀화.
+
+    enable_ocr=False면 OCR fallback을 건너뛰고 텍스트 추출 결과만 사용한다.
     """
     try:
         import pdfplumber
@@ -121,11 +138,11 @@ def _convert_pdf_with_meta(src: Path) -> ConversionResult:
     if page_count == 0:
         return ConversionResult(body="", extraction_method="text", pages=0)
 
-    # 2) OCR 필요한 페이지 번호 식별
+    # 2) OCR 필요한 페이지 번호 식별 (enable_ocr=False면 전부 스킵)
     ocr_needed_pages = [
         pno for pno, text, _tables in page_data
         if len(text) < OCR_MIN_CHARS
-    ]
+    ] if enable_ocr else []
 
     # 3) OCR 일괄 수행 (필요한 페이지만)
     ocr_pages = 0
@@ -300,6 +317,32 @@ def _convert_docx(src: Path) -> str:
         raise ConversionError(f"DOCX 파싱 실패: {type(e).__name__}: {e}")
 
 
+def _convert_xlsx(src: Path) -> str:
+    """XLSX — openpyxl로 시트 단위 표 추출 (수식은 계산된 값으로)."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError as e:
+        raise ConversionError(f"openpyxl 미설치: {e}")
+
+    out: list[str] = []
+    try:
+        wb = load_workbook(filename=str(src), read_only=True, data_only=True)
+        try:
+            for name in wb.sheetnames:
+                ws = wb[name]
+                rows = [list(row) for row in ws.iter_rows(values_only=True)]
+                md_table = _list_table_to_markdown(rows)
+                if md_table:
+                    out.append(f"## 시트: {name}\n\n{md_table}")
+        finally:
+            wb.close()
+    except ConversionError:
+        raise
+    except Exception as e:
+        raise ConversionError(f"XLSX 파싱 실패: {type(e).__name__}: {e}")
+    return "\n\n".join(out)
+
+
 # ─── 유틸 ────────────────────────────────────────────────────────────
 def _list_table_to_markdown(rows: list[list]) -> str:
     """2D 리스트 → 마크다운 표. None/빈 셀은 공백으로."""
@@ -327,7 +370,7 @@ def _list_table_to_markdown(rows: list[list]) -> str:
 
 
 __all__ = [
-    "SUPPORTED_SUFFIXES", "LOSSLESS_SUFFIXES",
+    "SUPPORTED_SUFFIXES", "LOSSLESS_SUFFIXES", "LEGACY_BINARY_SUFFIXES",
     "ConversionError", "ConversionResult",
     "convert_to_markdown", "convert_with_meta",
 ]

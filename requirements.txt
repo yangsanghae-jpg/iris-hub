@@ -18,3 +18,5 @@ pypdf>=4.0
 fastapi>=0.115
 uvicorn>=0.30
 python-multipart>=0.0.9
+# V2.9 — PPT 탭 소스 업로드: .xlsx 지원
+openpyxl>=3.1

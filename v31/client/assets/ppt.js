@@ -2,7 +2,9 @@ const STEP_LABELS = [
   '소스', '확장', '디자인', '렌더',
 ];
 const STEP_TITLES = STEP_LABELS.map((lab) => ({ lab }));
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const TEXT_UPLOAD_EXTENSIONS = ['.md', '.txt'];
+const DEFAULT_UPLOAD_EXTENSIONS = ['.md', '.txt', '.pdf', '.docx', '.pptx', '.xlsx'];
+let MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // fallback — /api/ppt/source/formats가 있으면 그 값으로 교체
 const DENSITY_OPTS = [
   ['spacious', '여유'],
   ['standard', '보통'],
@@ -34,6 +36,13 @@ const state = {
   mdText: SAMPLE_MD,
   uploadName: null,
   uploadSize: null,
+  uploadBusy: false,
+  sourceFormats: {
+    extensions: DEFAULT_UPLOAD_EXTENSIONS,
+    accept: DEFAULT_UPLOAD_EXTENSIONS.join(','),
+    max_bytes: MAX_UPLOAD_BYTES,
+    label: '',
+  },
   lang: '한국어',
   pageCount: '자동 (LLM 판단)',
   model: null,
@@ -301,16 +310,36 @@ async function api(path, opts) {
   return data;
 }
 
+// api()와 달리 Content-Type을 강제하지 않는다 — multipart/form-data 경계는
+// 브라우저가 FormData 전송 시 자동으로 설정해야 하므로, 여기서 헤더를 지정하면 깨진다.
+async function apiUpload(path, formData) {
+  const res = await fetch(path, { method: 'POST', body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = data.error || data.detail;
+    const msg = typeof detail === 'string'
+      ? detail
+      : (Array.isArray(detail) ? detail.map((d) => d.msg || JSON.stringify(d)).join('; ') : null);
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
 async function init() {
   buildStepper();
   render();
   try {
-    const [models, sources, templates] = await Promise.all([
+    const [models, sources, templates, formats] = await Promise.all([
       api('/api/models'),
       api('/api/sources'),
       api('/api/ppt/templates'),
+      api('/api/ppt/source/formats').catch(() => null),
     ]);
     state.models = models.models;
+    if (formats && Array.isArray(formats.extensions)) {
+      state.sourceFormats = formats;
+      if (formats.max_bytes) MAX_UPLOAD_BYTES = formats.max_bytes;
+    }
     state.model = models.default && models.models.includes(models.default)
       ? models.default : (models.models[0] || null);
     state.designModel = state.model;
@@ -419,12 +448,33 @@ function clearUpload() {
   render();
 }
 
-function applyUploadedFile(file) {
+function uploadExtOf(name) {
+  const lower = (name || '').toLowerCase();
+  const idx = lower.lastIndexOf('.');
+  return idx >= 0 ? lower.slice(idx) : '';
+}
+
+function allowedUploadExtensions() {
+  return (state.sourceFormats && state.sourceFormats.extensions) || DEFAULT_UPLOAD_EXTENSIONS;
+}
+
+function uploadAccept() {
+  return (state.sourceFormats && state.sourceFormats.accept) || allowedUploadExtensions().join(',');
+}
+
+function uploadLabel() {
+  if (state.sourceFormats && state.sourceFormats.label) return state.sourceFormats.label;
+  const mb = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
+  return `${allowedUploadExtensions().join(' · ')} · 최대 ${mb}MB`;
+}
+
+async function applyUploadedFile(file) {
   if (!file) return;
   const name = file.name || '';
-  const lower = name.toLowerCase();
-  if (!(lower.endsWith('.md') || lower.endsWith('.txt'))) {
-    error = '지원 확장자는 .md, .txt 입니다.';
+  const ext = uploadExtOf(name);
+  const allowed = allowedUploadExtensions();
+  if (!allowed.includes(ext)) {
+    error = `지원 확장자는 ${allowed.join(', ')} 입니다.`;
     render();
     return;
   }
@@ -438,22 +488,47 @@ function applyUploadedFile(file) {
     render();
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
+
+  if (TEXT_UPLOAD_EXTENSIONS.includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.uploadName = name;
+      state.uploadSize = file.size;
+      state.mdText = String(reader.result || '');
+      state.sourceMode = 'upload';
+      state.expandResult = null;
+      invalidateDesign();
+      error = null;
+      render();
+    };
+    reader.onerror = () => {
+      error = '파일을 읽지 못했습니다.';
+      render();
+    };
+    reader.readAsText(file);
+    return;
+  }
+
+  // 바이너리 포맷(.pdf/.docx/.pptx/.xlsx) — 서버 변환 경유
+  state.uploadBusy = true;
+  error = null;
+  render();
+  try {
+    const formData = new FormData();
+    formData.append('file', file, name);
+    const data = await apiUpload('/api/ppt/source/convert', formData);
     state.uploadName = name;
     state.uploadSize = file.size;
-    state.mdText = String(reader.result || '');
+    state.mdText = data.text || '';
     state.sourceMode = 'upload';
     state.expandResult = null;
     invalidateDesign();
     error = null;
-    render();
-  };
-  reader.onerror = () => {
-    error = '파일을 읽지 못했습니다.';
-    render();
-  };
-  reader.readAsText(file);
+  } catch (e) {
+    error = '파일 변환 실패: ' + e.message;
+  }
+  state.uploadBusy = false;
+  render();
 }
 
 function onFileUpload(input) {
@@ -688,18 +763,18 @@ function panelSource() {
     const sizeLab = state.uploadSize != null
       ? ` · ${(state.uploadSize / 1024).toFixed(1)} KB` : '';
     body = `
-      <div class="dropzone" id="dropzone" role="button" tabindex="0"
-           aria-label="마크다운 또는 텍스트 파일 업로드"
-           onclick="document.getElementById('file-input').click()"
+      <div class="dropzone ${state.uploadBusy ? 'is-busy' : ''}" id="dropzone" role="button" tabindex="0"
+           aria-label="문서 파일 업로드"
+           onclick="${state.uploadBusy ? '' : "document.getElementById('file-input').click()"}"
            onkeydown="onDropzoneKey(event)"
            ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-        <div class="dz-title">파일을 여기에 놓거나 클릭하여 선택</div>
-        <div class="dz-sub">.md · .txt · 최대 5MB</div>
+        <div class="dz-title">${state.uploadBusy ? '<span class="spin"></span>파일 변환 중…' : '파일을 여기에 놓거나 클릭하여 선택'}</div>
+        <div class="dz-sub">${esc(uploadLabel())}</div>
       </div>
-      <input id="file-input" type="file" accept=".md,.txt,text/markdown,text/plain" hidden onchange="onFileUpload(this)" />
+      <input id="file-input" type="file" accept="${esc(uploadAccept())}" hidden ${state.uploadBusy ? 'disabled' : ''} onchange="onFileUpload(this)" />
       ${state.uploadName ? `<div class="upload-meta">
         <span>선택: <strong>${esc(state.uploadName)}</strong>${sizeLab}</span>
-        <button type="button" class="btn-ghost btn-sm" onclick="clearUpload()">제거</button>
+        <button type="button" class="btn-ghost btn-sm" ${state.uploadBusy ? 'disabled' : ''} onclick="clearUpload()">제거</button>
       </div>
       <textarea rows="10" oninput="onMdTextChange(this)">${esc(state.mdText)}</textarea>` : ''}`;
   } else {
