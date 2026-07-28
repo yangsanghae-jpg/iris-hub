@@ -170,100 +170,151 @@
         <div class="tab-content" id="tab-truth" style="display:none">
           <div class="sec-head">
             <span class="sec-title">진실원</span>
-            <span class="sec-desc">DIAG-SOT — dx JSON 편집 · runtime 재생성 · 39팩 MANIFEST+LINEAGE</span>
+            <span class="sec-desc">팩 목록에서 고르고 값을 고친 뒤 리포트에 반영합니다</span>
+            <span class="intake-ready">DIAG-SOT</span>
           </div>
 
+          <!-- 툴바: 새로고침 · 개발자 보기 -->
+          <div class="sot-toolbar">
+            <button type="button" class="header-btn">새로고침</button>
+            <label class="sot-dev-toggle">
+              <input type="checkbox" />
+              개발자 보기
+            </label>
+          </div>
+
+          <!-- 상태 스트립 (8765 sot-v2-strip) -->
           <div class="sot-strip">
-            <strong>Q 5</strong> · <strong>A 34</strong> · 전체 <strong>39</strong>팩 · 미반영 <strong>2</strong>
-            <span class="subtle">· diagnosis-tool feat/diag-sot-sync</span>
-            <div class="mock-banner-actions">
-              <button type="button" class="btn-sm">새로고침</button>
-              <button type="button" class="btn-sm">되돌리기</button>
-              <button type="button" class="btn-sm">검증</button>
-              <button type="button" class="btn-sm primary">저장 · 재생성</button>
-            </div>
+            진실원 <strong>39</strong>팩 ·
+            <strong>12,480</strong>행 ·
+            아직 리포트에 안 넣은 팩 <strong>2</strong> ·
+            마지막 반영 <strong>07-28 09:14</strong>
           </div>
 
-          <div class="kpi">
-            <div class="kpi-card">
-              <span class="kpi-badge on">SYNCED</span>
-              <div class="kpi-k">MANIFEST</div>
-              <div class="kpi-v">39</div>
-              <div class="kpi-f">편입 팩</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-k">미반영</div>
-              <div class="kpi-v">2</div>
-              <div class="kpi-f">runtime 불일치</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-k">편집 모드</div>
-              <div class="kpi-v">dx</div>
-              <div class="kpi-f">JSON only write</div>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-badge on">OK</span>
-              <div class="kpi-k">검증</div>
-              <div class="kpi-v">PASS</div>
-              <div class="kpi-f">마지막 저장 일치</div>
-            </div>
-          </div>
-
-          <p class="subtle" style="font-size:14.5px;margin:0 0 8px">Q 팩 선택</p>
+          <!-- 팩 선택: Q pills -->
+          <p class="sot-section-title">팩 선택</p>
           <div class="pack-pills">
-            <button type="button" class="pack-pill active">Q1<br><span style="font-size:11px;font-weight:600">taxonomy</span></button>
-            <button type="button" class="pack-pill">Q2<br><span style="font-size:11px;font-weight:600">profile</span></button>
-            <button type="button" class="pack-pill">Q3<br><span style="font-size:11px;font-weight:600">scale</span></button>
-            <button type="button" class="pack-pill">Q4<br><span style="font-size:11px;font-weight:600">domain</span></button>
-            <button type="button" class="pack-pill">Q5<br><span style="font-size:11px;font-weight:600">recommend</span></button>
+            <button type="button" class="pack-pill">Q1<br><span>산업·제품</span></button>
+            <button type="button" class="pack-pill">Q2<br><span>라우팅</span></button>
+            <button type="button" class="pack-pill active">Q3<br><span>규모</span></button>
+            <button type="button" class="pack-pill">Q4<br><span>자동화</span></button>
+            <button type="button" class="pack-pill">Q5<br><span>권장</span></button>
           </div>
 
-          <div class="a1grid">
-            <div class="a-card sp8 sec-core">
-              <div class="card-h">
-                <span class="card-num">Q3</span>
-                <span class="card-ttl">규모 프로필 · 편집 그리드</span>
-                <span class="pill" style="margin-left:auto">verified</span>
-              </div>
-              <div class="data-table-wrap">
-                <table class="grid-editor">
-                  <thead>
-                    <tr><th>field_path</th><th>label_ko</th><th>value</th><th>unit</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr><td class="mono">lines.count</td><td><input value="생산 라인 수" readonly /></td><td><input value="12" /></td><td><input value="EA" /></td></tr>
-                    <tr><td class="mono">headcount.ops</td><td><input value="운영 인원" readonly /></td><td><input value="48" /></td><td><input value="명" /></td></tr>
-                    <tr><td class="mono">throughput.daily</td><td><input value="일일 처리량" readonly /></td><td><input value="3200" /></td><td><input value="건" /></td></tr>
-                    <tr><td class="mono">automation.level</td><td><input value="자동화 수준" readonly /></td><td><select><option>L3</option><option>L4</option></select></td><td><input value="—" /></td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <!-- 전체 팩 상태 -->
+          <p class="sot-field-label">전체 팩 상태</p>
+          <div class="sot-side-row">
+            <button type="button" class="header-btn sot-side-btn">전체</button>
+            <p class="sot-sub-hint">Q 5 · A 34 · 전체 39팩 · 미반영 2</p>
+          </div>
+
+          <!-- 선택 팩 -->
+          <p class="sot-section-title sot-section-title--pack">Q3 규모 프로필</p>
+          <p class="sot-pack-desc">세부산업별 규모 진단 가중치와 권장 성숙도</p>
+
+          <!-- 반영 배너 + 액션 (되돌리기 · 검증 · 저장 반영) -->
+          <div class="sot-action-row">
+            <div class="sot-reflect-banner sot-reflect-pending">
+              여기서 편집 → 리포트 · <strong>⚠ 아직 반영 안 됨</strong>
             </div>
-            <div class="a-card sp4">
-              <div class="card-h">
-                <span class="card-num">LN</span>
-                <span class="card-ttl">Lineage · §8.2</span>
-              </div>
-              <div class="lineage-grid" style="grid-template-columns:1fr">
-                <div class="lineage-block">
-                  <h4>① edit</h4>
-                  <p><span class="sync-dot"></span>dx/q3_scale_profile.json</p>
-                </div>
-                <div class="lineage-block">
-                  <h4>② generate</h4>
-                  <p><span class="sync-dot warn"></span>runtime index stale</p>
-                </div>
-                <div class="lineage-block">
-                  <h4>③ use</h4>
-                  <p><span class="sync-dot"></span>Step3 scale gate</p>
-                </div>
-                <div class="lineage-block">
-                  <h4>④ risk</h4>
-                  <p><span class="sync-dot muted"></span>—</p>
-                </div>
-              </div>
+            <div class="sot-action-btns">
+              <button type="button" class="header-btn">되돌리기</button>
+              <button type="button" class="header-btn">검증</button>
+              <button type="button" class="header-btn primary">저장 반영</button>
             </div>
           </div>
+
+          <!-- 세부산업 필터 -->
+          <p class="sot-field-label">세부산업</p>
+          <div class="sot-side-row">
+            <select class="select-field sot-side-select" aria-label="세부산업">
+              <option>A01 자동차부품</option>
+              <option>A02 전자부품</option>
+              <option>전체</option>
+            </select>
+            <p class="sot-sub-hint">값을 고치려면 세부산업을 하나 고르세요. 전체는 읽기 전용입니다.</p>
+          </div>
+
+          <div class="sot-sub-header">A01 자동차부품</div>
+
+          <!-- 편집 그리드: 항목 | 값 | 어디에 반영 -->
+          <div class="a-card sot-edit-card">
+            <div class="data-table-wrap">
+              <table class="grid-editor">
+                <thead>
+                  <tr>
+                    <th style="width:42%">항목</th>
+                    <th style="width:22%">값</th>
+                    <th style="width:36%">어디에 반영</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <p class="sot-edit-item-name">생산 라인 수</p>
+                      <p class="sot-edit-item-hint">라인·셀 기준</p>
+                    </td>
+                    <td><input type="number" value="12" /></td>
+                    <td><p class="sot-edit-reflect">Step3 · scale.lines</p></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p class="sot-edit-item-name">운영 인원</p>
+                      <p class="sot-edit-item-hint">직접 생산·운영</p>
+                    </td>
+                    <td><input type="number" value="48" /></td>
+                    <td><p class="sot-edit-reflect">Step3 · scale.headcount</p></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p class="sot-edit-item-name">일일 처리량</p>
+                      <p class="sot-edit-item-hint">대표 제품 기준</p>
+                    </td>
+                    <td><input type="number" value="3200" /></td>
+                    <td><p class="sot-edit-reflect">Step3 · scale.throughput</p></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p class="sot-edit-item-name">자동화 수준</p>
+                      <p class="sot-edit-item-hint">L1–L5</p>
+                    </td>
+                    <td>
+                      <select>
+                        <option>L3</option>
+                        <option>L4</option>
+                        <option>L5</option>
+                      </select>
+                    </td>
+                    <td><p class="sot-edit-reflect">Step3 · scale.automation</p></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p class="sot-edit-item-name">권장 성숙도</p>
+                      <p class="sot-edit-item-hint">진단 게이트</p>
+                    </td>
+                    <td><input type="text" value="M3" /></td>
+                    <td><p class="sot-edit-reflect">Step3 · gate.maturity</p></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 읽기전용 팩 예시 (접힌 상태 — 표면만) -->
+          <details class="sot-ro-panel">
+            <summary>읽기 전용 팩 표면 (척추·보류·파일럿) — 접기</summary>
+            <div class="sot-ro-body">
+              <div class="sot-reflect-banner sot-reflect-readonly">
+                척추 코드 — 고영향 참조 전용. 편집은 별도 판단 후 진행합니다.
+              </div>
+              <p class="sot-field-label" style="margin-top:10px">반영 경로</p>
+              <p class="sot-sub-hint">생성 → <code>server/data/industry_master.json</code></p>
+              <p class="sot-sub-hint">사용 → loaders.industry_master, Step1 taxonomy…</p>
+              <p class="sot-field-label" style="margin-top:10px">진실원 위치</p>
+              <p class="sot-path mono">dx/industry_master.json</p>
+              <p class="sot-sub-hint">상태 · covered</p>
+            </div>
+          </details>
         </div>
         <div class="tab-content" id="tab-input" style="display:none">
           <div class="sec-head">
