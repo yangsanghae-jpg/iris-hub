@@ -499,9 +499,152 @@ def design_deck(md_text: str, meta: dict, *,
     raise DesignError("설계 실패: 원인 불명(LLM 응답 없음)")
 
 
+BODY_TYPE_DEFAULT_PATTERN = {
+    "요약형": "summary",
+    "서술형": "narrative",
+    "표형": "table",
+    "도형형": "card-grid-4",
+}
+
+SHAPE_PATTERNS = (
+    "card-grid-4",
+    "phase-roadmap",
+    "metrics-row",
+    "compare-2col",
+    "exec-summary",
+    "dimension-5",
+    "agenda",
+)
+
+
+def _density_action_directive(action: str | None) -> str:
+    if action == "expand":
+        return (
+            "## 밀도 지시 — 내용 추가\n"
+            "같은 주제·사실 범위 안에서 설명·근거·세부 항목을 *더 풍부하게* 채운다. "
+            "원문에 없는 사실을 만들지 말 것. 빈 슬롯을 남기지 말 것.\n"
+        )
+    if action == "condense":
+        return (
+            "## 밀도 지시 — 내용 간략히\n"
+            "핵심만 남겨 짧게 다듬는다. 중복·수식어·장식 문장을 줄이고 "
+            "슬롯 상한 안에서 압축한다. 핵심 수치·고유명사는 유지.\n"
+        )
+    return ""
+
+
+def rewrite_slides(
+    deck: Deck,
+    slide_indices: list[int],
+    *,
+    md_text: str,
+    meta: dict,
+    new_pattern: str | None = None,
+    body_type: str | None = None,
+    density_action: str | None = None,
+    model: str | None = None,
+    timeout: float = 300.0,
+) -> Deck:
+    """선택 슬라이드를 새 pattern(또는 동일 pattern)으로 LLM 재작성.
+
+    - new_pattern / body_type 이 있으면 해당 pattern으로 변환
+    - density_action: expand | condense | None
+    """
+    from src.engine.output.deck.pattern_contract import (
+        PATTERN_BODY_TYPE,
+        split_slide_bodies,
+        validate_slide_slots,
+    )
+
+    if not slide_indices:
+        raise DesignError("교정할 페이지가 없습니다")
+
+    pattern = new_pattern
+    if not pattern and body_type:
+        pattern = BODY_TYPE_DEFAULT_PATTERN.get(body_type)
+    if pattern and pattern not in PATTERN_TEMPLATES:
+        raise DesignError(f"알 수 없는 pattern: {pattern}")
+    if body_type and body_type not in BODY_TYPE_DEFAULT_PATTERN:
+        raise DesignError(f"알 수 없는 body_type: {body_type}")
+    if density_action and density_action not in ("expand", "condense"):
+        raise DesignError(f"알 수 없는 density_action: {density_action}")
+
+    bodies = split_slide_bodies(md_text) if md_text else []
+    new_slides = list(deck.slides)
+    density_block = _density_action_directive(density_action)
+
+    for idx in slide_indices:
+        if idx < 0 or idx >= len(new_slides):
+            raise DesignError(f"잘못된 슬라이드 인덱스: {idx}")
+        old = new_slides[idx]
+        if old.pattern == "cover":
+            raise DesignError("표지(cover) 패턴은 교정 대상이 아닙니다")
+        target_pattern = pattern or old.pattern
+        if target_pattern == "cover":
+            raise DesignError("표지(cover) 패턴으로 변경할 수 없습니다")
+
+        source = bodies[idx] if idx < len(bodies) else ""
+        if not source.strip():
+            source = json.dumps(old.data, ensure_ascii=False)
+
+        bt = PATTERN_BODY_TYPE.get(target_pattern) or body_type or ""
+        slots = PATTERN_SLOTS.get(target_pattern, "")
+        prev = json.dumps(old.data, ensure_ascii=False)[:3000]
+        prompt = f"""슬라이드 {idx + 1}만 다시 설계하세요.
+
+## 목표 pattern
+**{target_pattern}** (body-type: {bt or "—"})
+이전 pattern: {old.pattern}
+
+{density_block}
+## 패턴 슬롯
+{slots}
+
+## 이전 슬라이드 data (참고 — 정보 보존)
+{prev}
+
+## 소스 마크다운 (이 슬라이드)
+{source[:8000]}
+
+## 출력 규칙
+- JSON 객체 하나만: {{"pattern": "{target_pattern}", "data": {{ ... }}}}
+- pattern은 반드시 "{target_pattern}"
+- 원문에 없는 사실·장식 문구 금지
+- 다른 슬라이드 출력 금지
+"""
+        data = _call_design_llm(prompt, model=model, timeout=timeout)
+        if isinstance(data, dict) and "pattern" in data:
+            payload = data
+        elif isinstance(data, dict) and data.get("slides"):
+            payload = data["slides"][0]
+        else:
+            raise DesignError(f"슬라이드 {idx + 1} 교정 JSON 형식 오류")
+
+        pid = payload.get("pattern")
+        if pid != target_pattern:
+            raise DesignError(
+                f"슬라이드 {idx + 1}: pattern이 {target_pattern}이어야 하는데 {pid}"
+            )
+        sl_data = payload.get("data") or {}
+        validate_slide_slots(target_pattern, sl_data, slide_no=idx + 1)
+        new_slides[idx] = Slide(pattern=target_pattern, data=sl_data)
+
+    return Deck(
+        title=deck.title,
+        subtitle=deck.subtitle,
+        company_name=deck.company_name,
+        date=deck.date,
+        slides=new_slides,
+        warnings=list(deck.warnings or []),
+    )
+
+
 __all__ = [
     "DesignError",
     "design_deck",
+    "rewrite_slides",
     "PATTERN_SLOTS",
+    "BODY_TYPE_DEFAULT_PATTERN",
+    "SHAPE_PATTERNS",
     "_build_prompt",
 ]

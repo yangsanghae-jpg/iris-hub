@@ -909,6 +909,84 @@ class PageNumberReq(BaseModel):
     position: Literal["bottom-left", "bottom-center", "bottom-right"] = "bottom-right"
 
 
+class ReworkReq(BaseModel):
+    slide_indices: list[int]
+    body_type: Optional[str] = None  # 요약형|서술형|표형|도형형
+    pattern: Optional[str] = None
+    density_action: Optional[Literal["expand", "condense"]] = None
+    model: Optional[str] = None
+    template_id: Optional[str] = None
+    master_style: Optional[MasterStyleReq] = None
+    page_number: Optional[PageNumberReq] = None
+
+
+@app.post("/api/design/rework")
+def run_design_rework(req: ReworkReq) -> dict:
+    """선택 페이지 형식 변경 · 밀도(추가/간략) 교정."""
+    from src import llm
+    from src.config import IRIS_LLM_DEEP
+    from src.engine.output.deck import designer
+    from src.engine.output.deck.theme import ThemeValidationError
+
+    deck = _state.get("deck")
+    if not deck:
+        raise HTTPException(400, "먼저 ③설계를 실행하세요")
+    md = _state.get("expand_md") or ""
+    meta = _state.get("expand_meta") or _default_meta("한국어")
+    used_model = req.model or llm.resolve_available_model(IRIS_LLM_DEEP) or IRIS_LLM_DEEP
+
+    try:
+        new_deck = designer.rewrite_slides(
+            deck,
+            list(req.slide_indices),
+            md_text=md,
+            meta=meta,
+            new_pattern=req.pattern,
+            body_type=req.body_type,
+            density_action=req.density_action,
+            model=used_model,
+            timeout=600,
+        )
+    except designer.DesignError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+
+    _state["deck"] = new_deck
+    _state["render_path"] = None
+
+    slides_out = [
+        {"pattern": s.pattern, "title": s.data.get("title") or s.pattern}
+        for s in new_deck.slides
+    ]
+    try:
+        style = _resolve_style_from_req(
+            req.template_id or "clean-light",
+            req.master_style.model_dump() if req.master_style else {},
+            req.page_number.model_dump() if req.page_number else {},
+        )
+        preview_payload = _build_slide_previews(new_deck, style)
+    except ThemeValidationError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+    except Exception as e:
+        return {
+            "ok": True,
+            "model": used_model,
+            "slides": slides_out,
+            "page_count": len(new_deck.slides),
+            "preview_error": str(e),
+            "previews": [],
+            "preview_id": None,
+        }
+
+    return {
+        "ok": True,
+        "model": used_model,
+        "slides": slides_out,
+        "page_count": len(new_deck.slides),
+        "preview_id": preview_payload.get("preview_id"),
+        "previews": preview_payload.get("slides") or [],
+    }
+
+
 class RenderReq(BaseModel):
     format: str = "PDF"
     save_disk: bool = False
