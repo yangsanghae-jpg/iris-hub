@@ -31,6 +31,7 @@ _state: dict[str, Any] = {
     "scan_list": None,
     "scan_dir": None,
     # PPT state
+    "regen_md": None,
     "expand_md": None,
     "expand_meta": None,
     "expand_contract": None,
@@ -737,28 +738,59 @@ class ExpandReq(BaseModel):
     target_slides: Optional[int] = None
 
 
-@app.post("/api/expand")
-def run_expand(req: ExpandReq) -> dict:
+def _expand_pages(req: ExpandReq):
+    pages = req.pages
+    if pages is None and req.target_slides is not None:
+        pages = req.target_slides
+    return pages
+
+
+@app.post("/api/expand/regen")
+def run_expand_regen(req: ExpandReq) -> dict:
+    """1차 변환 — regenerate_chapters (형식 마커 없는 콘텐츠 재구성)."""
     from src.engine.output.deck import expander
 
     if not req.md_text.strip():
         raise HTTPException(400, "소스가 비어 있습니다")
     meta = _default_meta(req.lang)
-    pages = req.pages
-    if pages is None and req.target_slides is not None:
-        pages = req.target_slides
     try:
-        # Stage 0(재생성) — 원문을 읽고 형식 마커 없이 챕터로만, 최대한
-        # 풍부하게 재구성한다. 콘텐츠 합성(여기)과 형식 판단(Stage 1)을
-        # 분리해야 서로의 여력을 깎아먹지 않는다.
         regen = expander.regenerate_chapters(
             req.md_text, meta, model=req.model, timeout=900,
-            lang=req.lang, pages=pages,
+            lang=req.lang, pages=_expand_pages(req),
         )
-        # Stage 1(확장) — 이미 풍부한 콘텐츠에 IRIS_BODY/PATTERN/ROLES만 판단.
+    except expander.ExpansionError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+
+    _state["regen_md"] = regen.md
+    _state["expand_md"] = None
+    _state["expand_meta"] = meta
+    _state["expand_contract"] = None
+    _state["deck"] = None
+    _state["render_path"] = None
+    _clear_previews()
+    return {
+        "ok": True,
+        "stage": "regen",
+        "md": regen.md,
+        "model": regen.model,
+        "elapsed": regen.elapsed_ms / 1000,
+        "in": regen.original_chars,
+        "out": regen.output_chars,
+    }
+
+
+@app.post("/api/expand/classify")
+def run_expand_classify(req: ExpandReq) -> dict:
+    """2차 분류 — expand_for_slides (IRIS_BODY/PATTERN/ROLES 형식 판단)."""
+    from src.engine.output.deck import expander
+
+    if not req.md_text.strip():
+        raise HTTPException(400, "1차 변환 결과가 비어 있습니다")
+    meta = _default_meta(req.lang)
+    try:
         result = expander.expand_for_slides(
-            regen.md, meta, model=req.model, timeout=900,
-            lang=req.lang, pages=pages,
+            req.md_text, meta, model=req.model, timeout=900,
+            lang=req.lang, pages=_expand_pages(req),
             contract_mode="required",
         )
     except expander.ExpansionError as e:
@@ -771,10 +803,44 @@ def run_expand(req: ExpandReq) -> dict:
     _state["render_path"] = None
     _clear_previews()
     return {
-        "ok": True, "md": result.md, "model": result.model,
+        "ok": True,
+        "stage": "classify",
+        "md": result.md,
+        "model": result.model,
         "contract": result.contract,
-        "elapsed": (regen.elapsed_ms + result.elapsed_ms) / 1000,
-        "in": regen.original_chars, "out": result.output_chars,
+        "elapsed": result.elapsed_ms / 1000,
+        "in": result.original_chars,
+        "out": result.output_chars,
+    }
+
+
+@app.post("/api/expand")
+def run_expand(req: ExpandReq) -> dict:
+    """호환용 — 1차+2차를 한 번에 실행. UI는 분리 엔드포인트 사용 권장."""
+    regen_res = run_expand_regen(req)
+    if isinstance(regen_res, JSONResponse):
+        return regen_res
+    classify_req = ExpandReq(
+        md_text=regen_res["md"],
+        lang=req.lang,
+        model=req.model,
+        pages=req.pages,
+        target_slides=req.target_slides,
+    )
+    classify_res = run_expand_classify(classify_req)
+    if isinstance(classify_res, JSONResponse):
+        return classify_res
+    return {
+        "ok": True,
+        "md": classify_res["md"],
+        "model": classify_res["model"],
+        "contract": classify_res.get("contract"),
+        "elapsed": regen_res["elapsed"] + classify_res["elapsed"],
+        "in": regen_res["in"],
+        "out": classify_res["out"],
+        "regen_md": regen_res["md"],
+        "regen_elapsed": regen_res["elapsed"],
+        "classify_elapsed": classify_res["elapsed"],
     }
 
 

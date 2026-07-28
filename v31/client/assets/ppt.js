@@ -52,6 +52,8 @@ const state = {
   titleFonts: [],
   defaultTemplateId: 'clean-light',
   expandResult: null,
+  regenResult: null,
+  expandBusy: null, // null | 'regen' | 'classify'
   designResult: null,
   renderResult: null,
   outputFormat: 'PDF',
@@ -383,7 +385,11 @@ function stepSubLabels() {
     state.sourceMode === 'direct' ? `직접 입력 · ${state.mdText.length.toLocaleString()}자`
       : state.sourceMode === 'upload' ? (state.uploadName || '파일 업로드 · 미선택')
       : state.sourceMode,
-    state.expandResult ? `${state.expandResult.model} · 완료` : '대기 중',
+    state.regenResult
+      ? (state.expandResult
+        ? `${state.expandResult.model} · 1·2차 완료`
+        : `${state.regenResult.model} · 1차 완료`)
+      : '대기 중',
     state.designResult
       ? `${tpl} · ${densityLabel()} · ${designModel || '—'}`
       : `${tpl} · ${pages} · ${state.outputFormat}`,
@@ -400,8 +406,11 @@ function setStep(i) {
   }
 }
 async function nextStep() {
-  if (busy) return;
-  if (step === 1 && !state.expandResult) { await runExpand(); if (error) return; }
+  if (busy || state.expandBusy) return;
+  if (step === 1) {
+    if (!state.regenResult) { await runRegen(); if (error) return; }
+    if (!state.expandResult) { await runClassify(); if (error) return; }
+  }
   if (step === 2 && (!state.designResult || designStale)) { await runDesign(); if (error) return; }
   if (step === 3) { await runRender(state.outputFormat); return; }
   if (step < 3) {
@@ -418,6 +427,7 @@ function selectSourceMode(mode) {
   state.sourceMode = mode;
   // 소스 모드/소스 변경 → expandResult 및 설계 결과 전체 초기화
   state.expandResult = null;
+  state.regenResult = null;
   state.renderResult = null;
   state.previews = [];
   state.previewId = null;
@@ -431,6 +441,7 @@ async function loadSourceContent(kind, id) {
     const data = await api(`/api/sources/content?kind=${kind}&id=${id}`);
     state.mdText = data.text;
     state.expandResult = null;
+    state.regenResult = null;
     invalidateDesign();
     render();
   } catch (e) {
@@ -444,6 +455,7 @@ function clearUpload() {
   state.uploadSize = null;
   state.mdText = '';
   state.expandResult = null;
+  state.regenResult = null;
   invalidateDesign();
   render();
 }
@@ -497,6 +509,7 @@ async function applyUploadedFile(file) {
       state.mdText = String(reader.result || '');
       state.sourceMode = 'upload';
       state.expandResult = null;
+      state.regenResult = null;
       invalidateDesign();
       error = null;
       render();
@@ -522,6 +535,7 @@ async function applyUploadedFile(file) {
     state.mdText = data.text || '';
     state.sourceMode = 'upload';
     state.expandResult = null;
+    state.regenResult = null;
     invalidateDesign();
     error = null;
   } catch (e) {
@@ -572,26 +586,66 @@ function targetSlides() {
   return Number.isFinite(n) ? n : null;
 }
 
-async function runExpand() {
+function expandPayload(mdText) {
+  return {
+    md_text: mdText,
+    lang: state.lang,
+    model: state.model,
+    pages: state.pageCount,
+    target_slides: targetSlides(),
+  };
+}
+
+async function runRegen() {
   if (!state.mdText.trim()) { error = '①소스에서 원본을 먼저 고르세요.'; render(); return; }
-  busy = true; error = null; render();
+  if (state.expandBusy) return;
+  state.expandBusy = 'regen';
+  error = null;
+  render();
   try {
-    const data = await api('/api/expand', {
+    const data = await api('/api/expand/regen', {
       method: 'POST',
-      body: JSON.stringify({
-        md_text: state.mdText,
-        lang: state.lang,
-        model: state.model,
-        pages: state.pageCount,
-        target_slides: targetSlides(),
-      }),
+      body: JSON.stringify(expandPayload(state.mdText)),
+    });
+    state.regenResult = data;
+    state.expandResult = null; // 1차 재실행 시 2차 무효
+    invalidateDesign();
+  } catch (e) {
+    error = '1차 변환 실패: ' + e.message;
+  }
+  state.expandBusy = null;
+  render();
+}
+
+async function runClassify() {
+  if (!state.regenResult || !state.regenResult.md) {
+    error = '1차 변환을 먼저 실행하세요.';
+    render();
+    return;
+  }
+  if (state.expandBusy) return;
+  state.expandBusy = 'classify';
+  error = null;
+  render();
+  try {
+    const data = await api('/api/expand/classify', {
+      method: 'POST',
+      body: JSON.stringify(expandPayload(state.regenResult.md)),
     });
     state.expandResult = data;
     invalidateDesign();
   } catch (e) {
-    error = '확장 실패: ' + e.message;
+    error = '2차 분류 실패: ' + e.message;
   }
-  busy = false; render();
+  state.expandBusy = null;
+  render();
+}
+
+/** @deprecated 호환 — 1차+2차 연속 실행 */
+async function runExpand() {
+  await runRegen();
+  if (error) return;
+  await runClassify();
 }
 
 function onOutputFormatChange(value) {
@@ -808,20 +862,58 @@ function panelExpand() {
     </div>
     <div class="card-body"><div class="expand-note">①소스에서 원본을 먼저 고르세요.</div>`;
   }
-  const r = state.expandResult;
-  const status = r
-    ? `<div class="llm-status"><span class="dot done"></span>${esc(r.model)} · 변환 완료 · ${r.elapsed.toFixed(1)}초 · 소스 ${r.in.toLocaleString()}자 → ${r.out.toLocaleString()}자</div>`
-    : `<div class="llm-status"><span class="dot" style="background:#f59e0b"></span>아직 확장되지 않음</div>`;
-  const btnLabel = busy ? '<span class="spin"></span>처리 중…' : (r ? '🔁 재생성' : '▶ 확장 시작');
+  const regen = state.regenResult;
+  const cls = state.expandResult;
+  const busyRegen = state.expandBusy === 'regen';
+  const busyCls = state.expandBusy === 'classify';
+  const anyBusy = !!state.expandBusy;
+
+  const regenStatus = regen
+    ? `<div class="llm-status"><span class="dot done"></span>${esc(regen.model)} · 1차 완료 · ${Number(regen.elapsed).toFixed(1)}초 · ${Number(regen.in).toLocaleString()}자 → ${Number(regen.out).toLocaleString()}자</div>`
+    : `<div class="llm-status"><span class="dot" style="background:#a1a1aa"></span>아직 1차 변환 없음</div>`;
+  const clsStatus = cls
+    ? `<div class="llm-status"><span class="dot done"></span>${esc(cls.model)} · 2차 완료 · ${Number(cls.elapsed).toFixed(1)}초 · ${Number(cls.in).toLocaleString()}자 → ${Number(cls.out).toLocaleString()}자</div>`
+    : regen
+      ? `<div class="llm-status"><span class="dot" style="background:#a1a1aa"></span>1차 완료 · 2차 대기</div>`
+      : `<div class="llm-status"><span class="dot" style="background:#a1a1aa"></span>1차 후 실행 가능</div>`;
+
+  const regenBtn = busyRegen
+    ? '<span class="spin"></span>1차 변환 중…'
+    : (regen ? '🔁 1차 다시' : '▶ 1차 변환');
+  const clsBtn = busyCls
+    ? '<span class="spin"></span>2차 분류 중…'
+    : (cls ? '🔁 2차 다시' : '▶ 2차 분류');
+
   return `<div class="card-h">
       <span class="card-num">EXP</span>
-      <span class="card-ttl">확장 · LLM 변환</span>
+      <span class="card-ttl">확장 · 1차 변환 · 2차 분류</span>
     </div>
     <div class="card-body">
-    <div class="expand-note">언어·페이지 수·모델로 LLM이 소스를 슬라이드용 마크다운으로 재구조화합니다.</div>
-    <div class="llm-row">${status}<button class="btn-ghost btn-sm" ${busy ? 'disabled' : ''} onclick="runExpand()">${btnLabel}</button></div>
-    ${r ? `<div class="expand-sub">출력 · LLM이 생성한 슬라이드용 마크다운</div>
-    <div class="expand-box accent">${esc(r.md.slice(0, 4000))}${r.md.length > 4000 ? '…' : ''}</div>` : ''}`;
+    <div class="expand-note">콘텐츠 재구성(1차)과 슬라이드 형식 분류(2차)를 나눠 실행합니다. 서로 여력을 깎지 않도록 분리된 단계입니다.</div>
+
+    <div class="expand-stage">
+      <div class="expand-stage-h">
+        <strong>1차 변환</strong>
+        <span class="subtle">원문 → 챕터 마크다운 (형식 마커 없음)</span>
+      </div>
+      <div class="llm-row">${regenStatus}
+        <button type="button" class="btn-ghost btn-sm" ${anyBusy ? 'disabled' : ''} onclick="runRegen()">${regenBtn}</button>
+      </div>
+      ${regen ? `<div class="expand-sub">1차 결과</div>
+      <div class="expand-box">${esc(regen.md.slice(0, 4000))}${regen.md.length > 4000 ? '…' : ''}</div>` : ''}
+    </div>
+
+    <div class="expand-stage">
+      <div class="expand-stage-h">
+        <strong>2차 분류</strong>
+        <span class="subtle">1차 결과 → IRIS_BODY / PATTERN / ROLES</span>
+      </div>
+      <div class="llm-row">${clsStatus}
+        <button type="button" class="btn-ghost btn-sm" ${anyBusy || !regen ? 'disabled' : ''} onclick="runClassify()">${clsBtn}</button>
+      </div>
+      ${cls ? `<div class="expand-sub">2차 결과 · 슬라이드용 마크다운</div>
+      <div class="expand-box accent">${esc(cls.md.slice(0, 4000))}${cls.md.length > 4000 ? '…' : ''}</div>` : ''}
+    </div>`;
 }
 
 function panelDesign() {
@@ -1153,8 +1245,12 @@ function render() {
     if (i === step) s.classList.add('active');
   }
   document.getElementById('prev-btn').style.visibility = step === 0 ? 'hidden' : 'visible';
-  document.getElementById('next-btn').textContent = busy ? '처리 중…' : nextLabels()[step];
-  document.getElementById('next-btn').disabled = busy;
+  const phaseBusy = busy || !!state.expandBusy;
+  const nextLab = state.expandBusy === 'regen' ? '1차 변환 중…'
+    : state.expandBusy === 'classify' ? '2차 분류 중…'
+    : (busy ? '처리 중…' : nextLabels()[step]);
+  document.getElementById('next-btn').textContent = nextLab;
+  document.getElementById('next-btn').disabled = phaseBusy;
   buildProgress();
   if (step === 3) requestAnimationFrame(scalePreviewFrames);
 }
