@@ -1,0 +1,234 @@
+        <div class="tab-content" id="tab-input" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">입력</span>
+            <span class="sec-desc">파일 · 외부 폴더 · 챗 응답을 raw → archive → queue 흐름으로 적재합니다.</span>
+            <span class="intake-ready">Intake Ready</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">RAW</span>
+              <div class="kpi-k">raw files</div>
+              <div class="kpi-v" id="inputKpiCount">—</div>
+              <div class="kpi-f">drop-zone queue</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">upload</div>
+              <div class="kpi-v">A</div>
+              <div class="kpi-f">drag &amp; drop</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">folder</div>
+              <div class="kpi-v">B</div>
+              <div class="kpi-f">bulk ingest · Primary</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">paste</div>
+              <div class="kpi-v">C</div>
+              <div class="kpi-f">manual note</div>
+            </div>
+          </div>
+
+          <details class="intake-raw-bar" id="rawListTop">
+            <summary>현재 raw/ 파일 목록 (<span id="inputRawCountTop">0</span>)</summary>
+            <table class="data-table data-table-dense">
+              <thead><tr><th>파일</th><th>크기</th></tr></thead>
+              <tbody id="sourceTableBodyTop">
+                <tr><td colspan="2" class="intake-empty">—</td></tr>
+              </tbody>
+            </table>
+          </details>
+
+          <!-- A · B · C — wide: 3열 동시 표시 -->
+          <div class="intake-abc">
+            <div class="a-card intake-col-a">
+              <div class="card-h">
+                <span class="card-num">A</span>
+                <span class="card-ttl">파일 업로드</span>
+              </div>
+              <p class="card-cap">즉시 raw 저장 + K1 인제스트 · md txt pdf pptx docx</p>
+              <input type="file" id="fileInput" multiple accept=".md,.txt,.pdf,.pptx,.docx" hidden
+                     onchange="window.v31.handleFileUpload(this.files);this.value=''" />
+              <div id="dropZone" class="drop-zone intake-drop"
+                   onclick="document.getElementById('fileInput').click()"
+                   ondragover="event.preventDefault();this.classList.add('drag')"
+                   ondragleave="this.classList.remove('drag')"
+                   ondrop="event.preventDefault();this.classList.remove('drag');window.v31.handleFileUpload(event.dataTransfer.files)">
+                Drop files here
+              </div>
+            </div>
+
+            <div class="a-card intake-col-b">
+              <div class="card-h">
+                <span class="card-num">B</span>
+                <span class="card-ttl">폴더 로딩</span>
+                <span class="intake-tag">Bulk</span>
+              </div>
+              <p class="card-cap">스캔 → 선택 → 일괄 인덱싱</p>
+
+              <div class="intake-b-grid">
+                <label class="input-label b-lbl-src" for="fl_folder">소스</label>
+                <input type="text" class="input-field b-in-src" id="fl_folder" placeholder="경로" />
+                <button type="button" class="btn-sm b-btn-src" onclick="window.v31.pickFolder('fl_folder')">선택</button>
+                <label class="intake-check intake-b-chk b-chk-rec"><input type="checkbox" id="folderRecursive" checked /> 하위</label>
+                <button type="button" class="header-btn primary b-btn-scan" onclick="window.v31.scanFolder(document.getElementById('fl_folder').value)">스캔</button>
+
+                <label class="input-label b-lbl-arch" for="archiveRoot">archive</label>
+                <input type="text" class="input-field b-in-arch" id="archiveRoot" placeholder="기본값" />
+                <button type="button" class="btn-sm b-btn-arch" onclick="window.v31.pickFolder('archiveRoot')">선택</button>
+                <select class="select-field b-sel-lane" id="folderLane">
+                  <option value="reference">reference</option>
+                  <option value="bronze">bronze</option>
+                </select>
+                <label class="intake-check intake-b-chk b-chk-force"><input type="checkbox" id="folderForce" /> 재파싱</label>
+              </div>
+              <p class="intake-hint-line" id="archiveDefaultHint"></p>
+
+              <div id="folderEmptyHint" class="intake-hint">폴더 선택 후 스캔</div>
+
+              <div id="folderScanMetrics" class="intake-metrics" style="display:none">
+                <div class="intake-metric"><span class="intake-metric-k">전체</span><span class="intake-metric-v" id="scanTotal">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">미등록</span><span class="intake-metric-v" id="scanPending">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">DB</span><span class="intake-metric-v" id="scanProcessed">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">선택</span><span class="intake-metric-v" id="selectedCount">0</span></div>
+              </div>
+
+              <div id="folderTreeView" class="intake-tree-block" style="display:none">
+                <div class="intake-tree-bar">
+                  <button type="button" class="btn-sm" onclick="window.v31.selectAll(true)">전체</button>
+                  <button type="button" class="btn-sm" onclick="window.v31.selectAll(false)">해제</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="header-btn primary" id="runIndexBtn" disabled onclick="window.v31.runIndex()">0건 인덱싱</button>
+                </div>
+                <div id="folderTree" class="intake-tree"></div>
+              </div>
+
+              <div id="indexProgress" class="intake-progress" style="display:none">
+                <progress id="indexProgressBar" max="100" value="0"></progress>
+                <div id="indexProgressLabel" class="intake-hint-line">준비 중…</div>
+                <pre id="indexLog" class="intake-log"></pre>
+              </div>
+              <div id="indexResults" style="display:none"><div id="indexResultDetail"></div></div>
+            </div>
+
+            <div class="a-card intake-col-c">
+              <div class="card-h">
+                <span class="card-num">C</span>
+                <span class="card-ttl">텍스트 저장</span>
+              </div>
+              <p class="card-cap">챗 응답 · 회의 메모</p>
+              <div class="input-group">
+                <label class="input-label">제목</label>
+                <input type="text" class="input-field" id="pasteTitle" placeholder="MES 핵심 개념 정리" />
+              </div>
+              <div class="input-group">
+                <label class="input-label">출처</label>
+                <select class="select-field" id="pasteSource">
+                  <option value="openwebui-chat">openwebui-chat</option>
+                  <option value="manual-note">manual-note</option>
+                  <option value="meeting-memo">meeting-memo</option>
+                  <option value="external-doc">external-doc</option>
+                  <option value="other">other</option>
+                </select>
+              </div>
+              <div class="intake-c-meta">
+                <div class="input-group">
+                  <label class="input-label">industry</label>
+                  <input type="text" class="input-field" id="pasteIndustry" />
+                </div>
+                <div class="input-group">
+                  <label class="input-label">area</label>
+                  <input type="text" class="input-field" id="pasteArea" />
+                </div>
+                <div class="input-group">
+                  <label class="input-label">level</label>
+                  <input type="text" class="input-field" id="pasteLevel" />
+                </div>
+              </div>
+              <div class="input-group intake-c-body">
+                <label class="input-label">본문</label>
+                <textarea class="input-field" id="pasteBody" rows="8" placeholder="markdown…"></textarea>
+              </div>
+              <button type="button" class="header-btn primary intake-full-btn" id="pasteBtn" onclick="window.v31.saveText()">.md 생성 후 저장 + 인제스트</button>
+            </div>
+          </div>
+
+          <div class="a-footnote">
+            다음: wiki · watch · K6 Curate · <span class="kbd">make build-faiss</span>
+          </div>
+
+          <div class="sec-head sec-head-sub">
+            <span class="sec-title">외부 응답 캡처</span>
+            <span class="sec-desc">원문 보존 · K2 자동</span>
+            <span class="intake-ready">Capture Ready</span>
+          </div>
+
+          <div class="ext-band">
+            <div class="ext-kpi-strip">
+              <span><strong>Storage</strong> raw/_external</span>
+              <span><strong>Sources</strong> <span id="extSourceCount">11</span></span>
+              <span><strong>K2</strong> auto</span>
+              <span><strong>Recent</strong> <span id="extRecentCount">0</span></span>
+            </div>
+
+            <div class="ext-abc">
+              <div class="a-card ext-col-form">
+                <div class="card-h">
+                  <span class="card-num">NEW</span>
+                  <span class="card-ttl">새 이벤트 박기</span>
+                </div>
+                <div class="ext-form-top">
+                  <div class="input-group">
+                    <label class="input-label">이벤트명</label>
+                    <input type="text" class="input-field" id="extTitle" placeholder="MES 핵심 개념 정리 v3" />
+                  </div>
+                  <div class="input-group ext-src">
+                    <label class="input-label">출처</label>
+                    <select class="select-field" id="extSource">
+                      <option value="chatgpt">chatgpt</option>
+                      <option value="gemini">gemini</option>
+                      <option value="claude">claude</option>
+                      <option value="perplexity">perplexity</option>
+                      <option value="grok">grok</option>
+                      <option value="copilot">copilot</option>
+                      <option value="mistral">mistral</option>
+                      <option value="openwebui-chat">openwebui-chat</option>
+                      <option value="manual-note">manual-note</option>
+                      <option value="meeting-memo">meeting-memo</option>
+                      <option value="other">other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="input-group">
+                  <label class="input-label">원본 질의</label>
+                  <input type="text" class="input-field" id="extPrompt" placeholder="선택" />
+                </div>
+                <div class="input-group ext-body-wrap">
+                  <label class="input-label">답변 본문</label>
+                  <textarea class="input-field" id="extBody" rows="10" placeholder="답변 붙여넣기…"></textarea>
+                </div>
+                <button type="button" class="header-btn primary intake-full-btn" id="extSaveBtn" onclick="window.v31.captureExternal()">저장 실행</button>
+              </div>
+
+              <div class="ext-col-side">
+                <div class="a-card">
+                  <div class="card-h"><span class="card-ttl">저장 결과</span></div>
+                  <div id="extResultPanel" class="intake-note">세션 저장 없음</div>
+                </div>
+                <div class="a-card">
+                  <div class="card-h"><span class="card-ttl">저장 위치</span></div>
+                  <div id="extStoragePath" class="intake-path-box">—</div>
+                  <button type="button" class="btn-sm intake-full-btn" onclick="window.v31.openExternalFolder()">폴더 열기</button>
+                </div>
+              </div>
+
+              <div class="a-card ext-col-recent">
+                <div class="card-h">
+                  <span class="card-ttl">최근 이벤트</span>
+                  <span class="intake-kpi" id="extRecentLabel">0건</span>
+                </div>
+                <div id="extRecentList" class="intake-recent ext-recent-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>

@@ -51,11 +51,20 @@ def _render_actions() -> None:
     )
 
     # 선택 처리 — 대기열에서 직접 골라 처리 (V2.6.3.8 — doc_id 기반)
-    snap = q.measure_queue(max_list=200)
     selected_doc_ids: list[str] = []
-    if snap.waiting_docs:
+    do_picked = False
+    try:
+        snap = q.measure_queue(max_list=200)
+    except Exception as e:
         with b3:
-            st.caption("✋ 선택 처리")
+            st.button("✋ 선택 처리 (큐 오류)",
+                      use_container_width=True, disabled=True, key="flow_picked_run")
+        st.error(f"대기열 측정 실패: {type(e).__name__}: {e}")
+        snap = None
+
+    if snap is not None and snap.waiting_docs:
+        with b3:
+            st.caption(f"✋ 선택 처리 · 대기 {snap.waiting:,}건")
             # title (doc_id) 형태로 표시 — 사용자가 식별 가능
             options = {
                 f"{d['title']} ({d['doc_id'][:24]})": d["doc_id"]
@@ -73,15 +82,16 @@ def _render_actions() -> None:
                 use_container_width=True, key="flow_picked_run",
                 disabled=(len(selected_doc_ids) == 0),
             )
-    else:
+    elif snap is not None:
         with b3:
             st.button("✋ 선택 처리 (대기 없음)",
                       use_container_width=True, disabled=True, key="flow_picked_run")
-            do_picked = False
 
     # 실행 분기 (V2.6.3.8 — doc_id 리스트)
     doc_ids: list[str] = []
-    if do_batch:
+    if snap is None:
+        pass
+    elif do_batch:
         doc_ids = q.fetch_waiting(int(batch_n))
     elif do_one:
         doc_ids = q.fetch_waiting(1)
@@ -106,6 +116,8 @@ def _render_actions() -> None:
                     st.write(f"- `{name}` — {err}")
         elif r.succeeded > 0:
             st.success(f"✅ {r.succeeded:,}건 처리 완료 — 흐름 갱신을 보려면 새로고침")
+        elif r.requested > 0 and r.succeeded == 0:
+            st.info("처리할 대기 자료가 없거나 모두 건너뛰었습니다.")
 
 
 # ─── ③ Obsidian 동기화 ────────────────────────────────────────────────

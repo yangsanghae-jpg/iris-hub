@@ -65,11 +65,13 @@ def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
             rep.auto_fixed += cleared
             rep.notes.append(f"좀비 락 {cleared}건 해제 ({stale_minutes}분 이상)")
 
-        # (2) 본문 없는 doc (kind='source')
+        # (2) 본문 없는 doc (chunks 0) — store 스키마는 kind 컬럼 없음
+        doc_cols = {r[1] for r in conn.execute("PRAGMA table_info(documents)").fetchall()}
+        kind_filter = "d.kind = 'source' AND " if "kind" in doc_cols else ""
         rows = conn.execute(
             "SELECT d.doc_id FROM documents d "
             "LEFT JOIN chunks c ON d.doc_id = c.doc_id "
-            "WHERE d.kind = 'source' AND c.doc_id IS NULL"
+            f"WHERE {kind_filter}c.doc_id IS NULL"
         ).fetchall()
         rep.empty_docs = [r[0] for r in rows]
         if rep.empty_docs and auto_fix:
@@ -132,17 +134,24 @@ def audit(db_path: Path = IRIS_DB_PATH, *, auto_fix: bool = True,
             except Exception as e:
                 rep.notes.append(f"FTS 재구축 실패: {e}")
 
-        # (7) V2.6.3.9 — archive 정합성: DB path가 archive 경로 가리키는데 파일 없음
+        # (7) V2.6.3.9 — archive 정합성: DB 경로가 archive인데 파일 없음
         from src.config import IRIS_KNOWLEDGE_ARCHIVE
         archive_str = str(IRIS_KNOWLEDGE_ARCHIVE)
-        rows = conn.execute(
-            "SELECT doc_id, path FROM documents WHERE path LIKE ?",
-            (archive_str + "%",),
-        ).fetchall()
+        path_col = (
+            "path" if "path" in doc_cols
+            else "original_path" if "original_path" in doc_cols
+            else "source" if "source" in doc_cols
+            else None
+        )
         missing = []
-        for doc_id, path in rows:
-            if not Path(path).exists():
-                missing.append(doc_id)
+        if path_col:
+            rows = conn.execute(
+                f"SELECT doc_id, {path_col} FROM documents WHERE {path_col} LIKE ?",
+                (archive_str + "%",),
+            ).fetchall()
+            for doc_id, path in rows:
+                if path and not Path(path).exists():
+                    missing.append(doc_id)
         rep.missing_archive = missing
         if missing:
             rep.notes.append(

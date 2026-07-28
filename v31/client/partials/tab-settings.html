@@ -1,0 +1,62 @@
+        <div class="tab-content" id="tab-settings" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">설정</span>
+            <span class="sec-desc">경로 · 포트 · 연결 — V3.1 셸 운영값 (목업)</span>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp6">
+              <div class="settings-title">시스템 경로</div>
+              <div class="setting-row">
+                <div><div class="setting-label">IRIS_VAULT_DB</div><div class="setting-desc">SQLite 볼트</div></div>
+                <input type="text" class="input-field" value="~/iris-local/iris-hub/data/vault.db" style="max-width:280px;font-size:14px" readonly />
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">IRIS_KNOWLEDGE_RAW</div><div class="setting-desc">입력 raw</div></div>
+                <input type="text" class="input-field" value="~/iris-local/iris-knowledge/raw" style="max-width:280px;font-size:14px" readonly />
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">DIAGNOSIS_TOOL</div><div class="setting-desc">진실원 repo</div></div>
+                <input type="text" class="input-field" value="~/0Dev/diagnosis-tool" style="max-width:280px;font-size:14px" readonly />
+              </div>
+            </div>
+            <div class="a-card sp6">
+              <div class="settings-title">포트</div>
+              <div class="setting-row">
+                <div><div class="setting-label">Hub 정본</div><div class="setting-desc">Streamlit</div></div>
+                <input type="text" class="input-field" value="8765" style="width:72px" readonly />
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">Hub 개발본</div><div class="setting-desc">V3.1 FastAPI</div></div>
+                <input type="text" class="input-field" value="8767" style="width:72px" readonly />
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">진단툴 UX 참조</div><div class="setting-desc">V3.1 design base</div></div>
+                <input type="text" class="input-field" value="3001" style="width:72px" readonly />
+              </div>
+            </div>
+            <div class="a-card sp6">
+              <div class="settings-title">UI</div>
+              <div class="setting-row">
+                <div><div class="setting-label">V3.1 디자인</div><div class="setting-desc">진단툴 모노크롬 zinc</div></div>
+                <button type="button" class="toggle on" aria-label="V3.1"></button>
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">사이드바 done 표시</div><div class="setting-desc">탭 순서 진행감</div></div>
+                <button type="button" class="toggle on"></button>
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-label">언어 스위치</div><div class="setting-desc">ko / en / zh</div></div>
+                <button type="button" class="toggle"></button>
+              </div>
+            </div>
+            <div class="a-card sp6">
+              <div class="settings-title">정보</div>
+              <div class="card-body subtle" style="font-size:15px;line-height:1.65;padding:0">
+                <p style="margin:0 0 8px">버전: iris-hub V3.1 Shell</p>
+                <p style="margin:0 0 8px">목업 갱신: 2026-07-27</p>
+                <p style="margin:0">PPT 탭: API 연동 완료 · 나머지: UI 목업 단계</p>
+              </div>
+            </div>
+          </div>
+        </div>

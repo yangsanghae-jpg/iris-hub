@@ -1,0 +1,88 @@
+        <div class="tab-content" id="tab-flow" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">흐름</span>
+            <span class="sec-desc">대기 자료를 묶음·개별·선택으로 처리하고 Obsidian 미러 동기화를 실행합니다. 현황·진척은 데이터 탭에서 봅니다.</span>
+            <span class="intake-ready">Queue Ready</span>
+          </div>
+
+          <!-- 처리 액션 -->
+          <div class="a-card">
+            <div class="card-h">
+              <span class="card-num">ACT</span>
+              <span class="card-ttl">처리 액션</span>
+            </div>
+            <p class="card-cap">K2 LLM · 묶음 크기 · 야간 스케줄(UI 자리) · 대기열에서 선택 처리</p>
+
+            <div class="flow-ctrl-row">
+              <label class="flow-ctrl"><input type="checkbox" id="flowUseK2" checked /> K2 LLM 분석</label>
+              <label class="flow-ctrl">묶음 크기
+                <input type="number" class="flow-num" id="flowBatchN" value="5" min="1" max="50" />
+              </label>
+              <label class="flow-ctrl muted"><input type="checkbox" disabled /> 야간 스케줄 (스케줄러 박힘 후 활성)</label>
+            </div>
+
+            <div class="flow-btn-row">
+              <button type="button" class="header-btn primary" id="flowBatchBtn">묶음 처리 (5건)</button>
+              <button type="button" class="header-btn ghost" id="flowOneBtn">개별 순서 처리 (1건)</button>
+              <button type="button" class="header-btn ghost" id="flowPickBtn" disabled>선택 처리 (대기 없음)</button>
+            </div>
+
+            <div class="flow-pick-row">
+              <label class="input-label">대기에서 골라 우선 처리</label>
+              <select class="select-field" id="flowPickList" multiple size="5" disabled>
+                <option disabled>(대기 자료 없음 — 데이터 탭에서 큐 현황 확인)</option>
+              </select>
+              <p class="intake-hint-line">대기 0건 · measure_queue는 store 스키마(k2_done_at) 기준</p>
+            </div>
+
+            <!-- 실행 결과 (처리 후 표시) -->
+            <div id="flowProcessResult" class="flow-result" hidden>
+              <div class="intake-metrics">
+                <div class="intake-metric"><span class="intake-metric-k">요청</span><span class="intake-metric-v" id="flowResReq">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">성공</span><span class="intake-metric-v" id="flowResOk">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">실패</span><span class="intake-metric-v" id="flowResFail">0</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">건너뜀</span><span class="intake-metric-v" id="flowResSkip">0</span></div>
+              </div>
+              <div id="flowResMsg" class="intake-note"></div>
+            </div>
+          </div>
+
+          <!-- 안전망 -->
+          <div class="flow-audit-strip">
+            <button type="button" class="btn-sm" id="flowAuditBtn">안전망 점검</button>
+            <span class="intake-hint-line">좀비 락 · 고아 chunks/meta · FTS 불일치 자동 정정 · 묶음 처리 전 좀비 락 자동 해제</span>
+          </div>
+          <div id="flowAuditResult" class="flow-audit-result" hidden></div>
+
+          <!-- Obsidian 동기화 -->
+          <div class="flow-sync-grid">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">OBS</span>
+                <span class="card-ttl">Obsidian 동기화</span>
+              </div>
+              <p class="card-cap">정본 DB → 미러 단방향. 진입 자격(K2 분석 + 매트릭스 키) 통과 자료만. 자격 미달·좀비 .md 자동 청소.</p>
+              <div class="flow-btn-row flow-btn-row-2">
+                <button type="button" class="header-btn primary" id="flowSyncChanged">변경분만 동기화</button>
+                <button type="button" class="header-btn ghost" id="flowSyncForce">전체 다시 쓰기</button>
+              </div>
+            </div>
+
+            <div class="a-card">
+              <div class="card-h"><span class="card-ttl">동기화 결과</span></div>
+              <div class="intake-metrics flow-sync-metrics">
+                <div class="intake-metric"><span class="intake-metric-k">스캔</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">자격</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">작성</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">변경없음</span><span class="intake-metric-v">—</span></div>
+              </div>
+              <div class="intake-metrics flow-sync-metrics" style="margin-top:8px">
+                <div class="intake-metric"><span class="intake-metric-k">거절</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">.md삭제</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">좀비</span><span class="intake-metric-v">—</span></div>
+                <div class="intake-metric"><span class="intake-metric-k">오류</span><span class="intake-metric-v">—</span></div>
+              </div>
+              <p class="intake-note">실행 후 결과가 여기 표시됩니다.</p>
+            </div>
+          </div>
+        </div>

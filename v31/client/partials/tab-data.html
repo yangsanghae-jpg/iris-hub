@@ -1,0 +1,284 @@
+        <div class="tab-content" id="tab-data" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">데이터</span>
+            <span class="sec-desc">문서 · 청크 · 검색 인덱스 · 분류 상태를 압축된 운영 지표로 확인합니다.</span>
+            <span class="intake-ready">DB Ready</span>
+          </div>
+
+          <!-- KPI 1: 볼트 -->
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">DB</span>
+              <div class="kpi-k">Documents</div>
+              <div class="kpi-v">1,799</div>
+              <div class="kpi-f">active + quarantine</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">Chunks</div>
+              <div class="kpi-v">5,231</div>
+              <div class="kpi-f">indexed units</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">FTS</div>
+              <div class="kpi-v">5,231</div>
+              <div class="kpi-f">search ready</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">Concepts</div>
+              <div class="kpi-v">412</div>
+              <div class="kpi-f">892 aliases</div>
+            </div>
+          </div>
+
+          <!-- KPI 2: 처리 큐 (관측 — 명령은 흐름) -->
+          <div class="kpi">
+            <div class="kpi-card">
+              <div class="kpi-k">대기</div>
+              <div class="kpi-v">128</div>
+              <div class="kpi-f">K2 미분석</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">처리중</div>
+              <div class="kpi-v">3</div>
+              <div class="kpi-f">in progress</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">완료</div>
+              <div class="kpi-v">1,671</div>
+              <div class="kpi-f">K2 done</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">실패</div>
+              <div class="kpi-v">4</div>
+              <div class="kpi-f">fail_count&gt;0</div>
+            </div>
+          </div>
+
+          <!-- Row: 분류 분포 | 인덱스 상태 -->
+          <div class="data-row-2">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">DIST</span>
+                <span class="card-ttl">분류 분포</span>
+              </div>
+              <p class="card-cap">채널과 큐레이션 상태의 현재 비율</p>
+              <div class="data-split">
+                <div>
+                  <div class="data-mini-title">Channel</div>
+                  <div class="hub-bar hub-bar-zinc">
+                    <div class="hub-bar-seg" style="flex:620" title="reference">ref 620</div>
+                    <div class="hub-bar-seg" style="flex:280" title="bronze">br 280</div>
+                    <div class="hub-bar-seg" style="flex:190" title="silver">si 190</div>
+                    <div class="hub-bar-seg" style="flex:95" title="gold">go 95</div>
+                  </div>
+                </div>
+                <div>
+                  <div class="data-mini-title">Status</div>
+                  <div class="hub-bar hub-bar-zinc">
+                    <div class="hub-bar-seg" style="flex:890" title="active">active</div>
+                    <div class="hub-bar-seg" style="flex:520" title="curated">cur</div>
+                    <div class="hub-bar-seg" style="flex:389" title="pending">pend</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">IDX</span>
+                <span class="card-ttl">인덱스 상태</span>
+              </div>
+              <p class="card-cap">검색과 지식저장소 readiness</p>
+              <table class="data-table data-table-dense data-kv">
+                <tbody>
+                  <tr><td>Schema</td><td class="mono">1</td></tr>
+                  <tr><td>Integrity</td><td class="mono">ok</td></tr>
+                  <tr><td>FTS</td><td class="mono">Ready</td></tr>
+                  <tr><td>Concepts</td><td class="mono">Ready</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Row: K2 진척 | 빠른 액션 -->
+          <div class="data-row-2">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">K2</span>
+                <span class="card-ttl">K2 분석 진척</span>
+              </div>
+              <p class="card-cap">분류와 분석 파이프라인의 현재 커버리지</p>
+              <div class="data-prog-list">
+                <div class="data-prog-row"><span>① extract</span><div class="hub-prog"><div class="hub-prog-fill" style="width:92%"></div></div><span class="mono">92%</span></div>
+                <div class="data-prog-row"><span>② classify</span><div class="hub-prog"><div class="hub-prog-fill" style="width:78%"></div></div><span class="mono">78%</span></div>
+                <div class="data-prog-row"><span>③ summarize</span><div class="hub-prog"><div class="hub-prog-fill" style="width:65%"></div></div><span class="mono">65%</span></div>
+                <div class="data-prog-row"><span>K2 완주</span><div class="hub-prog"><div class="hub-prog-fill" style="width:58%"></div></div><span class="mono">58%</span></div>
+              </div>
+            </div>
+
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">ACT</span>
+                <span class="card-ttl">빠른 액션</span>
+              </div>
+              <p class="card-cap">실행 명령 — 상세 처리는 흐름 탭</p>
+              <div class="data-action-stack">
+                <button type="button" class="header-btn primary intake-full-btn">재처리 큐로 보내기</button>
+                <button type="button" class="header-btn ghost intake-full-btn">Obsidian 동기화</button>
+                <button type="button" class="header-btn ghost intake-full-btn">원본 폴더 열기</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="data-meta-line">
+            DB <span class="mono">42.3 MB</span>
+            · 분류 완료 <span class="mono">1,412</span>
+            · 재처리·Obsidian 동기화는 흐름 탭에서 실행
+          </div>
+
+          <!-- 개념 후보 -->
+          <div class="a-card">
+            <div class="card-h">
+              <span class="card-num">CAND</span>
+              <span class="card-ttl">개념 후보</span>
+            </div>
+            <p class="card-cap">정규화 미매칭 개념 — doc_count 순 · concepts.yaml 등록/기각</p>
+            <table class="data-table data-table-dense">
+              <thead><tr><th>후보</th><th>문서수</th><th>최근</th></tr></thead>
+              <tbody>
+                <tr><td class="val">MES OEE</td><td class="mono">12</td><td class="mono">2026-07-25</td></tr>
+                <tr><td class="val">SPC control chart</td><td class="mono">8</td><td class="mono">2026-07-24</td></tr>
+                <tr><td class="val">digital twin</td><td class="mono">5</td><td class="mono">2026-07-22</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 관측 (구 인사이트 탭 전체) -->
+          <div class="sec-head sec-head-sub">
+            <span class="sec-title">관측</span>
+            <span class="sec-desc">Grafana 중심 관측 백엔드 · K5 telemetry (구 인사이트 탭 통합)</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">ON</span>
+              <div class="kpi-k">Grafana</div>
+              <div class="kpi-v kpi-v-sm">Online</div>
+              <div class="kpi-f">:3030 · dashboard hub</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">ON</span>
+              <div class="kpi-k">Prometheus</div>
+              <div class="kpi-v kpi-v-sm">Online</div>
+              <div class="kpi-f">:9090 · metrics source</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">ON</span>
+              <div class="kpi-k">Loki</div>
+              <div class="kpi-v kpi-v-sm">Online</div>
+              <div class="kpi-f">:3100 · log backend</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">Telemetry</div>
+              <div class="kpi-v">0</div>
+              <div class="kpi-f">log files</div>
+            </div>
+          </div>
+
+          <div class="data-row-2">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">BE</span>
+                <span class="card-ttl">관측 백엔드 상태</span>
+              </div>
+              <p class="card-cap">상세 분석은 Grafana에서 · 여기는 상태·진입점</p>
+              <div class="obs-status-grid">
+                <div class="obs-status-card">
+                  <div>
+                    <div class="obs-name">Grafana</div>
+                    <div class="obs-meta">:3030 · dashboard hub</div>
+                  </div>
+                  <span class="obs-pill on">Online</span>
+                </div>
+                <div class="obs-status-card">
+                  <div>
+                    <div class="obs-name">Prometheus</div>
+                    <div class="obs-meta">:9090 · metrics source</div>
+                  </div>
+                  <span class="obs-pill on">Online</span>
+                </div>
+                <div class="obs-status-card">
+                  <div>
+                    <div class="obs-name">Loki</div>
+                    <div class="obs-meta">:3100 · log backend</div>
+                  </div>
+                  <span class="obs-pill on">Online</span>
+                </div>
+                <div class="obs-status-card">
+                  <div>
+                    <div class="obs-name">Promtail</div>
+                    <div class="obs-meta">:9080 · log shipper</div>
+                  </div>
+                  <span class="obs-pill off">Offline</span>
+                </div>
+              </div>
+              <p class="intake-hint-line">정책: 관측은 Grafana 한 곳에서 보는 구조를 유지합니다.</p>
+            </div>
+
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">GO</span>
+                <span class="card-ttl">바로가기</span>
+              </div>
+              <p class="card-cap">자주 쓰는 관측 콘솔</p>
+              <div class="data-action-stack">
+                <a class="obs-link-card" href="http://127.0.0.1:3030" target="_blank" rel="noopener">
+                  <strong>Grafana 열기</strong>
+                  <span>iris-v25-k5 패널과 관측 일반</span>
+                </a>
+                <a class="obs-link-card" href="http://127.0.0.1:9090" target="_blank" rel="noopener">
+                  <strong>Prometheus 탐색</strong>
+                  <span>메트릭 쿼리와 target 상태 확인</span>
+                </a>
+                <a class="obs-link-card" href="http://127.0.0.1:3100" target="_blank" rel="noopener">
+                  <strong>Loki 로그</strong>
+                  <span>Grafana 경유 권장 · 로그 raw 탐색</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="data-row-2">
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">K5</span>
+                <span class="card-ttl">K5 telemetry 상태</span>
+              </div>
+              <p class="card-cap">retrieval 호출 흐름에서 append되는 telemetry</p>
+              <div class="obs-mini-kpi">
+                <div class="obs-mini">
+                  <span>로그 파일</span>
+                  <strong>0</strong>
+                  <small>telemetry root</small>
+                </div>
+                <div class="obs-mini">
+                  <span>최신 로그</span>
+                  <strong>0</strong>
+                  <small>waiting for first append</small>
+                </div>
+              </div>
+              <p class="intake-hint-line">활성 트리거: 표준 K5 API 또는 L6-D1 호출 전환</p>
+            </div>
+
+            <div class="a-card">
+              <div class="card-h">
+                <span class="card-num">LOG</span>
+                <span class="card-ttl">최근 telemetry 로그</span>
+              </div>
+              <p class="card-cap">파일 단위 요약 · tail/검색은 2차</p>
+              <div class="obs-empty">
+                telemetry 로그가 아직 없습니다. K5 API 운영 또는 L6-D1 호출 후 자동 append됩니다.
+              </div>
+            </div>
+          </div>
+        </div>

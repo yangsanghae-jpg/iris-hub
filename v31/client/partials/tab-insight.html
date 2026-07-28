@@ -1,0 +1,70 @@
+        <div class="tab-content" id="tab-insight" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">인사이트</span>
+            <span class="sec-desc">외부 진입점 · 스택 상태 — WebUI · OpenClaw · Grafana · Gateway</span>
+          </div>
+
+          <div class="ext-grid">
+            <div class="ext-card">
+              <h3>💬 WebUI</h3>
+              <p>OpenWebUI · L1-chat · :3000</p>
+              <span class="status-pill on">● Online</span>
+              <button type="button" class="btn-sm" style="align-self:flex-start">새 탭에서 열기</button>
+            </div>
+            <div class="ext-card">
+              <h3>🦅 OpenClaw</h3>
+              <p>iris-claw · L1 · :18789</p>
+              <span class="status-pill on">● Online</span>
+              <button type="button" class="btn-sm" style="align-self:flex-start">Control UI</button>
+            </div>
+            <div class="ext-card">
+              <h3>🌐 Grafana</h3>
+              <p>L5 observability · :3030</p>
+              <span class="status-pill off">● Offline</span>
+              <button type="button" class="btn-sm" style="align-self:flex-start">대시보드</button>
+            </div>
+            <div class="ext-card">
+              <h3>⚡ L2 Gateway</h3>
+              <p>LLM 합성 · :8011</p>
+              <span class="status-pill on">● Online</span>
+              <button type="button" class="btn-sm" style="align-self:flex-start">/v1/docs</button>
+            </div>
+          </div>
+
+          <div class="observe-grid">
+            <div class="observe-card">
+              <div class="observe-label">iris-hub API</div>
+              <div class="observe-value" style="font-size:22px">8767</div>
+              <div class="observe-status ok">v31 shell</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Streamlit 정본</div>
+              <div class="observe-value" style="font-size:22px">8765</div>
+              <div class="observe-status ok">legacy</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">진단툴</div>
+              <div class="observe-value" style="font-size:22px">3001</div>
+              <div class="observe-status ok">V3.1 UX ref</div>
+            </div>
+            <div class="observe-card">
+              <div class="observe-label">Status</div>
+              <div class="observe-value" style="font-size:22px">3/4</div>
+              <div class="observe-status">stack online</div>
+            </div>
+          </div>
+
+          <div class="a-card sp12">
+            <div class="card-h"><span class="card-num">LOG</span><span class="card-ttl">최근 이벤트 (목업)</span></div>
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead><tr><th>시간</th><th>레벨</th><th>소스</th><th>메시지</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">18:12:01</td><td style="color:var(--status-ok)">INFO</td><td class="mono">v31</td><td>GET /api/health 200</td></tr>
+                  <tr><td class="mono">18:10:44</td><td style="color:var(--status-ok)">INFO</td><td class="mono">intake</td><td>raw_intake completed</td></tr>
+                  <tr><td class="mono">18:08:22</td><td style="color:var(--status-warn)">WARN</td><td class="mono">grafana</td><td>port 3030 unreachable</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>

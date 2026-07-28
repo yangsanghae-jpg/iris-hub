@@ -1,10 +1,12 @@
 """V2.6.3.7 처리 큐 — 대기/처리중/완료 카운트 + 묶음·개별·선택 처리.
 
 V2.6.3.8 — 큐 정의를 DB 기반으로 전환.
-  - 대기열 = documents.kind='source' 행 중 K2 분석 안 됨
-            (document_meta 없거나 classifier_version IS NULL)
-  - 처리중 = document_meta.processing_started_at IS NOT NULL
-  - 완료   = document_meta.classifier_version IS NOT NULL AND 락 없음
+V2.6.4  — store 스키마(channel/status/k2_done_at)에 맞춤.
+         구 스키마(kind/path/classifier_version)도 컬럼 감지로 호환.
+
+  - 대기열 = documents 중 K2 미완주 · 락 없음
+  - 처리중 = document_meta.processing_started_at IS NOT NULL · 미완주
+  - 완료   = document_meta.k2_done_at (또는 classifier_version) 세팅
   - 영구보존 = 3-archive 카운트 (별개)
 
 이유: 입력 탭이 디스크 카피 없이 DB에만 박을 수 있어(폴더 로딩 No-Copy),
@@ -46,14 +48,16 @@ class ProcessResult:
     errors: list[tuple[str, str]] = field(default_factory=list)
 
 
-# ─── 큐 상태 측정 (V2.6.3.8 — DB 기반) ──────────────────────────────
+def _table_cols(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+# ─── 큐 상태 측정 (V2.6.4 — store 스키마 + 구 스키마 호환) ───────────
 def measure_queue(db_path: Path = IRIS_DB_PATH, *, max_list: int = 50) -> QueueSnapshot:
     """DB 기준으로 대기/처리중/완료 카운트.
 
-    대기 = documents.kind='source' 행 중 K2 분석 안 됨
-           (document_meta 없거나 classifier_version IS NULL이고 락 없음)
-    처리중 = document_meta.processing_started_at NOT NULL
-    완료 = document_meta.classifier_version NOT NULL AND 락 없음
+    신 스키마(store): k2_done_at / channel / original_path|source
+    구 스키마: classifier_version / kind / path
     """
     s = QueueSnapshot()
 
@@ -63,37 +67,57 @@ def measure_queue(db_path: Path = IRIS_DB_PATH, *, max_list: int = 50) -> QueueS
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
-        # 처리중 — 락 박힘
+        doc_cols = _table_cols(conn, "documents")
+        meta_cols = _table_cols(conn, "document_meta")
+
+        # 완료 판정: 신=k2_done_at, 구=classifier_version
+        if "k2_done_at" in meta_cols:
+            done_expr = "m.k2_done_at IS NOT NULL"
+            pending_done = "(m.k2_done_at IS NULL OR m.doc_id IS NULL)"
+        else:
+            done_expr = "m.classifier_version IS NOT NULL"
+            pending_done = "(m.classifier_version IS NULL OR m.doc_id IS NULL)"
+
+        # 처리중 — 락 박힘 · 미완주
         s.in_progress = conn.execute(
-            "SELECT COUNT(*) FROM document_meta "
-            "WHERE processing_started_at IS NOT NULL"
+            "SELECT COUNT(*) FROM document_meta m "
+            f"WHERE m.processing_started_at IS NOT NULL AND NOT ({done_expr})"
         ).fetchone()[0]
 
-        # 완료 — K2 분석 통과 (분류기 버전 박힘) AND 락 없음
+        # 완료
         s.done = conn.execute(
-            "SELECT COUNT(*) FROM document_meta "
-            "WHERE classifier_version IS NOT NULL "
-            "  AND processing_started_at IS NULL"
+            f"SELECT COUNT(*) FROM document_meta m WHERE {done_expr}"
         ).fetchone()[0]
 
-        # 대기 — DB에 source로 박혀 있지만 K2 미분석 (락 없음 = 진짜 대기)
+        # 대기 필터 — 구 스키마만 kind='source' 제한
+        kind_clause = "d.kind = 'source' AND " if "kind" in doc_cols else ""
+
+        # path 표시 컬럼
+        if "original_path" in doc_cols:
+            path_expr = "COALESCE(d.original_path, d.source, '')"
+        elif "path" in doc_cols:
+            path_expr = "COALESCE(d.path, '')"
+        elif "source" in doc_cols:
+            path_expr = "COALESCE(d.source, '')"
+        else:
+            path_expr = "''"
+
+        wait_where = (
+            f"{kind_clause}"
+            f"{pending_done} "
+            "AND (m.processing_started_at IS NULL OR m.doc_id IS NULL)"
+        )
+
         s.waiting = conn.execute(
             "SELECT COUNT(*) FROM documents d "
             "LEFT JOIN document_meta m ON d.doc_id = m.doc_id "
-            "WHERE d.kind = 'source' "
-            "  AND (m.doc_id IS NULL "
-            "       OR (m.classifier_version IS NULL "
-            "           AND m.processing_started_at IS NULL))"
+            f"WHERE {wait_where}"
         ).fetchone()[0]
 
-        # 대기 doc 미리보기 (선택 처리용)
         rows = conn.execute(
-            "SELECT d.doc_id, d.title, d.path FROM documents d "
+            f"SELECT d.doc_id, d.title, {path_expr} AS path FROM documents d "
             "LEFT JOIN document_meta m ON d.doc_id = m.doc_id "
-            "WHERE d.kind = 'source' "
-            "  AND (m.doc_id IS NULL "
-            "       OR (m.classifier_version IS NULL "
-            "           AND m.processing_started_at IS NULL)) "
+            f"WHERE {wait_where} "
             "ORDER BY d.doc_id "
             "LIMIT ?",
             (max_list,),
@@ -344,14 +368,23 @@ def process_batch(doc_ids: list[str], *, use_k2: bool = True,
                         "UPDATE documents SET industry=?, area=?, level=? WHERE doc_id=?",
                         (sg.get("industry"), sg.get("area"), sg.get("level"), doc_id),
                     )
-                    # K2 OFF로도 *완료* 표식 박음 — measure_queue가 done으로 카운트하게.
-                    # classifier_version='rule-only-v1' 이 식별자.
-                    conn.execute(
-                        "INSERT INTO document_meta (doc_id, classifier_version) "
-                        "VALUES (?, 'rule-only-v1') "
-                        "ON CONFLICT(doc_id) DO UPDATE SET classifier_version='rule-only-v1'",
-                        (doc_id,),
-                    )
+                    # K2 OFF로도 *완료* 표식 — 신 스키마는 k2_done_at, 구는 classifier_version.
+                    meta_cols = _table_cols(conn, "document_meta")
+                    if "k2_done_at" in meta_cols:
+                        conn.execute(
+                            "INSERT INTO document_meta (doc_id, classifier_version, k2_done_at) "
+                            "VALUES (?, 'rule-only-v1', ?) "
+                            "ON CONFLICT(doc_id) DO UPDATE SET "
+                            "classifier_version='rule-only-v1', k2_done_at=excluded.k2_done_at",
+                            (doc_id, _now_iso()),
+                        )
+                    else:
+                        conn.execute(
+                            "INSERT INTO document_meta (doc_id, classifier_version) "
+                            "VALUES (?, 'rule-only-v1') "
+                            "ON CONFLICT(doc_id) DO UPDATE SET classifier_version='rule-only-v1'",
+                            (doc_id,),
+                        )
                 conn.commit()
                 clear_processing(doc_id, db_path=db_path)
                 res.succeeded += 1

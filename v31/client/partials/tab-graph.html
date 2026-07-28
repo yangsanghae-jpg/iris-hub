@@ -1,0 +1,53 @@
+        <div class="tab-content" id="tab-graph" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">그래프</span>
+            <span class="sec-desc">지식 그래프 탐색 — 개념 허브 · 문서 · wikilink (GRAPH_V3 방향)</span>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">LIVE</span>
+              <div class="kpi-k">노드</div>
+              <div class="kpi-v">50</div>
+              <div class="kpi-f">예산 300</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">엣지</div>
+              <div class="kpi-v">630</div>
+              <div class="kpi-f">정보 관계</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">wikilink</div>
+              <div class="kpi-v">42</div>
+              <div class="kpi-f">파싱됨</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">뷰</div>
+              <div class="kpi-v">2-hop</div>
+              <div class="kpi-f">로컬 그래프</div>
+            </div>
+          </div>
+
+          <div class="a-card sp12">
+            <div class="flow-toolbar">
+              <button type="button" class="toolbar-btn active">개념 지도</button>
+              <button type="button" class="toolbar-btn">로컬 2-hop</button>
+              <label class="subtle" style="margin-left:8px">상위 N <input type="number" value="50" style="width:48px;margin-left:4px" /></label>
+              <label class="subtle"><input type="checkbox" checked /> concept 포함</label>
+              <input type="text" class="input-field" placeholder="검색…" style="max-width:200px;margin-left:auto" />
+            </div>
+            <div class="graph-canvas">
+              <div class="graph-node" style="width:72px;height:72px;left:42%;top:38%;background:#6366f1">MES</div>
+              <div class="graph-node" style="width:48px;height:48px;left:28%;top:52%;background:#3b82f6;font-size:9px">SPC</div>
+              <div class="graph-node" style="width:56px;height:56px;left:58%;top:48%;background:#22c55e;font-size:9px">OEE</div>
+              <div class="graph-node" style="width:40px;height:40px;left:22%;top:32%;background:#f59e0b;font-size:8px">doc</div>
+              <div class="graph-node" style="width:40px;height:40px;left:68%;top:28%;background:#a855f7;font-size:8px">wiki</div>
+              <div class="graph-node" style="width:36px;height:36px;left:50%;top:62%;background:#94a3b8;font-size:8px">…</div>
+              <div class="graph-legend">
+                <span><span class="legend-dot" style="background:#6366f1"></span>concept</span>
+                <span><span class="legend-dot" style="background:#3b82f6"></span>document</span>
+                <span><span class="legend-dot" style="background:#a855f7"></span>wiki</span>
+              </div>
+            </div>
+          </div>
+        </div>

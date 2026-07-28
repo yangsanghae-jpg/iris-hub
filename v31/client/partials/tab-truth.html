@@ -1,0 +1,98 @@
+        <div class="tab-content" id="tab-truth" style="display:none">
+          <div class="sec-head">
+            <span class="sec-title">진실원</span>
+            <span class="sec-desc">DIAG-SOT — dx JSON 편집 · runtime 재생성 · 39팩 MANIFEST+LINEAGE</span>
+          </div>
+
+          <div class="sot-strip">
+            <strong>Q 5</strong> · <strong>A 34</strong> · 전체 <strong>39</strong>팩 · 미반영 <strong>2</strong>
+            <span class="subtle">· diagnosis-tool feat/diag-sot-sync</span>
+            <div class="mock-banner-actions">
+              <button type="button" class="btn-sm">새로고침</button>
+              <button type="button" class="btn-sm">되돌리기</button>
+              <button type="button" class="btn-sm">검증</button>
+              <button type="button" class="btn-sm primary">저장 · 재생성</button>
+            </div>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-card">
+              <span class="kpi-badge on">SYNCED</span>
+              <div class="kpi-k">MANIFEST</div>
+              <div class="kpi-v">39</div>
+              <div class="kpi-f">편입 팩</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">미반영</div>
+              <div class="kpi-v">2</div>
+              <div class="kpi-f">runtime 불일치</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-k">편집 모드</div>
+              <div class="kpi-v">dx</div>
+              <div class="kpi-f">JSON only write</div>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-badge on">OK</span>
+              <div class="kpi-k">검증</div>
+              <div class="kpi-v">PASS</div>
+              <div class="kpi-f">마지막 저장 일치</div>
+            </div>
+          </div>
+
+          <p class="subtle" style="font-size:14.5px;margin:0 0 8px">Q 팩 선택</p>
+          <div class="pack-pills">
+            <button type="button" class="pack-pill active">Q1<br><span style="font-size:11px;font-weight:600">taxonomy</span></button>
+            <button type="button" class="pack-pill">Q2<br><span style="font-size:11px;font-weight:600">profile</span></button>
+            <button type="button" class="pack-pill">Q3<br><span style="font-size:11px;font-weight:600">scale</span></button>
+            <button type="button" class="pack-pill">Q4<br><span style="font-size:11px;font-weight:600">domain</span></button>
+            <button type="button" class="pack-pill">Q5<br><span style="font-size:11px;font-weight:600">recommend</span></button>
+          </div>
+
+          <div class="a1grid">
+            <div class="a-card sp8 sec-core">
+              <div class="card-h">
+                <span class="card-num">Q3</span>
+                <span class="card-ttl">규모 프로필 · 편집 그리드</span>
+                <span class="pill" style="margin-left:auto">verified</span>
+              </div>
+              <div class="data-table-wrap">
+                <table class="grid-editor">
+                  <thead>
+                    <tr><th>field_path</th><th>label_ko</th><th>value</th><th>unit</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="mono">lines.count</td><td><input value="생산 라인 수" readonly /></td><td><input value="12" /></td><td><input value="EA" /></td></tr>
+                    <tr><td class="mono">headcount.ops</td><td><input value="운영 인원" readonly /></td><td><input value="48" /></td><td><input value="명" /></td></tr>
+                    <tr><td class="mono">throughput.daily</td><td><input value="일일 처리량" readonly /></td><td><input value="3200" /></td><td><input value="건" /></td></tr>
+                    <tr><td class="mono">automation.level</td><td><input value="자동화 수준" readonly /></td><td><select><option>L3</option><option>L4</option></select></td><td><input value="—" /></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="a-card sp4">
+              <div class="card-h">
+                <span class="card-num">LN</span>
+                <span class="card-ttl">Lineage · §8.2</span>
+              </div>
+              <div class="lineage-grid" style="grid-template-columns:1fr">
+                <div class="lineage-block">
+                  <h4>① edit</h4>
+                  <p><span class="sync-dot"></span>dx/q3_scale_profile.json</p>
+                </div>
+                <div class="lineage-block">
+                  <h4>② generate</h4>
+                  <p><span class="sync-dot warn"></span>runtime index stale</p>
+                </div>
+                <div class="lineage-block">
+                  <h4>③ use</h4>
+                  <p><span class="sync-dot"></span>Step3 scale gate</p>
+                </div>
+                <div class="lineage-block">
+                  <h4>④ risk</h4>
+                  <p><span class="sync-dot muted"></span>—</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
