@@ -1,9 +1,10 @@
 # iris-spc → iris-qms 이관 설계서 (QMS 범주 기능 회수)
 
 - 작성일: 2026-08-11
+- 개정: 2026-08-11 (r2 — 이관 항목을 "절단 / 화면 신설 후 절단 / 신규 개발" 3분류로 재정리, §6 순서 교체)
 - 대상 저장소: `/Users/iris/0Dev/iris-spc` (포트 3340) · `/Users/iris/0Dev/iris-qms` (포트 3350)
 - 문서 위치 근거: 두 저장소에 걸치는 설계이므로 iris-hub 설계서 디렉터리에 보관
-- 관련 소스: [iris-spc services/spc.py](../../../iris-spc/src/iris_spc/services/spc.py) · [iris-spc api/spc.py](../../../iris-spc/src/iris_spc/api/spc.py) · [iris-qms services/qms.py](../../../iris-qms/src/iris_qms/services/qms.py) · [iris-qms storage/qms.py](../../../iris-qms/src/iris_qms/storage/qms.py)
+- 관련 소스: [iris-spc services/spc.py](../../../iris-spc/src/iris_spc/services/spc.py) · [iris-spc api/spc.py](../../../iris-spc/src/iris_spc/api/spc.py) · [iris-qms services/qms.py](../../../iris-qms/src/iris_qms/services/qms.py) · [iris-qms web/qms.js](../../../iris-qms/web/qms.js)
 
 ---
 
@@ -68,41 +69,68 @@ iris-spc가 SPC 범주를 넘어 확장되었다. QMS가 별도로 존재하므�
 
 ## 3. 이관 대상 (13건)
 
-### 3.1 즉시 삭제 후 QMS 조회로 대체
+### 3.0 착수 순서 규칙 — 이 문서에서 가장 중요한 절
 
-| # | SPC 위치 | 근거 | QMS 수용처 | 수용처 |
-|---|---|---|---|---|
-| 1 | [`spc.py:147`](../../../iris-spc/src/iris_spc/services/spc.py:147) `control_plans` 하드코딩 dict | Control Plan은 IATF 통제문서·고객 승인 대상 | `qms_auto_control_plans` | 있음 |
-| 2 | [`spc.py:160`](../../../iris-spc/src/iris_spc/services/spc.py:160) `automotive_payload`의 `ppap` 블록 (`"PPAP-AUTO-02-L3"`, `psw`, `customer` 전부 하드코딩) | PPAP·PSW·고객 결정은 전적으로 QMS | `qms_auto_ppap_packages` / `qms_auto_ppap_elements` | 있음 |
-| 3 | [`spc.py:111`](../../../iris-spc/src/iris_spc/services/spc.py:111) `profile_payload`의 `governance` 블록 (`"Control Plan 승인 Revision · PPAP·CSR 변경점"`, `standards`, `ocap_contract`) | 업종 거버넌스 계약은 QMS 상위 개념 | `qms_metadata` / 프로파일 | 부분 |
-| 4 | [`spc.py:119`](../../../iris-spc/src/iris_spc/services/spc.py:119) `automotive_controls` 배열 (control-plan·ppap 항목) | 위와 동일 | — | 제거만 |
+**"QMS에 수용처가 있다"는 말은 세 가지 층으로 나눠 봐야 한다.** 테이블만 있는 것과, 조작 화면까지 있는 것은 전혀 다르다.
 
-**#1·#2 이관 후 `automotive_payload`에 남는 것**: `cavities`(Cavity별 Cpk), `characteristic`, `chart`, `capability`, `summary`. 즉 **순수 통계 판정만 남는다.** Control Plan 분류(CC/SC)·규격·샘플링·반응계획은 QMS에서 조회해 표시만 한다.
+| 층 | 확인 방법 |
+|---|---|
+| 테이블 | `qms.db` 스키마 |
+| API | `iris_qms/api/qms.py` 라우트 |
+| **화면** | [`web/qms.js`](../../../iris-qms/web/qms.js)의 `actionButton()` 대상 컬렉션 |
 
-### 3.2 워크플로 이관
+2026-08-11 기준 iris-qms에서 **운영 버튼이 붙어 있는 컬렉션은 `ncrs` · `capas` · `approvals` · `inspections` 넷뿐**이다. 자동차 워크스페이스는 [`qms.js:96`](../../../iris-qms/web/qms.js:96) `automotiveRows()`로 렌더되며 **운영 컬럼 자체가 없다.** `quality_cases` · `eight_d` · `mrb_dispositions` · `msa_studies`는 테이블과 API는 있으나 조작 화면이 없다. `qms_event_history`는 **조회 API조차 없다** (기록은 쌓이나 읽는 경로 부재).
 
-| # | SPC 위치 | 근거 | QMS 수용처 | 수용처 |
-|---|---|---|---|---|
-| 5 | [`api/spc.py:537`](../../../iris-spc/src/iris_spc/api/spc.py:537) `/investigations` GET·POST·PATCH | `root_cause`·`cause_category`·`containment` = 8D의 D3/D4 | `qms_auto_quality_cases` + `qms_auto_eight_d` | 있음 |
-| 6 | [`api/spc.py:586`](../../../iris-spc/src/iris_spc/api/spc.py:586) `/actions` GET·POST·PATCH | 시정조치 + `evidence`·`state=verified` = CAPA 효과검증 | `capas` + `qms_auto_eight_d` D5/D6 | 있음 |
-| 7 | `holds.disposition` 컬럼 ([storage 스키마](../../../iris-spc/src/iris_spc/storage/sqlite.py)) | 처분(재작업·특채·폐기·선별)은 MRB 결정 | `qms_auto_mrb_dispositions` | 있음 |
-| 8 | [`api/spc.py:255`](../../../iris-spc/src/iris_spc/api/spc.py:255) `/audit-log` (워크플로 감사이력) | 감사 대응 기록의 정본은 QMS 단일 | `qms_event_history` | 있음 |
-| 9 | [`spc.py:249`](../../../iris-spc/src/iris_spc/services/spc.py:249) `msa_payload`의 **스터디 판정·관리** | MSA 스터디 등록·승인은 PPAP 요소 8 증적 | `qms_auto_msa_studies` | 있음 |
+반면 iris-spc의 `investigations` · `actions`는 **실제로 동작하는 화면**이다 (조작 호출 16곳, 감사 이벤트 88건, Hold→Investigation→Action→verified 완주 이력 존재).
+
+> **규칙: 받을 화면이 QMS에 생긴 뒤에 SPC에서 자른다.**
+> 이 순서를 어기면 동작하는 기능이 사라지고 시스템 전체가 퇴보한다.
+
+이에 따라 13건을 성격별 3그룹으로 분류한다.
+
+---
+
+### 3.1 A그룹 — SPC 절단만 (QMS 준비 불필요, 즉시 착수 가능)
+
+| # | SPC 위치 | 근거 | QMS 테이블 | API | 화면 |
+|---|---|---|---|---|---|
+| 1 | [`spc.py:147`](../../../iris-spc/src/iris_spc/services/spc.py:147) `control_plans` 하드코딩 dict | Control Plan은 IATF 통제문서·고객 승인 대상 | ✅ `qms_auto_control_plans` | ✅ | ✅ 읽기 |
+| 2 | [`spc.py:160`](../../../iris-spc/src/iris_spc/services/spc.py:160) `automotive_payload`의 `ppap` 블록 (`"PPAP-AUTO-02-L3"`, `psw`, `customer` 전부 하드코딩) | PPAP·PSW·고객 결정은 전적으로 QMS | ✅ `qms_auto_ppap_packages` / `ppap_elements` | ✅ | △ 생성 버튼만 |
+| 4 | [`spc.py:119`](../../../iris-spc/src/iris_spc/services/spc.py:119) `automotive_controls` 배열 (control-plan·ppap 항목) | 위와 동일 | — | — | — (단순 삭제) |
+
+**#1·#2 절단 후 `automotive_payload`에 남는 것**: `cavities`(Cavity별 Cpk) · `characteristic` · `chart` · `capability` · `summary`. 즉 **순수 통계 판정만 남는다.** Control Plan 분류(CC/SC)·규격·샘플링·반응계획은 QMS에서 조회해 표시만 한다.
+
+---
+
+### 3.2 B그룹 — QMS 화면 신설 후 절단
+
+**절단 자체는 간단하나, 지금 자르면 기능이 사라진다.** 아래 "QMS 선행 작업"을 먼저 완료해야 한다.
+
+| # | SPC 위치 | QMS 수용처 | 테이블 | API | 화면 | QMS 선행 작업 |
+|---|---|---|---|---|---|---|
+| 5 | [`api/spc.py:537`](../../../iris-spc/src/iris_spc/api/spc.py:537) `/investigations` GET·POST·PATCH | `qms_auto_quality_cases` + `qms_auto_eight_d` | ✅ | ✅ | ❌ | **품질사건·8D 운영 화면 신설** (D1~D8 입력, 상태전이) |
+| 6 | [`api/spc.py:586`](../../../iris-spc/src/iris_spc/api/spc.py:586) `/actions` GET·POST·PATCH | `capas` + `qms_auto_eight_d` D5/D6 | ✅ | ✅ | △ CAPA만 | **8D D5/D6 시정·검증 입력 화면 신설** |
+| 7 | `holds.disposition` 컬럼 | `qms_auto_mrb_dispositions` | ✅ | ✅ | ❌ | **MRB 처분 요청·승인 화면 신설** |
+| 8 | [`api/spc.py:255`](../../../iris-spc/src/iris_spc/api/spc.py:255) `/audit-log` | `qms_event_history` | ✅ | **❌ 없음** | ❌ | **감사이력 조회 API + 화면 신설** |
+| 9 | [`spc.py:249`](../../../iris-spc/src/iris_spc/services/spc.py:249) `msa_payload`의 스터디 판정·관리 | `qms_auto_msa_studies` | ✅ | ✅ | ❌ | **MSA 스터디 등록·판정 화면 신설** |
+| 3 | [`spc.py:111`](../../../iris-spc/src/iris_spc/services/spc.py:111) `profile_payload`의 `governance` 블록 | 프로파일 거버넌스 | △ 부분 | △ | ❌ | 프로파일에 거버넌스 계약 필드 보강 |
 
 **#7 주의**: `holds` 테이블 자체는 SPC 잔류다. **공정·설비 정지**이지 물량 보류가 아니다(`alarm_key`·`subgroup_id`에 붙어 있음). `disposition` 컬럼만 제거하고, 테이블명을 `process_holds`로 바꿔 의미를 명확히 한다. **Lot 보류는 `qms_auto_lots.state`가 유일 정본.**
 
 **#9 주의**: MSA **계산 엔진은 SPC 잔류**. QMS로 가는 것은 스터디 등록·합격 판정·증적 링크다.
 
-### 3.3 QMS에 신설이 필요한 이관
+---
 
-| # | SPC 위치 | 근거 | QMS 수용처 |
+### 3.3 C그룹 — QMS 신규 개발 (수용처가 아예 없음)
+
+| # | SPC 위치 | 근거 | QMS 현재 |
 |---|---|---|---|
-| 10 | [`spc.py:367`](../../../iris-spc/src/iris_spc/services/spc.py:367) `/permissions` (역할 4개 하드코딩) | 사용자·역할·전자서명은 전사 단일 | **신설 필요** |
-| 11 | [`api/spc.py:183`](../../../iris-spc/src/iris_spc/api/spc.py:183) `PATCH /rule-profile` (룰 활성화 변경) | 어떤 룰을 켤지는 계획측 결정. 특수특성은 승인 대상 | **신설 필요** |
-| 12 | [`spc.py:661`](../../../iris-spc/src/iris_spc/services/spc.py:661) `ocap_payload`의 조사·조치·종결 조인부 | OCAP 정의(반응계획)는 계획측 문서 | **신설 필요** (§8 미결) |
-| 13 | [`spc.py:377`](../../../iris-spc/src/iris_spc/services/spc.py:377) `/integrations` (커넥터 5종 하드코딩) | 시스템 연동 현황은 관리 계층 | **신설 필요** |
+| 10 | [`spc.py:367`](../../../iris-spc/src/iris_spc/services/spc.py:367) `/permissions` (역할 4개 하드코딩) | 사용자·역할·전자서명은 전사 단일 | **인증 개념 자체가 없음** (모든 이력 actor = `qms-api` 고정) |
+| 11 | [`api/spc.py:183`](../../../iris-spc/src/iris_spc/api/spc.py:183) `PATCH /rule-profile` | 어떤 룰을 켤지는 계획측 결정. 특수특성은 승인 대상 | 없음 |
+| 12 | [`spc.py:661`](../../../iris-spc/src/iris_spc/services/spc.py:661) `ocap_payload`의 조사·조치·종결 조인부 | OCAP 정의(반응계획)는 계획측 문서 | 없음 (§8 미결) |
+| 13 | [`spc.py:377`](../../../iris-spc/src/iris_spc/services/spc.py:377) `/integrations` (커넥터 5종 하드코딩) | 시스템 연동 현황은 관리 계층 | 없음 |
 
-**13건 중 9건은 QMS에 받을 구조가 이미 존재한다.** 신설이 필요한 것은 권한·룰 승인·OCAP·연동현황 4건뿐이다.
+**#10은 단순 이관이 아니라 신규 설계 과제다.** iris-qms에 인증·사용자 개념이 전무하므로 권한 체계 자체를 먼저 세워야 한다.
 
 ---
 
@@ -138,7 +166,7 @@ QMS에서 내려받는 계획값(규격 USL/LSL/Target·`spec_revision`·CC/SC �
 
 ### 5.2 조사·조치 이관 후의 SPC 화면
 
-`/investigations`·`/actions` 제거 시 OCAP 화면이 비게 된다. 대응:
+B그룹 절단(#5·#6) 시 OCAP 화면이 비게 된다. 대응:
 
 - SPC에는 **"1차 현장 확인 메모" 한 칸만** 남긴다(자유 텍스트, 승인 없음).
 - 정식 원인조사·시정조치는 **QMS 링크로 이동**시킨다.
@@ -158,14 +186,16 @@ QMS에서 내려받는 계획값(규격 USL/LSL/Target·`spec_revision`·CC/SC �
 
 ## 6. 이관 순서와 완료 판정
 
-| 단계 | 대상 | 완료 판정 기준 |
-|---|---|---|
-| **1** | #1 · #2 · #3 · #4 — 하드코딩된 Control Plan / PPAP / 거버넌스 문자열 제거 | `grep -rn "CP-AX-\|PPAP-AUTO-\|OEM Tier-1" iris-spc/src/` 결과 0건. `automotive_payload`가 QMS `control_plans` 조회로 동작. §1의 정본 충돌 4건 소멸 |
-| **2** | #5 · #6 · #7 — investigations / actions / disposition | SPC에 `root_cause`·`evidence`·`disposition` 컬럼 부재. QMS `quality_cases`·`eight_d`·`mrb_dispositions`에서 폐루프 종결 확인 |
-| **3** | #8 · #9 — 감사이력 통합, MSA 스터디 판정 | SPC `audit_events`는 운영 로그만 보유. 중요 이벤트가 `qms_event_history`에 도달 |
-| **4** | #10 · #11 · #12 · #13 — 권한 · 룰 승인 · OCAP · 연동현황 QMS 신설 | QMS가 SPC를 포함할 준비 완료 |
+| 단계 | 성격 | 대상 | 완료 판정 기준 |
+|---|---|---|---|
+| **1** | **SPC 절단** | A그룹 #1 · #2 · #4 | `grep -rn "CP-AX-\|PPAP-AUTO-\|OEM Tier-1" iris-spc/src/` 결과 0건. `automotive_payload`가 QMS `control_plans` 조회로 동작. §1의 정본 충돌 4건 소멸 |
+| **2** | **QMS 화면 신설** | 품질사건·8D · MRB 처분 · MSA 스터디 운영 화면, `qms_event_history` 조회 API | `automotiveRows()`에 운영 컬럼 존재. `qms_event_history`에 `record.updated` 계열 이벤트가 실제로 쌓임(현재 0건) |
+| **3** | **SPC 절단** | B그룹 #5 · #6 · #7 · #8 · #9 · #3 | SPC에 `root_cause`·`evidence`·`disposition` 컬럼 부재. 폐루프가 QMS 한 곳에서 종결 |
+| **4** | **QMS 신규 개발** | C그룹 #10 · #11 · #12 · #13 | QMS가 SPC를 포함할 준비 완료 |
 
 **1단계는 순수 삭제 + 조회 전환이다.** 하드코딩 dict 3개를 제거하고 QMS 조회로 바꾸는 것이 전부이며, §1에서 관측된 정본 충돌(부품·revision·샘플링·PPAP 기준)이 이것만으로 해소된다.
+
+**2단계가 이 이관의 실질적 본체다.** 절단 작업(1·3단계)의 코드량은 작고, QMS 화면 신설이 대부분의 공수를 차지한다.
 
 ### 선결 조건 — 연결 키
 
@@ -213,9 +243,12 @@ OCAP은 반도체 계획측의 핵심이지만 **QMS에 OCAP 모델이 아직 �
 - **제안: 4단계로 미루고, 그 전까지 SPC 잔류를 임시조치로 명시.**
 - 반도체 계획측은 자동차의 Control Plan이 아니라 **Recipe + OCAP**이 중심이므로, QMS에 반도체 계획측 모델을 신설할 때 함께 설계한다.
 
-### ③ 권한 체계 신설 범위
+### ③ 2단계(QMS 화면 신설)의 범위
 
-현재 iris-qms는 인증·사용자 개념이 전무하다(모든 이력의 actor가 `qms-api` 고정). #10 이관은 **QMS 권한 체계 신설이 선행**되어야 하므로, 단순 이관이 아니라 신규 설계 과제다.
+B그룹 절단을 위해 QMS에 만들어야 할 화면이 5종이다. 이 중 어디까지를 이관 전제 조건으로 볼지 확정이 필요하다.
+
+- **최소안**: 품질사건·8D·MRB 3종만 만들고 절단. MSA·감사이력은 절단을 미룸.
+- **완전안**: 5종 전부 만든 뒤 B그룹 일괄 절단.
 
 ---
 
@@ -227,7 +260,11 @@ OCAP은 반도체 계획측의 핵심이지만 **QMS에 OCAP 모델이 아직 �
 |---|---|
 | iris-spc 라우트 | GET 28 · POST 5 · PATCH 5 (총 38) |
 | iris-spc 이관 대상 | 13건 = 라우트 10개(`/investigations` 3, `/actions` 3, `/audit-log`, `/permissions`, `/integrations`, `PATCH /rule-profile`) + 페이로드 블록 4개 + 컬럼·판정 로직 3건 |
-| iris-qms 수용처 존재 | 13건 중 9건 |
+| 그룹별 분포 | **A(절단만) 3건 · B(화면 신설 후 절단) 6건 · C(신규 개발) 4건** |
+| iris-qms 변경 엔드포인트 | 62개 (POST 32 · PATCH 30) |
+| iris-qms UI가 호출하는 변경 엔드포인트 | **7개 (11%)** |
+| iris-qms 운영 버튼 보유 컬렉션 | `ncrs` · `capas` · `approvals` · `inspections` **4종뿐** |
+| iris-qms `qms_event_history` 조회 경로 | **없음** (API·화면 모두 부재) |
 | iris-spc `audit_events` | 88건 (actor: qa-test·operator·test 등 테스트 주체) |
 | iris-qms `qms_event_history` | 27건 전부 `auto.record.created` / actor `qms-api` (조작 이력 0건) |
 | iris-qms 자동차 테이블 | 38개 중 30개 0행 |
